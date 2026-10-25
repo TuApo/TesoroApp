@@ -147,8 +147,109 @@
   background: var(--surface-2);
 }
 
+.fe-hijo-head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 8px;
+  font-size: .82rem;
+}
+
+.fe-hijo-head > mat-icon {
+  color: #f59e0b; color: light-dark(#f59e0b, #f7d397);
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.fe-hijo-quitar { margin-left: auto; }
+
+/* La cabecera entera abre y cierra la tarjeta. */
+.fe-hijo-toggle {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.fe-hijo-toggle mat-icon {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.fe-hijo-toggle mat-icon:not(.fe-hijo-chevron) {
+  color: #f59e0b; color: light-dark(#f59e0b, #f7d397);
+}
+
+.fe-hijo-chevron { color: var(--text-2); }
+
+.fe-hijo-resumen {
+  margin-left: 6px;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--text-faint);
+}
+
+/* Cerrada: solo la cabecera, sin el aire de abajo de la rejilla. */
+.fe-hijo-cerrado { padding-bottom: 4px; }
+.fe-hijo-cerrado .fe-hijo-head { margin-bottom: 0; }
+
+.fe-hijo-agregar { margin: 2px 0 8px; }
+
 .fe-dot-amber { background: #f59e0b; }
 
 /* En línea, el bloque no necesita separarse tanto como dentro del modal: aquí
    compite con el resto del panel de Entrevista, no con un fondo vacío. */
 .fc-form { display: block; }
+
+/* Salud según ADRES (pedido #6): chip ámbar de régimen especial/excepción y aviso
+   suave (gris) de "sin registro". Informan, no bloquean. */
+.fc-adres {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 2px 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: .85rem;
+  line-height: 1.35;
+}
+
+.fc-adres mat-icon { flex: 0 0 auto; font-size: 20px; width: 20px; height: 20px; }
+
+.fc-adres-txt { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+
+.fc-adres--excepcion {
+  border: 1px solid var(--warn-border);
+  background: var(--warn-bg);
+  color: var(--warn-fg);
+}
+
+.fc-adres-chip {
+  display: inline-block;
+  padding: 1px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--warn-border);
+  background: var(--surface);
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.fc-adres--verificar {
+  border: 1px dashed var(--border);
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.fc-adres-det { overflow-wrap: anywhere; }

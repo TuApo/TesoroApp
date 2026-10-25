@@ -1,8 +1,12 @@
 /**
  * Submodulo "Correos a empresas usuarias" (reunion 2026-09-07, Nathalia Ovalle):
  *
- *  - LOTE DE HOY: lo que saldria al final del dia, correo por correo (finca, dirigido a, copias,
- *    tabla de cedulas) con vista previa exacta y boton "Enviar ahora".
+ *  - LOTE DE HOY (modo DIARIO): lo que saldria al final del dia, correo por correo (finca,
+ *    dirigido a, copias, tabla de cedulas) con vista previa exacta y boton "Enviar ahora".
+ *  - RESUMEN DEL DIA (modo INMEDIATO, respuesta de la funcional 2026-10-07: "inmediatamente se
+ *    reciben se van enviando; al final del dia que se envie el resumen"): la misma pestana pasa a
+ *    mostrar el resumen por finca de lo registrado hoy, que sale solo a la hora configurada
+ *    (`resumenDiario`) o a mano con "Enviar resumen del dia ahora".
  *  - CONFIGURACION: modo de envio (INMEDIATO al recibir cada incapacidad | DIARIO en lote a una
  *    hora) — editable porque una jefatura pidio lo uno y la funcional acordo lo otro.
  *  - DIRECTORIO: correos por finca (Drive de cartera, resembrado V58), editables: principal,
@@ -26,6 +30,7 @@ import { DatePipe, DecimalPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatButtonModule } from '@angular/material/button';
 import { MatCardModule } from '@angular/material/card';
+import { MatCheckboxModule } from '@angular/material/checkbox';
 import { MatDialog } from '@angular/material/dialog';
 import { MatExpansionModule } from '@angular/material/expansion';
 import { MatFormFieldModule } from '@angular/material/form-field';
@@ -37,6 +42,7 @@ import { MatSelectModule } from '@angular/material/select';
 import { MatSlideToggleModule } from '@angular/material/slide-toggle';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
+import { Subscription } from 'rxjs';
 import Swal from 'sweetalert2';
 
 import { ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent } from '../../../../../../shared/components/tabla-estandar';
@@ -54,6 +60,7 @@ import {
 import { aFecha, fechaTexto, hoyIso, mensajeDeError } from '../informes-incapacidades/informes-incapacidades.component';
 import { DialogoVistaCorreoComponent, DatosVistaCorreo } from './dialogo-vista-correo.component';
 import { DialogoCorreoEmpresaComponent, DatosDialogoCorreoEmpresa } from './dialogo-correo-empresa.component';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Filas del directorio agrupadas por finca (para pintar el encabezado por empresa). */
 export interface GrupoDirectorio {
@@ -111,7 +118,8 @@ export function claseEstadoEnvio(estado: string | null | undefined): string {
   selector: 'app-correos-empresas',
   standalone: true,
   imports: [
-    DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatCardModule, MatExpansionModule, MatFormFieldModule,
+    GuiaSaludComponent,
+    DatePipe, DecimalPipe, FormsModule, MatButtonModule, MatCardModule, MatCheckboxModule, MatExpansionModule, MatFormFieldModule,
     MatIconModule, MatInputModule, MatProgressSpinnerModule, MatRadioModule, MatSelectModule,
     MatSlideToggleModule, MatTabsModule, MatTooltipModule, ...TABLA_ESTANDAR,
   ],
@@ -133,8 +141,17 @@ export class CorreosEmpresasComponent implements OnInit {
   modoEnvio: ModoEnvioCorreo = 'DIARIO';
   horaEnvio = '19:00';
   ventanaDias = 3;
+  resumenDiario = true;
 
-  // ── Lote de hoy ───────────────────────────────────────────────────────
+  /**
+   * Con la configuracion GUARDADA en INMEDIATO la primera pestana es el resumen del dia; en
+   * DIARIO (o si la configuracion no cargo) sigue siendo el lote de pendientes de siempre.
+   */
+  readonly esResumen = computed(() => this.config()?.envioModo === 'INMEDIATO');
+  /** `ultimaCorrida` es hoy: el resumen ya salio (a mano o a la hora) y no se repite solo. */
+  readonly resumenYaSalioHoy = computed(() => this.config()?.ultimaCorrida === hoyIso());
+
+  // ── Lote de hoy / Resumen del dia ─────────────────────────────────────
   readonly preview = signal<LotePreview | null>(null);
   readonly cargandoPreview = signal(false);
   readonly enviando = signal(false);
@@ -220,8 +237,8 @@ export class CorreosEmpresasComponent implements OnInit {
     const d = new Date();
     d.setDate(d.getDate() - 30);
     this.enviadosDesde = hoyIso(d);
+    // La previsualizacion depende del modo (lote o resumen): se pide cuando llega la configuracion.
     this.cargarConfig();
-    this.cargarPreview();
   }
 
   cambiarTab(i: number): void {
@@ -232,22 +249,39 @@ export class CorreosEmpresasComponent implements OnInit {
 
   // ── Configuracion ─────────────────────────────────────────────────────
 
+  /** Lee la configuracion y, con el modo ya conocido, la previsualizacion que corresponde. */
   cargarConfig(): void {
+    // La previsualizacion espera a la configuracion: mientras llega ya se esta "armando" (spinner
+    // en la pestana y "Actualizar" deshabilitado, no una pestana en blanco ni clics repetidos).
+    this.cargandoPreview.set(true);
     this.srv.correoConfig().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (c) => {
         this.config.set(c);
         this.modoEnvio = c.envioModo;
         this.horaEnvio = c.envioHora;
         this.ventanaDias = c.ventanaDias;
+        // Un backend sin la clave nueva no la manda: el defecto acordado es enviarlo.
+        this.resumenDiario = c.resumenDiario !== false;
+        this.cargarPreview();
       },
-      error: () => this.config.set(null),
+      error: () => {
+        // Se conserva la ultima configuracion leida: un fallo al ACTUALIZAR en INMEDIATO no debe
+        // volver a "Lote de hoy" ni ofrecer el lote de pendientes. Si nunca cargo, sigue en null y
+        // se muestra el lote de pendientes (lo que habia antes).
+        this.cargarPreview();
+      },
     });
   }
 
   guardarConfig(): void {
     this.guardandoConfig.set(true);
     this.srv
-      .actualizarCorreoConfig({ envioModo: this.modoEnvio, envioHora: this.horaEnvio, ventanaDias: Number(this.ventanaDias) })
+      .actualizarCorreoConfig({
+        envioModo: this.modoEnvio,
+        envioHora: this.horaEnvio,
+        ventanaDias: Number(this.ventanaDias),
+        resumenDiario: this.resumenDiario,
+      })
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe({
         next: (c) => {
@@ -257,9 +291,12 @@ export class CorreosEmpresasComponent implements OnInit {
             icon: 'success', title: 'Configuración guardada',
             text: c.envioModo === 'DIARIO'
               ? `Solo saldrá el lote diario automático: un correo por finca todos los días a las ${c.envioHora}.`
-              : 'Cada incapacidad enviará su correo al registrarla (al cargar el soporte); lo que no salga se envía a mano con el lote del día.',
+              : c.resumenDiario !== false
+                ? `Cada incapacidad enviará su correo al registrarla (al cargar el soporte) y a las ${c.envioHora} saldrá el resumen del día por finca.`
+                : 'Cada incapacidad enviará su correo al registrarla (al cargar el soporte). El resumen del día no sale solo: envíalo desde «Resumen del día».',
             timer: 3500, showConfirmButton: false,
           });
+          this.resumenDiario = c.resumenDiario !== false;
           this.cargarPreview();
         },
         error: (e: unknown) => {
@@ -269,25 +306,35 @@ export class CorreosEmpresasComponent implements OnInit {
       });
   }
 
-  // ── Lote de hoy ───────────────────────────────────────────────────────
+  // ── Lote de hoy / Resumen del dia ─────────────────────────────────────
 
+  private subPreview?: Subscription;
+
+  /**
+   * Lote de pendientes (DIARIO) o resumen del dia (INMEDIATO), segun la configuracion guardada.
+   * Cancela la anterior: al cambiar de modo no debe pintarse la respuesta del otro endpoint.
+   */
   cargarPreview(): void {
+    this.subPreview?.unsubscribe();
     this.cargandoPreview.set(true);
     this.errorPreview.set('');
-    this.srv.previsualizarLote().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+    const peticion = this.esResumen() ? this.srv.previsualizarResumen() : this.srv.previsualizarLote();
+    this.subPreview = peticion.pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
       next: (p) => { this.preview.set(p); this.cargandoPreview.set(false); },
-      error: (e: unknown) => { this.cargandoPreview.set(false); this.errorPreview.set(mensajeDeError(e, 'No se pudo armar la previsualizacion.')); },
+      error: (e: unknown) => { this.cargandoPreview.set(false); this.errorPreview.set(mensajeDeError(e, 'No se pudo armar la previsualización.')); },
     });
   }
 
   verGrupo(g: GrupoLotePreview): void {
+    const resumen = this.esResumen();
     this.abrirVista({
-      titulo: `Correo a ${g.empresaMatch || g.incapacidades[0]?.empresa || 'empresa usuaria'}`,
+      titulo: `${resumen ? 'Resumen del día' : 'Correo'} a ${g.empresaMatch || g.incapacidades[0]?.empresa || 'empresa usuaria'}`,
       asunto: g.asunto, destinatario: g.destinatario, copias: g.copias, cuerpoHtml: g.cuerpoHtml,
       enviadoEn: null,
-      referencia: 'lote de hoy, vista previa',
-      // Aun no se generan: solo se sabe con que nombre saldran.
-      adjuntos: { nombres: g.incapacidades.map((i) => nombreAdjunto(i.cedula, i.fechaInicio)) },
+      referencia: resumen ? 'resumen del día, vista previa' : 'lote de hoy, vista previa',
+      // Aun no se generan: solo se sabe con que nombre saldran. En el resumen solo se adjuntan
+      // los soportes que no salieron al registrar y la vista previa no sabe cuales: no se listan.
+      adjuntos: resumen ? null : { nombres: g.incapacidades.map((i) => nombreAdjunto(i.cedula, i.fechaInicio)) },
     });
   }
 
@@ -321,6 +368,52 @@ export class CorreosEmpresasComponent implements OnInit {
         error: (e: unknown) => {
           this.enviando.set(false);
           void Swal.fire({ icon: 'error', title: 'No se pudo enviar el lote', text: mensajeDeError(e, 'Intente de nuevo.') });
+        },
+      });
+    });
+  }
+
+  /** Modo INMEDIATO: adelanta (o repite) el resumen de hoy; despues no se duplica a la hora. */
+  enviarResumenAhora(): void {
+    const p = this.preview();
+    if (!p || p.totalIncapacidades === 0) return;
+    const hora = this.config()?.envioHora || '19:00';
+    // Con el resumen automatico apagado no hay envio "a la hora" que evitar: no se menciona.
+    const automatico = this.config()?.resumenDiario !== false;
+    void Swal.fire({
+      icon: 'question',
+      title: 'Enviar resumen del día',
+      html:
+        `<p style="margin:0 0 8px">Se enviarán <b>${p.totalCorreos}</b> correo(s) de resumen con <b>${p.totalIncapacidades}</b> incapacidad(es) registradas hoy. ` +
+        'Solo se adjuntan los soportes que no salieron al registrarlas.</p>' +
+        (this.resumenYaSalioHoy()
+          ? '<p style="margin:0 0 8px;font-size:13px;color:#b26a00"><b>El resumen de hoy ya se envió:</b> saldrá otra vez, completo.</p>'
+          : automatico
+            ? `<p style="margin:0 0 8px;font-size:13px">Después ya no sale solo a las ${escapar(hora)}.</p>`
+            : '') +
+        (p.prueba
+          ? `<p style="margin:0;font-size:13px;color:#b26a00"><b>Modo prueba:</b> todo sale a ${escapar(p.destinoPrueba ?? '')} con el destinatario real anotado.</p>`
+          : '<p style="margin:0;font-size:13px;color:#c62828"><b>Modo activo:</b> saldrán a los correos reales de cada finca.</p>'),
+      showCancelButton: true, confirmButtonText: 'Enviar resumen', cancelButtonText: 'Cancelar', confirmButtonColor: '#1976d2',
+    }).then((r) => {
+      if (!r.isConfirmed) return;
+      this.enviando.set(true);
+      this.srv.enviarResumenAhora().pipe(takeUntilDestroyed(this.destroyRef)).subscribe({
+        next: (res) => {
+          this.enviando.set(false);
+          void Swal.fire({
+            icon: res.fallidos === 0 ? 'success' : 'warning',
+            title: 'Resumen enviado',
+            html: `<p style="margin:0">Correos enviados: <b>${res.enviados}</b> · fallidos: <b>${res.fallidos}</b> · sin destinatario: <b>${res.sinDestinatario}</b><br/>Incapacidades en el resumen: <b>${res.incapacidades}</b></p>`,
+          });
+          // La configuracion trae la nueva `ultimaCorrida` y vuelve a pedir la previsualizacion.
+          this.cargarConfig();
+          this.lotes.set([]);
+          this.envios.set([]);
+        },
+        error: (e: unknown) => {
+          this.enviando.set(false);
+          void Swal.fire({ icon: 'error', title: 'No se pudo enviar el resumen', text: mensajeDeError(e, 'Intente de nuevo.') });
         },
       });
     });

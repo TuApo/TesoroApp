@@ -38,7 +38,7 @@
         (focusout)="autoRemision.alSalirDeCampo()">
 
 
-    <!-- ═══ Selector Único: Empresa → Finca → Cargo ═══ -->
+    <!-- ═══ Selector Único: Empresa → (Abreviatura · Finca · Cargo) ═══ -->
     <div class="unified-selector" style="margin-bottom: 20px;">
       <mat-form-field class="example-full-width" appearance="outline" style="width: 100%;">
         <mat-label>Vacante (Empresa - Finca - Cargo)</mat-label>
@@ -49,8 +49,10 @@
           <mat-select-trigger>
             @if (vacanteSeleccionada(); as v) {
               <div class="trigger-wrap">
-                <span class="trigger-title">{{ v.empresa_usuaria_solicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
-                || 'Sin cargo' }} <small style="color:#64748B; font-weight:400">({{ fechaCreacion(v) }})</small></span>
+                <span class="trigger-title">
+                  @if (abreviatura(v); as ab) { <span class="abrev">{{ ab }}</span> }
+                  {{ v.empresa_usuaria_solicita }} - {{ v.finca || 'Sin finca' }} - {{ v.cargo
+                || 'Sin cargo' }} <small style="color:#64748B; font-weight:400">({{ fechaCreacion(v) }} · {{ fechaIngresoVacante(v) }})</small></span>
                 <span class="spacer"></span>
                 <div class="badges-row">
                   <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
@@ -70,12 +72,12 @@
           </mat-select-trigger>
 
           <!-- Buscador interno con FormControl -->
-          <div style="padding: 10px 16px; position: sticky; top: 0; background: white; z-index: 10; border-bottom: 1px solid #eee;"
+          <div class="buscador-vacantes"
             (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
             <mat-form-field appearance="outline" style="width: 100%; margin-bottom: -1.25em;">
               <mat-icon matPrefix style="color: #666;">search</mat-icon>
               <input matInput [formControl]="searchVacanteCtrl"
-                     placeholder="Empresa, finca, cargo, código o fecha de creación…"
+                     placeholder="Abreviatura, finca, cargo, empresa, código o fecha…"
                      matTooltip="Varias palabras separadas por espacio: salen las que las tengan todas, en cualquier orden">
               @if (searchVacanteCtrl.value) {
                 <button matSuffix mat-icon-button aria-label="Limpiar"
@@ -86,58 +88,53 @@
             </mat-form-field>
           </div>
 
-          <!-- Opción para quitar la asignación de vacante (limpiar) -->
-          <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante"
-            style="min-height: 48px; color: #b71c1c; font-weight: 600; border-bottom: 1px solid #eee;">
-            <mat-icon style="vertical-align: baseline; margin-right: 6px; color: #b71c1c;">block</mat-icon>
-            Sin vacante (quitar asignación)
-          </mat-option>
+          <!-- Opción para quitar la asignación de vacante (limpiar). Mientras se
+               busca no aparece: solo salen las vacantes que coinciden. -->
+          @if (!buscandoVacante()) {
+            <mat-option [value]="SIN_VACANTE" class="opcion-sin-vacante opcion-compacta">
+              <mat-icon class="icono-sin-vacante">block</mat-icon>
+              Sin vacante (quitar asignación)
+            </mat-option>
+          }
 
-          @for (emp of vacantesAgrupadas(); track emp) {
-            <!-- 1er Nivel: Empresa -->
-            <mat-optgroup [label]="emp.empresa" style="font-weight: bold; color: #1976d2; font-size: 15px;">
-              <ng-container>
-                @for (f of emp.fincas; track f) {
-                <!-- 2do Nivel: Finca (simulada como label deshabilitada) -->
-                <mat-option disabled
-                  style="opacity: 1 !important; color: #555; font-weight: 600; padding-left: 24px; min-height: 48px; padding-top: 12px; padding-bottom: 12px;">
-                  <mat-icon
-                  style="vertical-align: baseline; margin-right: 4px; font-size: 18px; width: 18px; height: 18px;">business</mat-icon>
-                  Finca: {{ f.finca }}
+          <!-- La elegida, si la búsqueda no la incluye: oculta, solo para no perder
+               la selección (el campo de arriba la sigue mostrando). -->
+          @if (seleccionFueraDeLista(); as idOculto) {
+            <mat-option [value]="idOculto" disabled class="opcion-oculta"></mat-option>
+          }
+
+          @for (emp of vacantesAgrupadas(); track emp.empresa) {
+            <mat-optgroup [label]="emp.empresa" class="grupo-empresa">
+              <!-- Una fila por vacante: abreviatura · finca · cargo · cupos -->
+              @for (v of emp.vacantes; track v.id) {
+                <mat-option [value]="v.id" class="opcion-compacta"
+                  [matTooltip]="fechaCreacion(v) + ' · ' + fechaIngresoVacante(v) + ' · ' + oficinasResumen(v.oficinas_que_contratan) + ' · Cód. Elite: ' + (v.codigo_elite || 'N/A')"
+                  matTooltipPosition="left" [matTooltipShowDelay]="400">
+                  <div class="vacante-fila">
+                    <span class="abrev" [class.abrev-vacia]="!abreviatura(v)">{{ abreviatura(v) || '—' }}</span>
+                    <span class="finca">{{ v.finca || 'Sin finca' }}</span>
+                    <span class="cargo">{{ v.cargo || 'Sin cargo' }}</span>
+                    <!-- Fechas a la vista al elegir: creación de la vacante e ingreso que irá en la remisión. -->
+                    <span class="fecha" title="Fecha de creación de la vacante">Creada {{ formatShortDate(v.fecha_publicado) }}</span>
+                    <span class="fecha fecha-ingreso" title="Fecha de ingreso de la vacante">Ingreso {{ formatShortDate(v.fechadeIngreso) }}</span>
+                    <span class="spacer"></span>
+                    <span class="badges-row">
+                      <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
+                      <span class="pill pill-warn">Falt {{ falt(v) }}</span>
+                      <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
+                      <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
+                      <span class="pill pill-neutral" title="Contratación inmediata">Auto {{ auto(v) }}</span>
+                      <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
+                      <span class="pill pill-ok">Firm {{ firm(v) }}</span>
+                    </span>
+                  </div>
                 </mat-option>
-                <!-- 3er Nivel: Cargo / Vacante -->
-                @for (v of f.vacantes; track v) {
-                  <mat-option [value]="v.id" style="padding-left: 48px; min-height: auto; padding-top: 24px; padding-bottom: 24px; line-height: normal;">
-                    <div class="vacante-option" style="width: 100%; display: flex; flex-direction: column;">
-                      <div class="row-1" style="display: flex; align-items: center; width: 100%;">
-                        <mat-icon
-                        style="margin-right: 8px; font-size: 16px; width: 16px; height: 16px; color: #888;">work_outline</mat-icon>
-                        <span class="cargo"><strong>{{ v.cargo || 'Sin cargo' }}</strong></span>
-                        <span class="spacer"></span>
-                        <div class="badges-row">
-                          <span class="pill pill-req">Req {{ totalRequeridaOf(v) }}</span>
-                          <span class="pill pill-warn">Falt {{ falt(v) }}</span>
-                          <span class="pill pill-neutral">Entr {{ entrev(v) }}</span>
-                          <span class="pill pill-neutral">Pru {{ prue(v) }}</span>
-                          <span class="pill pill-neutral" matTooltip="Contratación inmediata">Auto {{ auto(v) }}</span>
-                          <span class="pill pill-neutral">Exm {{ exm(v) }}</span>
-                          <span class="pill pill-ok">Firm {{ firm(v) }}</span>
-                        </div>
-                      </div>
-                      <div class="row-2" style="font-size: 12px; color: gray; margin-left: 24px; margin-top: 4px;">
-                        <strong>{{ fechaCreacion(v) }}</strong> · {{ oficinasResumen(v.oficinas_que_contratan) }} · Cod:
-                        {{ v.codigo_elite || 'N/A' }}
-                      </div>
-                    </div>
-                  </mat-option>
-                }
               }
-              </ng-container>
             </mat-optgroup>
           }
 
           @if (!vacantesAgrupadas().length) {
-            <mat-option disabled>
+            <mat-option disabled class="opcion-compacta">
               Sin vacantes activas con cupos{{ searchVacanteCtrl.value ? ' para esa búsqueda' : '' }}
             </mat-option>
           }
@@ -173,6 +170,37 @@
           <mat-label>Cargo</mat-label>
           <input matInput formControlName="cargo">
         </mat-form-field>
+      }
+
+      <!-- Cargo específico (detalle del cargo): sugiere el reparto que se hizo al
+           crear la vacante, pero acepta texto libre. Queda guardado en el proceso
+           (= contrato) y se imprime en la remisión junto al cargo. Obligatorio
+           cuando la vacante declara detalles (pedido #12). -->
+      @if (vacanteSeleccionada()) {
+        <mat-form-field class="example-full-width" appearance="outline">
+          <mat-label>Cargo específico{{ detallesCargoVacante().length ? ' *' : '' }}</mat-label>
+          <input matInput formControlName="detalleCargo" [matAutocomplete]="acDetalleCargo"
+                 maxlength="255" autocomplete="off"
+                 [placeholder]="detallesCargoVacante().length ? 'Elija o escriba el cargo específico' : 'Opcional: escriba el cargo específico'">
+          <mat-autocomplete #acDetalleCargo="matAutocomplete">
+            @for (d of sugerenciasDetalleCargo(); track d) {
+              <mat-option [value]="d">
+                {{ d }}
+                @if (conteoDetalle(d); as c) {
+                  <span class="detalle-cargo-opcion" [class.detalle-cargo-opcion--excedido]="c.va >= c.de">
+                    · van {{ c.va }} de {{ c.de }}
+                  </span>
+                }
+              </mat-option>
+            }
+          </mat-autocomplete>
+          @if (vacantesForm.get('detalleCargo')?.hasError('required')) {
+            <mat-error>Obligatorio: la vacante tiene detalles del cargo.</mat-error>
+          } @else if (detallesCargoVacante().length) {
+            <mat-hint>Sugerencias de la vacante; también puede escribir otro.</mat-hint>
+          }
+        </mat-form-field>
+
       }
 
       <!-- SOLO Autorización de ingreso -->

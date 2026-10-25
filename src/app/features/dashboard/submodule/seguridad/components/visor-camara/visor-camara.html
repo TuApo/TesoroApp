@@ -1,0 +1,89 @@
+<div class="lienzo" (dblclick)="alternarCalidad()">
+  <video #video autoplay playsinline [muted]="silenciado()" [class.oculto]="modo() === 'liviano' || modo() === 'error'"
+         [attr.controls]="(modo() === 'mp4' || modo() === 'hls') ? '' : null"></video>
+  @if (modo() === 'liviano' && cuadro(); as c) {
+    <img class="cuadro" [src]="c" [alt]="'Imagen de ' + (camara()?.nombre ?? 'la cámara')" />
+  }
+  @if (modo() === 'cargando') {
+    <div class="velo"><span class="girando" aria-hidden="true"></span><span>Conectando…</span></div>
+  }
+  @if (modo() === 'error') {
+    <div class="velo error">
+      <mat-icon aria-hidden="true">videocam_off</mat-icon>
+      <span>{{ mensaje() ?? 'Sin señal' }}</span>
+      <button type="button" class="ctl texto" (click)="reintentar(); $event.stopPropagation()">Reintentar</button>
+    </div>
+  }
+  @if (modo() === 'inactivo') {
+    <div class="velo vacio"><mat-icon aria-hidden="true">videocam</mat-icon><span>Arrastre una cámara aquí</span></div>
+  }
+</div>
+
+@if (modo() !== 'inactivo') {
+  <div class="sup">
+    <div class="titulo">
+      <span class="nombre">{{ camara()?.nombre ?? etiqueta() ?? 'Cámara' }}</span>
+      @if (camara()?.sede_nombre; as s) { <span class="sede">{{ s }}</span> }
+    </div>
+    <div class="estado">
+      <span class="hora sg-mono">{{ horaTexto() }}</span>
+      <span class="modo" [class]="'modo m-' + modo()" role="status">
+        <i aria-hidden="true"></i>{{ etiquetaModo() }}@if (modo() === 'webrtc' && !reproduccion()) { · {{ calidad() === 'main' ? 'HD' : 'SD' }} }
+      </span>
+    </div>
+  </div>
+
+  @if (modo() === 'liviano') {
+    <button type="button" class="liviano" (click)="reintentar(); $event.stopPropagation()"
+            matTooltip="El video en tiempo real no conectó: se muestran capturas. Toque para reintentar el video.">
+      <mat-icon aria-hidden="true">bolt</mat-icon>modo liviano
+    </button>
+  }
+
+  <div class="barra" (dblclick)="$event.stopPropagation()">
+    <button type="button" class="ctl" (click)="alternarSonido()" [matTooltip]="silenciado() ? 'Activar sonido' : 'Silenciar'"
+            [attr.aria-label]="silenciado() ? 'Activar sonido' : 'Silenciar'" [disabled]="modo() === 'liviano'">
+      <mat-icon>{{ silenciado() ? 'volume_off' : 'volume_up' }}</mat-icon>
+    </button>
+    @if (!reproduccion()) {
+      <button type="button" class="ctl" (click)="alternarCalidad()" [matTooltip]="calidad() === 'sub' ? 'Ver en alta calidad (doble clic)' : 'Volver a calidad liviana'"
+              [attr.aria-label]="calidad() === 'sub' ? 'Alta calidad' : 'Calidad liviana'">
+        <mat-icon>{{ calidad() === 'sub' ? 'hd' : 'sd' }}</mat-icon>
+      </button>
+    }
+    @if (camara()?.ptz && !reproduccion()) {
+      <button type="button" class="ctl" (click)="verPtz.set(!verPtz())" matTooltip="Mover la cámara (PTZ)" aria-label="Mover la cámara"
+              [attr.aria-pressed]="verPtz()">
+        <mat-icon>control_camera</mat-icon>
+      </button>
+    }
+    <button type="button" class="ctl" (click)="captura()" matTooltip="Descargar imagen" aria-label="Descargar imagen">
+      <mat-icon>photo_camera</mat-icon>
+    </button>
+    <button type="button" class="ctl" (click)="pantallaCompleta()" [matTooltip]="enPantallaCompleta() ? 'Salir de pantalla completa' : 'Pantalla completa'"
+            [attr.aria-label]="enPantallaCompleta() ? 'Salir de pantalla completa' : 'Pantalla completa'">
+      <mat-icon>{{ enPantallaCompleta() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+    </button>
+    @if (conAmpliar()) {
+      <button type="button" class="ctl" (click)="ampliar.emit()" matTooltip="Ver sola en el mosaico" aria-label="Ver sola en el mosaico">
+        <mat-icon>open_in_full</mat-icon>
+      </button>
+    }
+    @if (conCerrar()) {
+      <button type="button" class="ctl" (click)="cerrar.emit()" matTooltip="Quitar de la celda" aria-label="Quitar de la celda">
+        <mat-icon>close</mat-icon>
+      </button>
+    }
+  </div>
+
+  @if (verPtz()) {
+    <div class="ptz" role="group" aria-label="Control de movimiento">
+      <button type="button" class="ctl a" aria-label="Arriba" (pointerdown)="ptz('ARRIBA')" (pointerup)="ptz('DETENER')" (pointerleave)="ptz('DETENER')"><mat-icon>keyboard_arrow_up</mat-icon></button>
+      <button type="button" class="ctl i" aria-label="Izquierda" (pointerdown)="ptz('IZQUIERDA')" (pointerup)="ptz('DETENER')" (pointerleave)="ptz('DETENER')"><mat-icon>keyboard_arrow_left</mat-icon></button>
+      <button type="button" class="ctl d" aria-label="Derecha" (pointerdown)="ptz('DERECHA')" (pointerup)="ptz('DETENER')" (pointerleave)="ptz('DETENER')"><mat-icon>keyboard_arrow_right</mat-icon></button>
+      <button type="button" class="ctl b" aria-label="Abajo" (pointerdown)="ptz('ABAJO')" (pointerup)="ptz('DETENER')" (pointerleave)="ptz('DETENER')"><mat-icon>keyboard_arrow_down</mat-icon></button>
+      <button type="button" class="ctl zm" aria-label="Acercar" (pointerdown)="ptz('ZOOM_MAS')" (pointerup)="ptz('DETENER')" (pointerleave)="ptz('DETENER')"><mat-icon>zoom_in</mat-icon></button>
+      <button type="button" class="ctl zn" aria-label="Alejar" (pointerdown)="ptz('ZOOM_MENOS')" (pointerup)="ptz('DETENER')" (pointerleave)="ptz('DETENER')"><mat-icon>zoom_out</mat-icon></button>
+    </div>
+  }
+}

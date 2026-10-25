@@ -15,7 +15,10 @@
        service/huella/estrategias.ts). La CSP casa host Y PUERTO: sin el puerto
        exacto en connect-src, el navegador rechaza la conexión antes de
        intentarla y lo que ve el código es un `TypeError: Failed to fetch`
-       idéntico al de un agente apagado. Costó encontrarlo. -->
+       idéntico al de un agente apagado. Costó encontrarlo.
+       wss://api.elevenlabs.io es la transcripción en vivo de la Atención remota: el
+       navegador del asesor manda el audio directo a ElevenLabs con un token de un
+       solo uso que emite ms-turnos (la llave nunca llega al navegador). -->
   <meta http-equiv="Content-Security-Policy" content="
         default-src 'self';
         base-uri 'self';
@@ -23,11 +26,11 @@
         script-src 'self' 'unsafe-inline' 'unsafe-eval';
         style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
         font-src 'self' data: https://fonts.gstatic.com;
-        connect-src 'self' https://tesoro.tuapo.co https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545 http://127.0.0.1:52181 http://localhost:52181;
-        frame-src 'self' blob: data: https://api.tuapo.co https://formulario.tsservicios.co;
-        img-src 'self' data: blob: https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
+        connect-src 'self' https://tesoro.tuapo.co wss://tesoro.tuapo.co https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545 http://127.0.0.1:52181 http://localhost:52181 wss://api.elevenlabs.io https://tile.openstreetmap.org;
+        frame-src 'self' blob: data: https://api.tuapo.co https://formulario.tsservicios.co https://www.youtube-nocookie.com https://www.youtube.com;
+        img-src 'self' data: blob: https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545 https://i.ytimg.com https://tile.openstreetmap.org;
         media-src 'self' data: blob: https://api.tuapo.co https://formulario.tsservicios.co http://10.10.10.60:4545 http://127.0.0.1:8000 http://localhost:8000 http://127.0.0.1:4545 http://localhost:4545;
-        worker-src 'self' blob:;
+        worker-src 'self' blob: data:;
         object-src 'self' blob: data:;
       " />
 

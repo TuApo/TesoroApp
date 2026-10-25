@@ -41,7 +41,7 @@ export function describeQueuedRequest(method: string, url: string): QueuedReques
   if (u.includes('/biometria/upload')) {
     return { icon: 'fingerprint', label: 'Registro biométrico' };
   }
-  if (u.includes('/gestion_documental/documentos')) {
+  if (u.includes('/gestion_documental/documentos') || u.includes('/plantillas/excel/documentos/cargar')) {
     return { icon: 'description', label: 'Documento' };
   }
   if (u.includes('/gestion_documental')) {

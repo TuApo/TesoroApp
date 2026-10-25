@@ -20,10 +20,16 @@
 
   <div class="tienda-barra">
     <div class="campo campo-ancho"><label>Buscar</label>
-      <input [(ngModel)]="busqueda" (keyup.enter)="buscar()" placeholder="Nombre o SKU…" /></div>
+      <div class="busqueda-con-lector">
+        <input [(ngModel)]="busqueda" (keyup.enter)="buscar()" placeholder="Nombre, SKU o código de barras…" />
+        <app-escaner-codigo (leido)="busqueda = $event; buscar()" />
+      </div></div>
     <button type="button" class="boton secundario" (click)="buscar()">Buscar</button>
+    <button type="button" class="boton secundario" (click)="abrir('familias')">
+      <mat-icon>account_tree</mat-icon> Familias
+    </button>
     <button type="button" class="boton secundario" (click)="abrir('categoria')">
-      <mat-icon>folder</mat-icon> Nueva categoría
+      <mat-icon>create_new_folder</mat-icon> Nueva categoría
     </button>
     <button type="button" class="boton" (click)="abrir('producto')">
       <mat-icon>add</mat-icon> Nuevo producto
@@ -43,8 +49,95 @@
             @for (n of negocios(); track n.id) { <option [value]="n.id">{{ n.nombre }}</option> }
           </select>
         </div>
+        <div class="campo campo-ancho"><label>Dentro de</label>
+          <select [(ngModel)]="nuevaCategoria.padre_id">
+            <option value="">Es una familia (nivel principal)</option>
+            @for (c of arbol(); track c.id) { <option [value]="c.id">{{ c.ruta }}</option> }
+          </select>
+        </div>
+        <div class="campo campo-ancho"><label>Descripción</label>
+          <input maxlength="500" [(ngModel)]="nuevaCategoria.descripcion" placeholder="Lo que se ve en la portada de EconomiAPP" /></div>
         <button type="button" class="boton" (click)="crearCategoria()"
                 [disabled]="!nuevaCategoria.codigo || !nuevaCategoria.nombre">Crear</button>
+      </div>
+    </section>
+  }
+
+  @if (formulario() === 'familias') {
+    <section class="tienda-tarjeta">
+      <h2 class="titulo-seccion">Familias del catálogo</h2>
+      <p class="nota">
+        Familia › Grupo › Subcategoría. La foto y la descripción de cada familia son las que
+        ven las personas en la portada de EconomiAPP y arriba de la familia al explorarla.
+        Foto recomendada: horizontal, 1200 × 600 px, JPG o WebP de hasta 5 MB.
+      </p>
+      <div class="familias">
+        <ul class="arbol" role="listbox" aria-label="Familias">
+          @for (c of arbol(); track c.id) {
+            <li>
+              <button type="button" class="nodo" [class.activo]="familiaSel()?.id === c.id"
+                      [style.padding-left.px]="10 + c.nivel * 18" (click)="elegirFamilia(c)">
+                <mat-icon>{{ c.icono || 'category' }}</mat-icon>
+                <span class="nodo-nombre">{{ c.nombre }}</span>
+                @if (c.imagen_doc_id) { <mat-icon class="marca" title="Tiene foto">image</mat-icon> }
+                @if (c.descripcion) { <mat-icon class="marca" title="Tiene descripción">notes</mat-icon> }
+              </button>
+            </li>
+          } @empty {
+            <li class="nota">No hay categorías todavía.</li>
+          }
+        </ul>
+
+        @if (familiaSel(); as f) {
+          <div class="editor-familia">
+            <div class="foto-familia">
+              <eco-imagen [doc]="f.imagen_doc_id" [nombre]="f.nombre" [icono]="f.icono || 'category'" />
+            </div>
+            <div class="acciones-producto">
+              <label class="boton secundario" [class.deshabilitado]="subiendoFoto()">
+                <mat-icon>{{ subiendoFoto() ? 'hourglass_top' : 'add_photo_alternate' }}</mat-icon>
+                {{ f.imagen_doc_id ? 'Cambiar foto' : 'Subir foto' }}
+                <input type="file" accept="image/*" hidden (change)="subirFotoFamilia($event)" [disabled]="subiendoFoto()" />
+              </label>
+              @if (f.imagen_doc_id) {
+                <button type="button" class="boton secundario" (click)="quitarFotoFamilia()"><mat-icon>hide_image</mat-icon> Quitar foto</button>
+              }
+            </div>
+            <p class="nota">{{ f.ruta }} · <span class="mono">{{ f.codigo }}</span></p>
+            <div class="formulario">
+              <div class="campo campo-ancho"><label>Nombre</label><input [(ngModel)]="edicionFamilia.nombre" /></div>
+              <div class="campo"><label>Icono (Material)</label><input [(ngModel)]="edicionFamilia.icono" placeholder="smartphone" /></div>
+              <div class="campo"><label>Orden</label><input type="number" [(ngModel)]="edicionFamilia.orden" /></div>
+              <div class="campo campo-completo"><label>Descripción ({{ edicionFamilia.descripcion.length }}/500)</label>
+                <textarea rows="3" maxlength="500" [(ngModel)]="edicionFamilia.descripcion"
+                          placeholder="Qué encuentra la persona en esta familia"></textarea></div>
+              <div class="campo campo-ancho"><label>Dentro de</label>
+                <select [(ngModel)]="edicionFamilia.padre_id">
+                  @if (!f.padre_id) { <option value="">Es una familia (nivel principal)</option> }
+                  @for (c of padresPosibles(f); track c.id) { <option [value]="c.id">{{ c.ruta }}</option> }
+                </select>
+              </div>
+              <div class="campo campo-completo filtros-familia">
+                <label>Filtros que ve el comprador en esta familia</label>
+                <label class="casilla-linea"><input type="checkbox" [(ngModel)]="heredarFiltros" (ngModelChange)="$event && (filtrosEdicion = filtrosHeredados(f))" />
+                  Usar los de la familia de arriba @if (heredarFiltros) { <small>({{ filtrosEdicion.join(', ') }})</small> }</label>
+                @if (!heredarFiltros) {
+                  <div class="chips-filtros">
+                    @for (d of filtrosDisponibles(); track d.clave) {
+                      <button type="button" class="chip-filtro" [class.activo]="filtrosEdicion.includes(d.clave)" (click)="alternarFiltro(d.clave)">
+                        <mat-icon>{{ filtrosEdicion.includes(d.clave) ? 'check_box' : 'check_box_outline_blank' }}</mat-icon>{{ d.nombre }}
+                      </button>
+                    }
+                  </div>
+                  <small class="nota">Los valores (las marcas, las capacidades…) salen solos de los productos de la familia. Las subfamilias que no tengan los suyos heredan estos.</small>
+                }
+              </div>
+              <button type="button" class="boton" (click)="guardarFamilia()" [disabled]="!edicionFamilia.nombre">Guardar</button>
+            </div>
+          </div>
+        } @else {
+          <div class="tienda-vacio"><mat-icon>touch_app</mat-icon><p>Elija una familia para ponerle foto y descripción.</p></div>
+        }
       </div>
     </section>
   }
@@ -68,8 +161,8 @@
         <div class="campo"><label>Categoría</label>
           <select [(ngModel)]="nuevoProducto.categoria_id">
             <option value="">Sin categoría</option>
-            @for (c of categorias(); track $any(c)['id']) {
-              <option [value]="$any(c)['id']">{{ $any(c)['nombre'] }}</option>
+            @for (c of arbol(); track c.id) {
+              <option [value]="c.id">{{ c.ruta }}</option>
             }
           </select>
         </div>
@@ -79,6 +172,19 @@
             @for (n of negocios(); track n.id) { <option [value]="n.id">{{ n.nombre }}</option> }
           </select>
         </div>
+        <div class="campo"><label>Tipo</label>
+          <select [(ngModel)]="nuevoProducto.tipo">
+            <option value="BIEN">Bien (se entrega)</option>
+            <option value="SERVICIO">Servicio (se reclama con código)</option>
+            <option value="BONO">Bono (se redime con código)</option>
+          </select>
+        </div>
+        @if (nuevoProducto.tipo !== 'BIEN') {
+          <div class="campo"><label>Días para reclamar</label>
+            <input type="number" min="1" max="365" [(ngModel)]="nuevoProducto.dias_vigencia_reclamo" /></div>
+          <div class="campo campo-ancho"><label>Cómo se reclama</label>
+            <input placeholder="Horario, qué debe llevar…" [(ngModel)]="nuevoProducto.instrucciones_reclamo" /></div>
+        }
         <button type="button" class="boton" (click)="crearProducto()"
                 [disabled]="!nuevoProducto.sku || !nuevoProducto.nombre">Crear</button>
       </div>
@@ -88,6 +194,12 @@
   <div class="disposicion-catalogo">
     <section>
       <!-- La búsqueda de arriba consulta al servidor: la tabla no trae la suya. -->
+      <div class="tienda-barra lista-acciones">
+        <button type="button" class="boton secundario" (click)="imprimirEtiquetasLista()" [disabled]="!productos().length">
+          <mat-icon>print</mat-icon> Etiquetas de esta lista</button>
+        <button type="button" class="boton secundario" (click)="generarCodigosLista()" [disabled]="!productos().length">
+          <mat-icon>auto_awesome</mat-icon> Generar códigos a los que no tienen</button>
+      </div>
       <app-tabla-estandar
         id="tienda-catalogo-productos"
         titulo="Catálogo"
@@ -112,9 +224,36 @@
         <h2 class="titulo-seccion">{{ p.nombre }}</h2>
         <p class="nota">{{ p.sku }}@if (p.descripcion) { · {{ p.descripcion }} }</p>
 
-        <button type="button" class="boton" (click)="abrir('precio')">
-          <mat-icon>sell</mat-icon> Fijar precio y costo
-        </button>
+        <div class="acciones-producto">
+          <button type="button" class="boton" (click)="abrir('precio')">
+            <mat-icon>sell</mat-icon> Fijar precio y costo
+          </button>
+          <button type="button" class="boton secundario" (click)="abrir('tipo')">
+            <mat-icon>{{ p.tipo === 'SERVICIO' ? 'confirmation_number' : p.tipo === 'BONO' ? 'card_giftcard' : 'inventory_2' }}</mat-icon>
+            {{ p.tipo === 'SERVICIO' ? 'Servicio' : p.tipo === 'BONO' ? 'Bono' : 'Bien' }} · cambiar tipo
+          </button>
+        </div>
+
+        @if (formulario() === 'tipo') {
+          <div class="formulario">
+            <div class="campo"><label>Tipo</label>
+              <select [(ngModel)]="tipoEdicion.tipo">
+                <option value="BIEN">Bien (se entrega)</option>
+                <option value="SERVICIO">Servicio (se reclama con código)</option>
+                <option value="BONO">Bono (se redime con código)</option>
+              </select>
+            </div>
+            @if (tipoEdicion.tipo !== 'BIEN') {
+              <div class="campo"><label>Días para reclamar</label>
+                <input type="number" min="1" max="365" [(ngModel)]="tipoEdicion.dias_vigencia_reclamo" /></div>
+              <div class="campo"><label>Cómo se reclama</label>
+                <input placeholder="Horario, qué debe llevar…" [(ngModel)]="tipoEdicion.instrucciones_reclamo" /></div>
+              <p class="nota">Al pedirlo en EconomiAPP se activa un código; se descuenta del cupo cuando se redime en la tienda.
+                Si no es global, publíquelo en las tiendas donde se presta.</p>
+            }
+            <button type="button" class="boton" (click)="guardarTipo()">Guardar</button>
+          </div>
+        }
 
         @if (formulario() === 'precio') {
           <div class="formulario">
@@ -122,6 +261,8 @@
               <input type="number" [(ngModel)]="nuevoPrecio.precio" min="0" /></div>
             <div class="campo"><label>Costo</label>
               <input type="number" [(ngModel)]="nuevoPrecio.costo" min="0" /></div>
+            <div class="campo"><label>Precio en el comercio</label>
+              <input type="number" [(ngModel)]="nuevoPrecio.referencia" min="0" placeholder="Opcional" /></div>
             <div class="campo campo-casilla">
               <label><input type="checkbox" [(ngModel)]="nuevoPrecio.soloEstaTienda" />
                 Solo para {{ ctx.tienda()?.nombre ?? 'esta tienda' }}</label>
@@ -130,6 +271,15 @@
                     [disabled]="nuevoPrecio.precio <= 0">Guardar</button>
           </div>
         }
+
+        <h3 class="titulo-seccion pequeno">Códigos de barras</h3>
+        <app-codigos-producto [productoId]="p.id" [nombre]="p.nombre" [precio]="precioActual()" />
+
+        <h3 class="titulo-seccion pequeno">Paquete (six pack, presentación)</h3>
+        <app-componentes-producto [productoId]="p.id" />
+
+        <h3 class="titulo-seccion pequeno">Fotos públicas</h3>
+        <app-fotos-producto [productoId]="p.id" />
 
         <h3 class="titulo-seccion pequeno">Histórico de precios</h3>
         <app-tabla-estandar
@@ -143,7 +293,7 @@
           [filaClase]="claseHistorico" />
       } @else {
         <div class="tienda-vacio"><mat-icon>touch_app</mat-icon>
-          <p>Elija un producto para ver y fijar sus precios.</p></div>
+          <p>Elija un producto para ver sus fotos y fijar sus precios.</p></div>
       }
     </section>
   </div>

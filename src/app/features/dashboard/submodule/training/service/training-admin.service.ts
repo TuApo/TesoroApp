@@ -1,4 +1,5 @@
 import { Injectable, inject } from '@angular/core';
+import type { EjercicioCodigo } from './codigo.service';
 import { HttpClient } from '@angular/common/http';
 import { firstValueFrom, map } from 'rxjs';
 import { environment } from '@/environments/environment';
@@ -195,14 +196,100 @@ export class TrainingAdminService {
   }
 
   /**
-   * Propone preguntas a partir de lo que se dijo en el material de la clase.
+   * Propone preguntas: de la clase, de esta lección sola o sobre un tema.
    *
-   * Sólo mira las lecciones hasta ésta: no puede preguntar por algo que a quien lo responda
-   * todavía nadie le enseñó. Devuelve borradores; guardarlos es otro paso.
+   * Con material sólo mira las lecciones hasta ésta: no puede preguntar por algo que a quien lo
+   * responda todavía nadie le enseñó. Sobre un tema escribe libremente, y entonces el servidor
+   * busca después si el material lo respalda, para traer el atajo o avisar de que no lo hay.
+   * Devuelve borradores; guardarlos es otro paso.
    */
-  sugerirPreguntas(quizId: string, cantidad = 5): Promise<PreguntaSugerida[]> {
+  sugerirPreguntas(quizId: string, opts: PedidoDePreguntas = {}): Promise<PreguntaSugerida[]> {
     return firstValueFrom(this.http.post<PreguntaSugerida[]>(
-      `${this.base}/quizzes/${quizId}/sugerir-preguntas?cantidad=${cantidad}`, {}));
+      `${this.base}/quizzes/${quizId}/sugerir-preguntas`, {
+        cantidad: opts.cantidad ?? 5,
+        alcance: opts.alcance ?? 'HASTA_AQUI',
+        // Cadena vacía = «cualquiera»: el modelo elige el tipo de cada pregunta.
+        tipo: opts.tipo || null,
+        tema: opts.tema?.trim() || null,
+        instrucciones: opts.instrucciones?.trim() || null,
+      }));
+  }
+
+  // ── Calificación: pesos, requisitos y boletines ────────────────────────────
+
+  /**
+   * Cómo se reparte la nota de una versión: módulos e items con su peso configurado y el
+   * efectivo, los requisitos y las advertencias (pesos que no suman 100, examen final sin
+   * mínimo...). Es lo que la consola pinta para que se vea de un vistazo qué vale cada cosa.
+   */
+  esquemaCalificacion(versionId: string): Promise<EsquemaCalificacion> {
+    return firstValueFrom(this.http.get<EsquemaCalificacion>(
+      `${this.base}/course-versions/${versionId}/calificacion`));
+  }
+
+  /** Solo en BORRADOR: los requisitos son parte de lo que se publica. */
+  guardarRequisitos(versionId: string, req: RequisitosRequest): Promise<Requisitos> {
+    return firstValueFrom(this.http.put<Requisitos>(
+      `${this.base}/course-versions/${versionId}/requisitos`, req));
+  }
+
+  /** El boletín de alguien: para su instructor o quien tenga alcance sobre la persona. */
+  boletinDeMatricula(enrollmentId: string): Promise<Boletin> {
+    return firstValueFrom(this.http.get<Boletin>(
+      `${this.base}/enrollments/${enrollmentId}/calificacion`));
+  }
+
+  /** La planilla del grupo: una fila por persona con su nota por módulo. */
+  planillaDeGrupo(groupId: string): Promise<BoletinGrupo> {
+    return firstValueFrom(this.http.get<BoletinGrupo>(
+      `${this.base}/groups/${groupId}/calificaciones`));
+  }
+
+  // ── Plantillas de certificado ─────────────────────────────────────────────
+
+  listarPlantillas(): Promise<PlantillaCertificado[]> {
+    return firstValueFrom(this.http.get<PlantillaCertificado[]>(`${this.base}/certificate-templates`));
+  }
+
+  crearPlantilla(req: PlantillaRequest): Promise<PlantillaCertificado> {
+    return firstValueFrom(this.http.post<PlantillaCertificado>(`${this.base}/certificate-templates`, req));
+  }
+
+  actualizarPlantilla(id: string, req: PlantillaRequest): Promise<PlantillaCertificado> {
+    return firstValueFrom(
+      this.http.put<PlantillaCertificado>(`${this.base}/certificate-templates/${id}`, req));
+  }
+
+  eliminarPlantilla(id: string): Promise<void> {
+    return firstValueFrom(
+      this.http.delete<void>(`${this.base}/certificate-templates/${id}`).pipe(map(() => void 0)));
+  }
+
+  predeterminarPlantilla(id: string): Promise<PlantillaCertificado> {
+    return firstValueFrom(this.http.put<PlantillaCertificado>(
+      `${this.base}/certificate-templates/${id}/predeterminada`, {}));
+  }
+
+  /** PDF de muestra de lo que se está editando, sin guardar. */
+  muestraDePlantilla(req: PlantillaRequest): Promise<Blob> {
+    return firstValueFrom(this.http.post(`${this.base}/certificate-templates/preview`, req,
+      { responseType: 'blob' }));
+  }
+
+  /** Sube el logo o una firma para una plantilla y devuelve su document_id. */
+  async subirImagenDePlantilla(file: File): Promise<string> {
+    const fd = new FormData();
+    // Un dueño por archivo, por lo mismo que el material de las lecciones: con un dueño fijo
+    // la segunda imagen entraría como versión de la primera.
+    fd.append('ownerId', crypto.randomUUID());
+    fd.append('typeCode', 'CAPACITACION_MATERIAL');
+    fd.append('ownerType', 'LEARNING_CERT_TEMPLATE');
+    fd.append('sourceService', 'tesoro-capacitaciones');
+    fd.append('file', file, file.name);
+    const r = await firstValueFrom(
+      this.http.post<{ document_id: number }>(`${this.documentos}/upload-by-owner`, fd));
+    if (!r?.document_id) throw new Error('ms-documents no confirmó la subida');
+    return String(r.document_id);
   }
 
   /**
@@ -383,6 +470,7 @@ export class TrainingAdminService {
 
   // ── Quiz de una leccion ───────────────────────────────────────────────────
 
+  /** El primer quiz de la lección. Contrato viejo; la tarjeta usa `obtenerQuiz` por id. */
   quizDeLeccion(lessonId: string): Promise<Quiz> {
     return firstValueFrom(this.http.get<Quiz>(`${this.base}/lessons/${lessonId}/quiz`));
   }
@@ -391,9 +479,39 @@ export class TrainingAdminService {
     return firstValueFrom(this.http.put<Quiz>(`${this.base}/lessons/${lessonId}/quiz`, req));
   }
 
-  agregarPreguntasAlQuiz(quizId: string, questionIds: string[]): Promise<Quiz> {
+  /**
+   * Un quiz por su id. Una lección admite varios —cada bloque QUIZ trae el suyo—, así que la
+   * tarjeta pide el del bloque y no "el de la lección".
+   */
+  obtenerQuiz(quizId: string): Promise<Quiz> {
+    return firstValueFrom(this.http.get<Quiz>(`${this.base}/quizzes/${quizId}`));
+  }
+
+  actualizarQuiz(quizId: string, req: QuizRequest): Promise<Quiz> {
+    return firstValueFrom(this.http.put<Quiz>(`${this.base}/quizzes/${quizId}`, req));
+  }
+
+  /** El curso tal como lo verá quien lo curse, sin matrícula. Para recorrerlo antes de publicar. */
+  previsualizarVersion(courseId: string, versionId: string): Promise<PaqueteCurso> {
+    return firstValueFrom(this.http.get<PaqueteCurso>(
+      `${this.base}/courses/${courseId}/versions/${versionId}/preview`));
+  }
+
+  /** La misma clase a lo largo de las versiones del curso, de la más vieja a la más nueva. */
+  historialDeLeccion(lessonId: string): Promise<HistorialLeccion[]> {
+    return firstValueFrom(this.http.get<HistorialLeccion[]>(
+      `${this.base}/courses/lessons/${lessonId}/historial`));
+  }
+
+  /**
+   * Mete preguntas en el quiz diciendo CÓMO entran, que es lo que después muestra la etiqueta
+   * del listado: escritas aquí (NUEVA), aceptadas de una propuesta (IA) o traídas del banco.
+   */
+  agregarPreguntasAlQuiz(quizId: string, questionIds: string[],
+                         origen: OrigenEnQuiz = 'BANCO'): Promise<Quiz> {
     return firstValueFrom(
-      this.http.post<Quiz>(`${this.base}/quizzes/${quizId}/questions`, { question_ids: questionIds }));
+      this.http.post<Quiz>(`${this.base}/quizzes/${quizId}/questions`,
+        { question_ids: questionIds, origen }));
   }
 
   quitarPreguntaDelQuiz(quizId: string, questionId: string): Promise<Quiz> {
@@ -626,16 +744,23 @@ export interface Pregunta {
   media_document_id?: string | null;
   media_url?: string | null;
   media_mime?: string | null;
-  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO';
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO' | 'PROGRAMACION';
   dificultad?: string;
   /** Sólo en las que se responden escribiendo. */
   criterio?: CriterioPregunta | null;
+  /** Sólo PROGRAMACION: el ejercicio completo (con la solución). */
+  ejercicio?: EjercicioCodigo | null;
   explicacion?: string;
   activa: boolean;
   /** true = ya la respondio alguien, asi que solo admite versionado, no edicion. */
   ya_respondida: boolean;
   editable: boolean;
   opciones: Opcion[];
+  /**
+   * Cómo nació: MANUAL | IA_MATERIAL | IA_TEMA. Falta en las anteriores a la columna, y de
+   * ésas no se sabe: la consola no pinta etiqueta cuando el dato no está.
+   */
+  origen?: string | null;
 }
 
 export interface Opcion {
@@ -688,6 +813,10 @@ export interface PreguntaRequest {
   /** Sólo en las que se responden escribiendo (TEXTO_ABIERTO, NUMERO). */
   criterio?: CriterioPregunta | null;
   opciones: Opcion[];
+  /** MANUAL | IA_MATERIAL | IA_TEMA. Sin esto, el servidor la da por escrita a mano. */
+  origen?: string | null;
+  /** Sólo PROGRAMACION. */
+  ejercicio?: EjercicioCodigo | null;
 }
 
 export interface Quiz {
@@ -702,6 +831,18 @@ export interface Quiz {
   modo_presentacion: 'TODAS' | 'UNA_POR_UNA';
   permite_volver: boolean;
   mostrar_respuesta_correcta: boolean;
+  /** Cómo se llama en el boletín. Se escribe una vez, en el título del bloque. */
+  titulo?: string | null;
+  /** ACTIVIDAD = suma como cualquier item · EXAMEN_FINAL = además puede exigir mínimo · PRACTICA = no califica. */
+  tipo: TipoQuiz;
+  /** false = se responde y se guarda, pero no suma a la nota del módulo. */
+  calificable: boolean;
+  /** Porcentaje dentro del módulo. null = reparto igual con los demás sin peso. */
+  peso?: number | null;
+  /** Nota mínima propia (0..100). Si está, hay que alcanzarla en algún intento. */
+  nota_minima?: number | null;
+  /** Modo examen: no se puede pegar en lo escrito ni copiar el enunciado. */
+  bloquea_pegado: boolean;
   total_preguntas: number;
   editable: boolean;
   preguntas: Pregunta[];
@@ -709,6 +850,42 @@ export interface Quiz {
   referencias: ReferenciaPregunta[];
   /** Las que entran siempre, aunque el resto del cuestionario se sortee. */
   obligatorias: string[];
+  /**
+   * Cómo entró cada pregunta a ESTE quiz. Va aparte por lo mismo que las referencias: es un
+   * dato de la relación, no de la pregunta del banco. Sólo trae las que lo tienen.
+   */
+  origenes?: OrigenDePregunta[];
+}
+
+/** Cómo entró una pregunta a este quiz. */
+export interface OrigenDePregunta {
+  question_id: string;
+  origen: OrigenEnQuiz;
+}
+
+/** NUEVA = se escribió aquí · IA = se aceptó una propuesta · BANCO = ya existía. */
+export type OrigenEnQuiz = 'NUEVA' | 'IA' | 'BANCO';
+
+/**
+ * Qué preguntas se le piden al modelo y sobre qué.
+ *
+ * Todo opcional a propósito: el botón tiene que funcionar sin tocar nada —lo normal es
+ * «propónme preguntas de esta clase»— y los campos son para cuando hace falta apretar.
+ */
+export interface PedidoDePreguntas {
+  cantidad?: number;
+  /** LECCION = sólo esta clase · HASTA_AQUI = y las anteriores · LIBRE = sobre un tema. */
+  alcance?: 'LECCION' | 'HASTA_AQUI' | 'LIBRE';
+  /** Uno de los cinco tipos, o vacío para que el modelo elija en cada pregunta. */
+  tipo?: string | null;
+  /** De qué se pregunta. Sólo se usa con alcance LIBRE. */
+  tema?: string | null;
+  /**
+   * Lo que quien arma el quiz quiere decirle al asistente y no cabe en un selector: «que sean
+   * sobre el procedimiento, no sobre la norma», «en segunda persona», «que la correcta no sea
+   * siempre la más larga». Se pasa tal cual, dentro de las reglas que no se negocian.
+   */
+  instrucciones?: string | null;
 }
 
 export interface ReferenciaPregunta {
@@ -716,6 +893,8 @@ export interface ReferenciaPregunta {
   block_id: string;
   segundo?: number | null;
 }
+
+export type TipoQuiz = 'ACTIVIDAD' | 'EXAMEN_FINAL' | 'PRACTICA';
 
 export interface QuizRequest {
   intentos_max?: number;
@@ -725,6 +904,14 @@ export interface QuizRequest {
   mostrar_respuesta_correcta?: boolean;
   barajar_preguntas?: boolean;
   barajar_opciones?: boolean;
+  preguntas_por_intento?: number | null;
+  titulo?: string | null;
+  tipo?: TipoQuiz;
+  calificable?: boolean;
+  /** Se manda siempre: null = reparto igual. */
+  peso?: number | null;
+  nota_minima?: number | null;
+  bloquea_pegado?: boolean;
 }
 
 export interface Evaluacion {
@@ -839,6 +1026,14 @@ export interface Curso {
   estado: string;
   version_publicada?: number;
   created_at: string;
+  /** Plantilla con la que se imprimen sus certificados. null = la predeterminada. */
+  certificate_template_id?: string | null;
+  /** Horas del curso, para el certificado. */
+  intensidad_horas?: number | null;
+  /** ASIGNADO = solo quien lo recibe por un grupo o matrícula; LIBRE = cualquiera se inscribe. */
+  acceso?: 'ASIGNADO' | 'LIBRE';
+  /** CORPORATIVO (inducción, SST, procesos) | EDUCATIVO (clases, cursos abiertos). */
+  contexto?: 'CORPORATIVO' | 'EDUCATIVO';
 }
 
 export interface CursoRequest {
@@ -849,6 +1044,10 @@ export interface CursoRequest {
   vigencia_meses?: number;
   entidad_capacitadora?: string;
   modalidad_default?: string;
+  certificate_template_id?: string | null;
+  intensidad_horas?: number | null;
+  acceso?: 'ASIGNADO' | 'LIBRE';
+  contexto?: 'CORPORATIVO' | 'EDUCATIVO';
 }
 
 export interface Version {
@@ -875,6 +1074,11 @@ export interface Modulo {
   nombre: string;
   descripcion?: string;
   orden: number;
+  /** Porcentaje del módulo en la nota del curso. null = reparto igual. */
+  peso?: number | null;
+  /** Nota mínima propia. null = la del curso cuando se exige aprobar cada módulo. */
+  nota_minima?: number | null;
+  asistencia_minima?: number | null;
   lecciones: Leccion[];
 }
 
@@ -882,6 +1086,10 @@ export interface ModuloRequest {
   nombre: string;
   descripcion?: string;
   orden?: number;
+  /** Se mandan siempre: null es un valor («reparto igual»), no «no lo cambies». */
+  peso?: number | null;
+  nota_minima?: number | null;
+  asistencia_minima?: number | null;
 }
 
 export interface Leccion {
@@ -896,6 +1104,29 @@ export interface Leccion {
   recursos?: Recurso[];
   /** El recorrido de la lección, en el orden en que se armó. */
   bloques?: Bloque[];
+  /** La misma clase a lo largo de las versiones del curso, y por cuál va. */
+  linaje_id?: string;
+  revision?: number;
+  /** Comentarios vivos de la clase, de todas sus versiones. */
+  comentarios?: number;
+}
+
+/** Una fila del historial de una clase: en qué versión del curso vivió y cómo estaba. */
+export interface HistorialLeccion {
+  lesson_id: string;
+  linaje_id: string;
+  revision: number;
+  course_version_id: string;
+  version: number;
+  estado: 'BORRADOR' | 'PUBLICADA' | 'ARCHIVADA';
+  publicada_at: string | null;
+  nombre: string;
+  tipo: string;
+  duracion_min: number | null;
+  obligatoria: boolean;
+  bloques: number;
+  updated_at: string | null;
+  actual: boolean;
 }
 
 export interface LeccionRequest {
@@ -930,13 +1161,19 @@ export interface RecursoRequest {
 export interface Actividad {
   id: string;
   lesson_id: string;
-  tipo: 'EVIDENCIA_FOTO' | 'FORMULARIO' | 'TEXTO';
+  tipo: 'EVIDENCIA_FOTO' | 'FORMULARIO' | 'TEXTO' | 'CODIGO';
   titulo: string;
   instrucciones?: string | null;
-  revision: 'MANUAL' | 'AUTOMATICA';
+  revision: 'MANUAL' | 'AUTOMATICA' | 'PRUEBAS';
+  /** Sólo CODIGO (completo para quien administra formación). */
+  ejercicio?: EjercicioCodigo | null;
   puntaje_max?: number | null;
   obligatoria: boolean;
   orden: number;
+  /** false = se entrega y se revisa, pero no suma a la nota. */
+  calificable: boolean;
+  /** Porcentaje dentro del módulo. null = reparto igual. */
+  peso?: number | null;
 }
 
 // ── Bloques de lección ──────────────────────────────────────────────────────
@@ -948,7 +1185,7 @@ export interface Actividad {
  */
 export type TipoBloque =
   | 'TEXTO' | 'VIDEO' | 'DOCUMENTO' | 'PRESENTACION' | 'IMAGEN' | 'ENLACE'
-  | 'ACTIVIDAD' | 'QUIZ';
+  | 'ACTIVIDAD' | 'QUIZ' | 'AUDIO' | 'YOUTUBE' | 'FICHA';
 
 export interface Bloque {
   id: string;
@@ -970,6 +1207,10 @@ export interface BloqueActividadRequest {
   revision?: string;
   puntaje_max?: number;
   obligatoria?: boolean;
+  calificable?: boolean;
+  peso?: number | null;
+  /** Sólo CODIGO: el ejercicio con sus casos de prueba. */
+  ejercicio?: EjercicioCodigo | null;
 }
 
 export interface BloqueRequest {
@@ -1212,16 +1453,28 @@ export interface SugerenciaReferencia {
   extracto: string;
 }
 
-/** Una pregunta propuesta desde el material, con su atajo al minuto ya resuelto. */
+/**
+ * Una pregunta propuesta por el modelo, con su respaldo en el material ya resuelto.
+ *
+ * `relacionada` es lo que hay que mirar: true = el material dice dónde se explica y el atajo
+ * viene puesto; false = se escribió sobre el tema y no se encontró respaldo. Se puede agregar
+ * igual, pero quien la falle no va a tener a dónde volver.
+ */
 export interface PreguntaSugerida {
   enunciado: string;
-  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO';
-  opciones: { texto: string; correcta: boolean }[];
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO';
+  opciones: { texto: string; correcta: boolean; pareja_clave?: string | null }[];
+  /** Cómo se corrige, sólo en las que se responden escribiendo. */
+  criterio?: CriterioPregunta | null;
   explicacion: string | null;
   block_id: string | null;
   segundo: number | null;
-  lesson_nombre: string;
-  extracto: string;
+  lesson_nombre: string | null;
+  extracto: string | null;
+  /** true = el material de la clase la respalda, y por eso hay atajo. */
+  relacionada: boolean;
+  /** IA_MATERIAL | IA_TEMA, según de dónde salió. Se guarda con la pregunta. */
+  origen: string;
 }
 
 // ── Tablero de administración ───────────────────────────────────────────────
@@ -1298,4 +1551,131 @@ export interface TableroAdmin {
   mas_activos: PersonaActiva[];
   pendientes: PendienteAdmin[];
   catalogo: CatalogoCifras;
+}
+
+// ── Calificación ─────────────────────────────────────────────────────────────
+
+export type { Boletin, ModuloBoletin, ItemBoletin, RequisitoBoletin, PaqueteCurso } from './training-s';
+import type { Boletin, PaqueteCurso } from './training-s';
+
+export interface Requisitos {
+  course_version_id: string;
+  /** La configurada; null = la de por defecto cuando hay algo calificable. */
+  nota_minima: number | null;
+  /** La que de verdad se aplica. */
+  nota_minima_efectiva: number | null;
+  asistencia_minima: number | null;
+  exige_todos_modulos: boolean;
+  exige_contenido_completo: boolean;
+  exige_actividades_aprobadas: boolean;
+  /** true = la versión tiene evaluación formal: aprobarla sigue siendo obligatorio. */
+  tiene_examen_formal: boolean;
+  editable: boolean;
+}
+
+export interface RequisitosRequest {
+  nota_minima?: number | null;
+  asistencia_minima?: number | null;
+  exige_todos_modulos?: boolean;
+  exige_contenido_completo?: boolean;
+  exige_actividades_aprobadas?: boolean;
+}
+
+export interface EsquemaCalificacion {
+  course_version_id: string;
+  requisitos: Requisitos;
+  hay_calificables: boolean;
+  modulos: ModuloEsquema[];
+  advertencias: string[];
+}
+
+export interface ModuloEsquema {
+  module_id: string;
+  nombre: string;
+  orden: number;
+  peso: number | null;
+  peso_efectivo: number | null;
+  nota_minima: number | null;
+  tiene_calificables: boolean;
+  items: ItemEsquema[];
+}
+
+export interface ItemEsquema {
+  id: string;
+  tipo_item: 'QUIZ' | 'ACTIVIDAD';
+  tipo: string;
+  titulo: string;
+  lesson_id: string;
+  lesson_nombre: string;
+  calificable: boolean;
+  peso: number | null;
+  peso_efectivo: number | null;
+  nota_minima: number | null;
+  obligatoria: boolean;
+}
+
+export interface BoletinGrupo {
+  group_id: string;
+  nombre: string;
+  curso_nombre: string;
+  course_version_id: string;
+  nota_minima: number | null;
+  asistencia_minima: number | null;
+  sesiones: number;
+  modulos: ModuloEsquema[];
+  filas: FilaBoletin[];
+}
+
+export interface FilaBoletin {
+  enrollment_id: string;
+  person_id: string;
+  persona_nombre: string;
+  cedula: string;
+  estado_matricula: string;
+  porcentaje: number;
+  nota: number | null;
+  aprobado: boolean;
+  nota_definitiva: boolean;
+  asistencia: number | null;
+  items_pendientes: number;
+  entregas_por_revisar: number;
+  modulos: { module_id: string; nota: number | null; aprobado: boolean }[];
+}
+
+// ── Plantillas de certificado ────────────────────────────────────────────────
+
+export type BasePlantilla = 'CLASICA' | 'MODERNA' | 'FORMAL';
+
+export interface PlantillaRequest {
+  nombre: string;
+  descripcion?: string | null;
+  base?: BasePlantilla;
+  color_primario?: string | null;
+  color_secundario?: string | null;
+  titulo?: string | null;
+  subtitulo?: string | null;
+  texto_principal?: string | null;
+  texto_pie?: string | null;
+  logo_document_id?: string | null;
+  firma1_nombre?: string | null;
+  firma1_cargo?: string | null;
+  firma1_document_id?: string | null;
+  firma2_nombre?: string | null;
+  firma2_cargo?: string | null;
+  firma2_document_id?: string | null;
+  mostrar_nota?: boolean;
+  mostrar_qr?: boolean;
+  mostrar_horas?: boolean;
+  mostrar_vigencia?: boolean;
+  orientacion?: 'HORIZONTAL' | 'VERTICAL';
+}
+
+export interface PlantillaCertificado extends Required<Omit<PlantillaRequest, 'base' | 'orientacion'>> {
+  id: string;
+  base: BasePlantilla;
+  orientacion: 'HORIZONTAL' | 'VERTICAL';
+  predeterminada: boolean;
+  /** Cuántos cursos la tienen elegida. */
+  cursos_que_la_usan: number;
+  created_at: string;
 }

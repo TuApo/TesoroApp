@@ -1,0 +1,479 @@
+<div class="ed">
+  <!-- ═══ Barra superior ═══════════════════════════════════════════════════ -->
+  <header class="ed-barra">
+    <button mat-icon-button (click)="cerrar()" matTooltip="Cerrar (pide confirmación si hay cambios)">
+      <mat-icon>close</mat-icon>
+    </button>
+    <button class="ed-titulo" (click)="panelMeta.set(!panelMeta())" matTooltip="Datos de la plantilla">
+      <span class="ed-titulo-eps">{{ meta.epsNombre || 'Nueva plantilla' }}</span>
+      <span class="ed-titulo-sub">
+        {{ meta.temporalKey === 'TU_ALIANZA' ? 'Tu Alianza' : meta.temporalKey === 'APOYO_LABORAL' ? 'Apoyo Laboral' : 'Todas las temporales' }}
+        · {{ meta.sexo === 'F' ? 'Femenino' : meta.sexo === 'M' ? 'Masculino' : 'Ambos sexos' }}
+        · v{{ version }}
+        @if (!meta.activa) { · <b class="ed-inactiva">Inactiva</b> }
+      </span>
+      <mat-icon>{{ panelMeta() ? 'expand_less' : 'expand_more' }}</mat-icon>
+    </button>
+
+    <span class="ed-sep"></span>
+    <button mat-icon-button [disabled]="!puedeDeshacer" (click)="deshacer()" matTooltip="Deshacer (Ctrl+Z)"><mat-icon>undo</mat-icon></button>
+    <button mat-icon-button [disabled]="!puedeRehacer" (click)="rehacer()" matTooltip="Rehacer (Ctrl+Y)"><mat-icon>redo</mat-icon></button>
+
+    <span class="ed-sep"></span>
+    <div class="ed-zoom">
+      <button mat-icon-button (click)="zoom(1/1.15)" matTooltip="Alejar (Ctrl + rueda)"><mat-icon>zoom_out</mat-icon></button>
+      <span class="ed-zoom-pct">{{ zoomPct }}%</span>
+      <button mat-icon-button (click)="zoom(1.15)" matTooltip="Acercar"><mat-icon>zoom_in</mat-icon></button>
+      <button mat-icon-button (click)="ajustar('ancho')" [class.activo]="ajuste === 'ancho'" matTooltip="Ajustar al ancho"><mat-icon>fit_screen</mat-icon></button>
+      <button mat-icon-button (click)="ajustar('pagina')" [class.activo]="ajuste === 'pagina'" matTooltip="Ver la hoja entera"><mat-icon>crop_portrait</mat-icon></button>
+      <button mat-icon-button (click)="mostrarEtiquetas = !mostrarEtiquetas" [class.activo]="mostrarEtiquetas" matTooltip="Mostrar nombres de los campos"><mat-icon>label</mat-icon></button>
+    </div>
+
+    <span class="ed-flex"></span>
+
+    <!-- Vista previa con datos reales -->
+    <div class="ed-previa" [class.on]="previa()">
+      <mat-slide-toggle [checked]="previa()" (change)="alternarPrevia()" color="primary">Vista previa</mat-slide-toggle>
+      <button mat-stroked-button [matMenuTriggerFor]="menuMuestra" class="ed-muestra" matTooltip="Con qué contrato se llena la vista previa">
+        <mat-icon>person_search</mat-icon>
+        <span class="ed-muestra-txt">{{ muestra() ? (muestra()!.nombre | titlecase) : 'Datos de ejemplo' }}</span>
+        @if (muestra()) {
+          <mat-icon class="mini" [class.ok]="muestra()!.tieneFirma" [matTooltip]="muestra()!.tieneFirma ? 'Tiene firma registrada' : 'Sin firma registrada'">draw</mat-icon>
+          <mat-icon class="mini" [class.ok]="muestra()!.tieneHuella" [matTooltip]="muestra()!.tieneHuella ? 'Tiene huella' : 'Sin huella'">fingerprint</mat-icon>
+        }
+      </button>
+      <mat-menu #menuMuestra="matMenu" class="ed-menu-muestra">
+        <div class="ed-buscar" (click)="$event.stopPropagation()" (keydown)="$event.stopPropagation()">
+          <mat-icon>search</mat-icon>
+          <input [(ngModel)]="busqueda" (ngModelChange)="onBuscar($event)" placeholder="Cédula o nombre…" autocomplete="off">
+        </div>
+        @for (m of resultadosBusqueda(); track m.procesoId) {
+          <button mat-menu-item (click)="elegirMuestra(m)">
+            <mat-icon>{{ m.tieneFirma ? 'draw' : 'person' }}</mat-icon>
+            <span>{{ m.nombre | titlecase }} · {{ m.cedula }} · {{ m.eps }} · {{ m.temporal === 'TU_ALIANZA' ? 'TA' : 'AL' }}</span>
+          </button>
+        }
+        @if (resultadosBusqueda().length) { <hr class="ed-hr"> }
+        <button mat-menu-item (click)="elegirMuestra(null)"><mat-icon>science</mat-icon><span>Datos de ejemplo</span></button>
+        @if (muestras().length) { <div class="ed-menu-titulo">Contratos de esta EPS</div> }
+        @for (m of muestras(); track m.procesoId) {
+          <button mat-menu-item (click)="elegirMuestra(m)">
+            <mat-icon [class.ok]="m.tieneFirma">{{ m.tieneFirma ? 'draw' : 'person' }}</mat-icon>
+            <span>{{ m.nombre | titlecase }} · {{ m.cedula }}{{ m.tieneFirma ? '' : ' · sin firma' }}</span>
+          </button>
+        }
+      </mat-menu>
+      <button mat-stroked-button (click)="pdfReal()" matTooltip="El PDF exacto que saldría, con los cambios sin guardar">
+        <mat-icon>picture_as_pdf</mat-icon> PDF de prueba
+      </button>
+    </div>
+
+    <button mat-flat-button color="primary" class="ed-guardar" (click)="guardar()" [disabled]="guardando()">
+      <mat-icon>{{ guardando() ? 'hourglass_top' : 'save' }}</mat-icon>
+      {{ guardando() ? 'Guardando…' : sucio() ? 'Guardar' : 'Guardado' }}
+    </button>
+  </header>
+  @if (cargandoPrevia() || guardando()) { <mat-progress-bar mode="indeterminate" class="ed-progreso"></mat-progress-bar> }
+
+  <!-- ═══ Datos de la plantilla (desplegable) ═════════════════════════════ -->
+  @if (panelMeta()) {
+    <section class="ed-meta">
+      <mat-form-field appearance="outline">
+        <mat-label>Clave EPS</mat-label>
+        <input matInput [(ngModel)]="meta.epsKey" (ngModelChange)="sucio.set(true)" placeholder="NUEVAEPS">
+        <mat-hint>Sin espacios; "Nueva EPS" del contrato se reconoce como NUEVAEPS</mat-hint>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Nombre de la EPS</mat-label>
+        <input matInput [(ngModel)]="meta.epsNombre" (ngModelChange)="sucio.set(true)">
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Temporal</mat-label>
+        <mat-select [(ngModel)]="meta.temporalKey" (ngModelChange)="sucio.set(true)">
+          <mat-option [value]="null">Todas</mat-option>
+          <mat-option value="APOYO_LABORAL">Apoyo Laboral</mat-option>
+          <mat-option value="TU_ALIANZA">Tu Alianza</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Sexo</mat-label>
+        <mat-select [(ngModel)]="meta.sexo" (ngModelChange)="sucio.set(true)">
+          <mat-option [value]="null">Ambos</mat-option>
+          <mat-option value="F">Femenino</mat-option>
+          <mat-option value="M">Masculino</mat-option>
+        </mat-select>
+      </mat-form-field>
+      <mat-form-field appearance="outline">
+        <mat-label>Nombre de la plantilla</mat-label>
+        <input matInput [(ngModel)]="meta.nombrePlantilla" (ngModelChange)="sucio.set(true)">
+      </mat-form-field>
+      <mat-form-field appearance="outline" class="ed-meta-notas">
+        <mat-label>Notas</mat-label>
+        <input matInput [(ngModel)]="meta.notas" (ngModelChange)="sucio.set(true)" placeholder="Ej.: por qué está desactivada">
+      </mat-form-field>
+      <mat-slide-toggle [(ngModel)]="meta.activa" (ngModelChange)="sucio.set(true)" color="primary">Activa</mat-slide-toggle>
+    </section>
+  }
+
+  <div class="ed-cuerpo">
+    <!-- ═══ Panel izquierdo ═══════════════════════════════════════════════ -->
+    <aside class="ed-izq">
+      <nav class="ed-tabs">
+        <button [class.on]="panelIzq() === 'campos'" (click)="panelIzq.set('campos')" matTooltip="Agregar datos"><mat-icon>add_box</mat-icon><span>Agregar</span></button>
+        <button [class.on]="panelIzq() === 'capas'" (click)="panelIzq.set('capas')" matTooltip="Campos de la plantilla"><mat-icon>layers</mat-icon><span>Campos</span></button>
+        <button [class.on]="panelIzq() === 'paginas'" (click)="panelIzq.set('paginas')" matTooltip="Hojas y formulario de fondo"><mat-icon>description</mat-icon><span>Hojas</span></button>
+        <button [class.on]="panelIzq() === 'fuentes'" (click)="panelIzq.set('fuentes')" matTooltip="Tipografías"><mat-icon>font_download</mat-icon><span>Letras</span></button>
+      </nav>
+
+      <div class="ed-izq-cont">
+        @switch (panelIzq()) {
+          @case ('campos') {
+            <div class="ed-filtro"><mat-icon>search</mat-icon><input [(ngModel)]="filtroPaleta" placeholder="Buscar dato…"></div>
+            <p class="ed-ayuda">Arrástralo a su casilla del formulario o haz clic para ponerlo en el centro.</p>
+            <mat-slide-toggle [(ngModel)]="ajustarAlSoltar" color="primary" class="ed-toggle">Encajar en la casilla al soltar</mat-slide-toggle>
+            @for (g of gruposPaleta(); track g.grupo) {
+              <div class="ed-grupo">{{ g.grupo }}</div>
+              @for (it of g.items; track it.clave) {
+                <button class="ed-item" draggable="true" (dragstart)="onDragStartPaleta($event, it)" (click)="agregar(it)">
+                  <mat-icon>{{ it.icono }}</mat-icon>
+                  <span class="ed-item-txt"><b>{{ it.etiqueta }}</b>@if (it.ejemplo) {<small>{{ it.ejemplo }}</small>}</span>
+                </button>
+              }
+            }
+          }
+          @case ('capas') {
+            <div class="ed-capas-cab">
+              <span>{{ campos.length }} campos · hoja {{ paginaActual() }}</span>
+              <button mat-button (click)="seleccionarTodo()">Todos</button>
+            </div>
+            @for (p of paginas; track p.numero) {
+              <div class="ed-grupo">Hoja {{ p.numero }}</div>
+              @for (c of campos; track c._uid) {
+                @if (c.pagina === p.numero) {
+                  <button class="ed-capa {{ claseTipo(c) }}" [class.sel]="esSel(c)" [class.off]="!c.activo" (click)="seleccionarDesdeCapa(c, $event)">
+                    <span class="ed-capa-color"></span>
+                    <span class="ed-capa-txt">{{ etiqueta(c) }}</span>
+                    @if (fueraDeHoja(c)) { <mat-icon class="mini aviso" matTooltip="Se sale de la hoja">warning</mat-icon> }
+                    @if (previa() && valorDe(c)?.nota) { <mat-icon class="mini aviso" [matTooltip]="valorDe(c)!.nota!">error_outline</mat-icon> }
+                  </button>
+                }
+              }
+            }
+          }
+          @case ('paginas') {
+            @if (cargandoPaginas()) { <p class="ed-ayuda">Cargando hojas…</p> }
+            @for (p of paginas; track p.numero) {
+              <div class="ed-hoja" [class.on]="p.numero === paginaActual()" (click)="irAPagina(p.numero)">
+                <div class="ed-hoja-mini">
+                  @if (fondos.get(p.numero); as f) { <img [src]="f" alt=""> } @else { <mat-icon>image_not_supported</mat-icon> }
+                </div>
+                <div class="ed-hoja-info">
+                  <b>Hoja {{ p.numero }}</b>
+                  <small>{{ p.tamano }} · {{ camposEnPagina(p.numero) }} campos</small>
+                  <div class="ed-hoja-acc" (click)="$event.stopPropagation()">
+                    <label class="ed-link"><input type="file" accept="image/*" hidden (change)="subirFondo($event, p.numero)">{{ fondos.get(p.numero) ? 'Cambiar fondo' : 'Subir formulario' }}</label>
+                    @if (fondos.get(p.numero)) {
+                      <a class="ed-link" (click)="analizarHoja(p.numero)" matTooltip="Lee los rótulos impresos y coloca los datos que falten en esta hoja">Colocar datos</a>
+                      <a class="ed-link" (click)="quitarFondo(p.numero)">Quitar</a>
+                    }
+                    <a class="ed-link peligro" (click)="eliminarPagina(p.numero)">Eliminar</a>
+                  </div>
+                </div>
+              </div>
+            }
+            <label class="ed-subir ed-subir-primario" [class.off]="procesando()">
+              <input type="file" accept="image/*,application/pdf,.pdf" multiple hidden [disabled]="!!procesando()"
+                     (change)="agregarHojasDesdeArchivos($event)">
+              <mat-icon>upload_file</mat-icon>
+              <span><b>Agregar hojas desde archivos</b><small>Una o varias fotos, o PDF de una o varias páginas</small></span>
+            </label>
+            <mat-slide-toggle [(ngModel)]="analizarAlSubir" color="primary" class="ed-toggle">Leer el formulario y colocar los datos al subir</mat-slide-toggle>
+            <button mat-stroked-button class="ed-ancho" (click)="agregarPagina()"><mat-icon>add</mat-icon> Agregar hoja en blanco</button>
+            <mat-form-field appearance="outline" class="ed-ancho ed-mt">
+              <mat-label>Tamaño de la hoja {{ paginaActual() }}</mat-label>
+              <mat-select [ngModel]="pagina?.tamano" (ngModelChange)="cambiarTamano($event)">
+                @for (t of tamanos; track t.value) { <mat-option [value]="t.value">{{ t.label }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <p class="ed-ayuda">El formulario va escaneado como imagen a hoja completa; los campos se miden en milímetros sobre él.</p>
+          }
+          @case ('fuentes') {
+            <p class="ed-ayuda">Helvetica, Times y Courier vienen incluidas. Sube un TTF para usar otra letra en los datos; el PDF la incrusta.</p>
+            @for (f of fuentes; track f.id) {
+              <div class="ed-fuente"><mat-icon>text_format</mat-icon><span [style.font-family]="'fuente-' + f.id">{{ f.nombre }}</span></div>
+            }
+            <label class="ed-subir">
+              <input type="file" accept=".ttf,.otf" hidden (change)="onArchivoFuente($event)">
+              <mat-icon>upload_file</mat-icon> {{ nuevaFuente.archivoB64 ? nuevaFuente.nombre : 'Elegir archivo TTF' }}
+            </label>
+            @if (nuevaFuente.archivoB64) {
+              <mat-form-field appearance="outline" class="ed-ancho ed-mt">
+                <mat-label>Nombre</mat-label>
+                <input matInput [(ngModel)]="nuevaFuente.nombre">
+              </mat-form-field>
+              <button mat-flat-button color="primary" class="ed-ancho" (click)="subirFuente()">Agregar fuente</button>
+            }
+          }
+        }
+      </div>
+    </aside>
+
+    <!-- ═══ Lienzo ════════════════════════════════════════════════════════ -->
+    <main class="ed-lienzo" #lienzo (wheel)="onWheel($event)" (mousedown)="deseleccionar()">
+      @if (procesando(); as msg) {
+        <div class="ed-procesando" (mousedown)="$event.stopPropagation()">
+          <mat-icon class="ed-gira">autorenew</mat-icon> {{ msg }}
+        </div>
+      }
+      <div class="ed-paginador">
+        @for (p of paginas; track p.numero) {
+          <button [class.on]="p.numero === paginaActual()" (click)="irAPagina(p.numero)" (mousedown)="$event.stopPropagation()">Hoja {{ p.numero }}</button>
+        }
+      </div>
+      <div class="ed-hoja-lienzo" [class.previa]="previa()"
+           [style.width.px]="dim.w * escala()" [style.height.px]="dim.h * escala()"
+           (dragover)="$event.preventDefault()" (drop)="onDropHoja($event)">
+        @if (fondos.get(paginaActual()); as f) {
+          <img class="ed-fondo" [src]="f" alt="" draggable="false">
+        } @else if (!cargandoPaginas()) {
+          <div class="ed-sin-fondo">
+            <mat-icon>upload</mat-icon>
+            <p>Esta hoja no tiene formulario de fondo.</p>
+            <label class="ed-link"><input type="file" accept="image/*,application/pdf,.pdf" multiple hidden (change)="agregarHojasDesdeArchivos($event)">Subir fotos o PDF del formulario</label>
+            <small>Cada página queda como una hoja y se colocan los datos que se reconozcan.</small>
+          </div>
+        }
+
+        <!-- Lo que sale en el PDF, en milímetros (mismas reglas de ajuste que el servidor) -->
+        <svg class="ed-render" [attr.viewBox]="'0 0 ' + dim.w + ' ' + dim.h" preserveAspectRatio="none">
+          @for (d of renderPagina(); track $index) {
+            @if (d.tipo === 'txt') {
+              <text [attr.x]="d.x" [attr.y]="d.y" [attr.text-anchor]="d.ancla" [attr.font-size]="d.size"
+                    [attr.font-family]="d.fam" [attr.font-weight]="d.peso" [attr.font-style]="d.estilo"
+                    [attr.fill]="d.color">{{ d.texto }}</text>
+            } @else {
+              <image [attr.href]="d.src" [attr.x]="d.x" [attr.y]="d.y" [attr.width]="d.w" [attr.height]="d.h"
+                     [attr.preserveAspectRatio]="d.ajuste" />
+            }
+          }
+        </svg>
+
+        @for (c of camposPagina(); track c._uid) {
+          <div class="ed-campo {{ claseTipo(c) }}" [ngStyle]="estiloCaja(c)"
+               [class.sel]="esSel(c)" [class.off]="!c.activo" [class.fuera]="fueraDeHoja(c)"
+               [class.vacio]="previa() && !!valorDe(c)?.nota"
+               (mousedown)="onMouseDownCampo($event, c)">
+            @if (previa()) {
+              @if (valorDe(c)?.nota; as nota) {
+                <span class="ed-nota" [matTooltip]="nota">{{ c.fuente === 'BIOMETRIA' ? (c.tipoRender === 'HUELLA' ? 'Sin huella' : 'Sin firma') : '·' }}</span>
+              }
+            } @else {
+              @if (mostrarEtiquetas) { <span class="ed-etq">{{ etiqueta(c) }}</span> }
+              @if (c.fuente === 'BIOMETRIA') { <mat-icon class="ed-icono">{{ c.tipoRender === 'HUELLA' ? 'fingerprint' : 'draw' }}</mat-icon> }
+            }
+            @if (unico === c) {
+              @for (h of ['n','ne','e','se','s','sw','w','nw']; track h) {
+                <span class="ed-h ed-h-{{ h }}" (mousedown)="onMouseDownCampo($event, c, $any(h))"></span>
+              }
+              <span class="ed-medida">{{ c.ancho | number:'1.1-1' }} × {{ c.alto | number:'1.1-1' }} mm</span>
+            }
+          </div>
+        }
+
+        @for (g of guias; track $index) {
+          <div class="ed-guia ed-guia-{{ g.eje }}"
+               [style.left.px]="g.eje === 'x' ? g.mm * escala() : null"
+               [style.top.px]="g.eje === 'y' ? g.mm * escala() : null"></div>
+        }
+      </div>
+
+      @if (previa() && avisosPrevia().length) {
+        <div class="ed-avisos" (mousedown)="$event.stopPropagation()">
+          <mat-icon>info</mat-icon>
+          <div><b>{{ personaPrevia() }}</b> — {{ avisosPrevia().slice(0, 4).join(' ') }}{{ avisosPrevia().length > 4 ? ' …' : '' }}</div>
+        </div>
+      }
+    </main>
+
+    <!-- ═══ Panel derecho: propiedades ════════════════════════════════════ -->
+    <aside class="ed-der">
+      @if (unico; as c) {
+        <div class="ed-der-cab {{ claseTipo(c) }}">
+          <span class="ed-capa-color"></span><b>{{ etiqueta(c) }}</b>
+          <span class="ed-flex"></span>
+          <button mat-icon-button (click)="duplicarSeleccion()" matTooltip="Duplicar (Ctrl+D)"><mat-icon>content_copy</mat-icon></button>
+          <button mat-icon-button (click)="eliminarSeleccion()" matTooltip="Eliminar (Supr)"><mat-icon>delete</mat-icon></button>
+        </div>
+
+        <div class="ed-sec">Dato</div>
+        <mat-form-field appearance="outline" class="ed-ancho">
+          <mat-label>Qué se imprime</mat-label>
+          <mat-select [ngModel]="datoDe(c)" (ngModelChange)="cambiarDato(c, $event)">
+            @for (o of opcionesDato(); track o.valor) { <mat-option [value]="o.valor">{{ o.etiqueta }} <small class="ed-gris">· {{ o.grupo }}</small></mat-option> }
+          </mat-select>
+        </mat-form-field>
+
+        @if (c.fuente === 'BIOMETRIA') {
+          <div class="ed-info">
+            <mat-icon>{{ c.tipoRender === 'HUELLA' ? 'fingerprint' : 'draw' }}</mat-icon>
+            <div>
+              @if (c.tipoRender === 'HUELLA') {
+                Se imprime la huella (índice derecho) capturada en contratación para la temporal.
+              } @else {
+                Se imprime la firma que el trabajador registró en contratación. Si no la registró pero tiene cargada la autorización de tratamiento de datos, sale la firma por autorización: su primer nombre y primer apellido en letra manuscrita (estilo fijo por persona), sin textos adicionales en el formato. Cada documento generado así queda registrado con su autorización. Se apoya en el borde de abajo y puede crecer hasta 12 mm hacia arriba.
+              }
+              Sin firma ni autorización, el recuadro queda en blanco para firmar a mano.
+            </div>
+          </div>
+        } @else {
+          @if (c.fuente === 'LITERAL') {
+            <mat-form-field appearance="outline" class="ed-ancho">
+              <mat-label>Texto</mat-label>
+              <input matInput [(ngModel)]="c.valorLiteral" (ngModelChange)="cambioPropiedad()">
+            </mat-form-field>
+          } @else {
+            <mat-form-field appearance="outline" class="ed-ancho">
+              <mat-label>Formato</mat-label>
+              <mat-select [(ngModel)]="c.tipoRender" (ngModelChange)="cambioPropiedad()">
+                @for (t of tiposTexto; track t.valor) { <mat-option [value]="t.valor">{{ t.etiqueta }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+          }
+          @if (c.tipoRender === 'MARCA') {
+            <mat-form-field appearance="outline" class="ed-ancho">
+              <mat-label>Marcar X cuando el dato sea</mat-label>
+              <input matInput [(ngModel)]="c.condicion" (ngModelChange)="cambioPropiedad()" placeholder="F">
+              <mat-hint>Para sexo: F o M</mat-hint>
+            </mat-form-field>
+          }
+          @if (c.tipoRender === 'FECHA' && !c.pasoCasilla) {
+            <mat-form-field appearance="outline" class="ed-ancho">
+              <mat-label>Patrón de fecha</mat-label>
+              <mat-select [(ngModel)]="c.formato" (ngModelChange)="cambioPropiedad()">
+                <mat-option [value]="null">dd/MM/yyyy</mat-option>
+                <mat-option value="dd-MM-yyyy">dd-MM-yyyy</mat-option>
+                <mat-option value="yyyy-MM-dd">yyyy-MM-dd</mat-option>
+                <mat-option value="dd MM yyyy">dd MM yyyy</mat-option>
+                <mat-option value="ddMMyyyy">ddMMyyyy</mat-option>
+              </mat-select>
+            </mat-form-field>
+          }
+          @if (c.tipoRender !== 'MARCA') {
+            <div class="ed-fila">
+              <mat-slide-toggle [checked]="!!c.pasoCasilla" (change)="alternarCasillas(c, $event.checked)" color="primary">Un carácter por casilla</mat-slide-toggle>
+            </div>
+            @if (c.pasoCasilla) {
+              <div class="ed-fila">
+                <mat-form-field appearance="outline" class="ed-mitad">
+                  <mat-label>Ancho de casilla (mm)</mat-label>
+                  <input matInput type="number" step="0.05" [(ngModel)]="c.pasoCasilla" (ngModelChange)="cambioPropiedad(false)">
+                </mat-form-field>
+                <button mat-button (click)="pasoDesdeAncho(c)" matTooltip="Reparte el ancho de la caja entre los caracteres">Repartir</button>
+              </div>
+            }
+          }
+        }
+
+        <div class="ed-sec">Posición y tamaño (mm)</div>
+        <div class="ed-fila ed-botones">
+          <button mat-stroked-button (click)="ajustarACasilla([c])" [disabled]="!fondos.get(c.pagina)"
+                  matTooltip="Lee el formulario escaneado y encaja el campo en la casilla que tiene debajo">
+            <mat-icon>crop_free</mat-icon> Encajar en la casilla
+          </button>
+          @if (c.pasoCasilla) {
+            <button mat-stroked-button (click)="detectarCasillas(c)" [disabled]="!fondos.get(c.pagina)"
+                    matTooltip="Mide los cuadros impresos (D D M M A A A A) y pone un carácter en cada uno">
+              <mat-icon>view_week</mat-icon> Detectar cuadros
+            </button>
+          }
+        </div>
+        <div class="ed-grid4">
+          <mat-form-field appearance="outline"><mat-label>X</mat-label><input matInput type="number" step="0.1" [(ngModel)]="c.posX" (ngModelChange)="cambioPropiedad(false)"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Y</mat-label><input matInput type="number" step="0.1" [(ngModel)]="c.posY" (ngModelChange)="cambioPropiedad(false)"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Ancho</mat-label><input matInput type="number" step="0.1" [(ngModel)]="c.ancho" (ngModelChange)="cambioPropiedad(false)"></mat-form-field>
+          <mat-form-field appearance="outline"><mat-label>Alto</mat-label><input matInput type="number" step="0.1" [(ngModel)]="c.alto" (ngModelChange)="cambioPropiedad(false)"></mat-form-field>
+        </div>
+        <mat-form-field appearance="outline" class="ed-ancho">
+          <mat-label>Hoja</mat-label>
+          <mat-select [(ngModel)]="c.pagina" (ngModelChange)="cambioPropiedad(false); irAPagina($event); seleccionar(c)">
+            @for (p of paginas; track p.numero) { <mat-option [value]="p.numero">Hoja {{ p.numero }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+
+        @if (c.fuente !== 'BIOMETRIA') {
+          <div class="ed-sec">Letra</div>
+          <div class="ed-fila">
+            <mat-form-field appearance="outline" class="ed-flex">
+              <mat-label>Fuente</mat-label>
+              <mat-select [(ngModel)]="c.fontFamily" (ngModelChange)="cambioPropiedad(false)">
+                <mat-option [value]="null">Helvetica</mat-option>
+                @for (f of fuentesEstandar; track f) { @if (f !== 'Helvetica') { <mat-option [value]="f">{{ f }}</mat-option> } }
+                @for (f of fuentes; track f.id) { <mat-option [value]="'custom:' + f.id">{{ f.nombre }}</mat-option> }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline" class="ed-tam" matTooltip="Tamaño máximo: si no cabe en la casilla, la letra baja sola">
+              <mat-label>Máx. pt</mat-label>
+              <input matInput type="number" step="0.5" min="4" [(ngModel)]="c.fontSize" (ngModelChange)="cambioPropiedad(false)">
+            </mat-form-field>
+          </div>
+          <div class="ed-fila ed-botones">
+            @for (a of alineaciones; track a.valor) {
+              <button mat-icon-button [class.activo]="c.textAlign === a.valor" (click)="c.textAlign = a.valor; cambioPropiedad(false)"><mat-icon>{{ a.icono }}</mat-icon></button>
+            }
+            <span class="ed-sep"></span>
+            <button mat-icon-button [class.activo]="c.fontBold" (click)="c.fontBold = !c.fontBold; cambioPropiedad(false)"><mat-icon>format_bold</mat-icon></button>
+            <button mat-icon-button [class.activo]="c.fontItalic" (click)="c.fontItalic = !c.fontItalic; cambioPropiedad(false)"><mat-icon>format_italic</mat-icon></button>
+            <input type="color" class="ed-color" [(ngModel)]="c.fontColor" (ngModelChange)="cambioPropiedad(false)" matTooltip="Color">
+          </div>
+        }
+
+        <div class="ed-fila ed-mt">
+          <mat-slide-toggle [(ngModel)]="c.activo" (ngModelChange)="cambioPropiedad()" color="primary">Se imprime</mat-slide-toggle>
+        </div>
+        @if (previa() && valorDe(c); as v) {
+          <div class="ed-valor">
+            <small>Saldría:</small>
+            @if (v.imagen) { <img [src]="v.imagen" alt="">@if (v.nota) { <i>{{ v.nota }}</i> } }
+            @else if (v.texto) { <code>{{ v.texto }}</code> }
+            @else { <i>{{ v.nota }}</i> }
+          </div>
+        }
+      } @else if (seleccionados.length > 1) {
+        <div class="ed-der-cab"><b>{{ seleccionados.length }} campos</b><span class="ed-flex"></span>
+          <button mat-icon-button (click)="duplicarSeleccion()" matTooltip="Duplicar"><mat-icon>content_copy</mat-icon></button>
+          <button mat-icon-button (click)="eliminarSeleccion()" matTooltip="Eliminar"><mat-icon>delete</mat-icon></button>
+        </div>
+        <button mat-flat-button color="primary" class="ed-ancho" (click)="ajustarACasilla()">
+          <mat-icon>crop_free</mat-icon> Encajar cada uno en su casilla
+        </button>
+        <p class="ed-ayuda">Se alinean contra el primero que seleccionaste.</p>
+        <div class="ed-alinear">
+          <button mat-stroked-button (click)="alinear('izq')"><mat-icon>align_horizontal_left</mat-icon> Izquierda</button>
+          <button mat-stroked-button (click)="alinear('der')"><mat-icon>align_horizontal_right</mat-icon> Derecha</button>
+          <button mat-stroked-button (click)="alinear('arriba')"><mat-icon>align_vertical_top</mat-icon> Arriba</button>
+          <button mat-stroked-button (click)="alinear('abajo')"><mat-icon>align_vertical_bottom</mat-icon> Abajo</button>
+          <button mat-stroked-button (click)="alinear('centroX')"><mat-icon>align_horizontal_center</mat-icon> Centrar</button>
+          <button mat-stroked-button (click)="alinear('repartirX')"><mat-icon>horizontal_distribute</mat-icon> Repartir</button>
+          <button mat-stroked-button (click)="alinear('ancho')"><mat-icon>width</mat-icon> Mismo ancho</button>
+          <button mat-stroked-button (click)="alinear('alto')"><mat-icon>height</mat-icon> Mismo alto</button>
+          <button mat-stroked-button (click)="alinear('letra')"><mat-icon>format_size</mat-icon> Misma letra</button>
+        </div>
+      } @else {
+        <div class="ed-vacio">
+          <mat-icon>ads_click</mat-icon>
+          <p>Selecciona un campo para editarlo.</p>
+          <ul>
+            <li><kbd>Shift</kbd>+clic: varios a la vez</li>
+            <li><kbd>←↑→↓</kbd> mueve 0,5 mm · <kbd>Shift</kbd> 2 mm · <kbd>Alt</kbd> 0,1 mm</li>
+            <li>Arrastra con <kbd>Alt</kbd> para soltar sin imanes</li>
+            <li><kbd>Ctrl</kbd>+<kbd>D</kbd> duplica · <kbd>Supr</kbd> elimina</li>
+            <li><kbd>Ctrl</kbd>+<kbd>Z</kbd> deshacer · <kbd>Ctrl</kbd>+<kbd>S</kbd> guardar</li>
+            <li><kbd>Ctrl</kbd>+rueda: zoom</li>
+            <li><kbd>Ctrl</kbd>+<kbd>A</kbd> y <b>Encajar cada uno</b>: reubica todos los campos de la hoja en sus casillas</li>
+          </ul>
+          <p class="ed-ayuda">Activa <b>Vista previa</b> para ver el formulario lleno con un contrato real, con su firma y su huella.</p>
+        </div>
+      }
+    </aside>
+  </div>
+</div>

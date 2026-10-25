@@ -1,0 +1,63 @@
+.juego-pagina { max-width: 720px; gap: 16px; }
+.esqueleto.alto { height: 380px; border-radius: 24px; }
+.volver { align-self: flex-start; display: inline-flex; align-items: center; gap: 4px; color: var(--muted); text-decoration: none; font-weight: 700; font-size: 14px; }
+
+.intro {
+  position: relative; overflow: hidden; border-radius: 26px; padding: 26px 20px 20px; color: #fff; text-align: center;
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  background: radial-gradient(120% 100% at 50% 0%, #0E9F6E, #065F46);
+  box-shadow: 0 16px 36px rgba(2, 6, 23, .18);
+}
+.intro.j-memoria { background: radial-gradient(120% 100% at 50% 0%, #7C3AED, #312E81); }
+.intro.j-precio { background: radial-gradient(120% 100% at 50% 0%, #0284C7, #0C4A6E); }
+:host-context(html[data-temporada='halloween']) .intro { background: radial-gradient(120% 100% at 50% 0%, #EA580C, #3B0D6B); }
+.icono { width: 72px; height: 72px; border-radius: 22px; display: grid; place-items: center; background: rgba(255, 255, 255, .18); }
+.icono mat-icon { font-size: 40px; width: 40px; height: 40px; }
+.torneo-chip { font-size: 12px; font-weight: 900; padding: 4px 12px; border-radius: 999px; background: #FDE047; color: #422006; }
+.intro h1 { margin: 0; font-size: clamp(26px, 7vw, 34px); font-weight: 900; letter-spacing: -.02em; }
+.intro > p { margin: 0; max-width: 46ch; font-size: 14px; opacity: .9; line-height: 1.4; }
+.marcas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; width: 100%; margin-top: 8px; }
+.marcas div { display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 10px 6px; border-radius: 16px; background: rgba(255, 255, 255, .14); }
+.marcas small { font-size: 11px; opacity: .85; line-height: 1.2; }
+.marcas b { font-size: 22px; font-weight: 900; font-variant-numeric: tabular-nums; }
+.marcas i { font-style: normal; font-size: 11px; opacity: .85; }
+.premio { display: flex; align-items: center; gap: 6px; margin: 6px 0 0; font-size: 13px; font-weight: 700; }
+.premio mat-icon { font-size: 18px; width: 18px; height: 18px; color: #FDE047; }
+
+.acciones { display: flex; gap: 10px; }
+.acciones .jugar { flex: 1; min-height: 56px; font-size: 18px; }
+.acciones .jugar mat-icon { font-size: 28px; width: 28px; height: 28px; }
+.quedan { margin: -6px 0 0; text-align: center; font-size: 13px; color: var(--muted); }
+.error { display: flex; align-items: center; gap: 6px; color: var(--danger, #B91C1C); font-weight: 700; margin: 0; }
+
+.como h2 { display: flex; align-items: center; gap: 6px; font-size: 16px; margin: 0 0 6px; }
+.como h2 mat-icon { color: var(--eco); }
+.como ul { margin: 0; padding-left: 20px; display: flex; flex-direction: column; gap: 4px; font-size: 14px; color: var(--text); }
+
+.resultado {
+  position: relative; overflow: hidden; border-radius: 24px; padding: 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: var(--surface); border: 2px solid var(--border); animation: entrar .4s cubic-bezier(.2, 1.3, .4, 1);
+}
+.resultado.ok { border-color: color-mix(in srgb, var(--eco) 50%, transparent); background: color-mix(in srgb, var(--eco) 8%, var(--surface)); }
+.res-titulo { font-size: 13px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.res-puntos { font-size: 56px; font-weight: 900; line-height: 1; color: var(--eco-ink); font-variant-numeric: tabular-nums; }
+.insignia { display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px; border-radius: 999px; font-size: 14px; background: var(--eco-soft); color: var(--eco-ink); }
+.insignia.oro { background: #FEF3C7; color: #92400E; }
+.puesto { margin: 4px 0 0; font-size: 15px; }
+.podio-ya { display: block; margin-top: 4px; font-weight: 800; color: #B45309; }
+.motivo { display: flex; align-items: center; gap: 6px; color: var(--muted); margin: 4px 0 0; }
+
+/* La partida: pantalla completa, por encima de la barra y las pestañas. */
+.escenario { position: fixed; inset: 0; z-index: 85; background: #0B3B2E; display: flex; }
+.escenario > :not(.salir):not(.capa-cuenta) { flex: 1; }
+.salir {
+  position: absolute; top: calc(10px + env(safe-area-inset-top)); left: 50%; translate: -50% 0; z-index: 5; width: 36px; height: 36px;
+  min-height: 36px !important; margin: 0 !important; padding: 0; border: 0; border-radius: 50%; background: rgba(0, 0, 0, .3); color: #fff;
+  display: grid; place-items: center; cursor: pointer;
+}
+.capa-cuenta { position: absolute; inset: 0; z-index: 4; display: grid; place-items: center; background: rgba(0, 0, 0, .45); color: #fff; }
+.capa-cuenta small { font-size: 18px; font-weight: 800; }
+.numero { font-size: 120px; font-weight: 900; text-shadow: 0 10px 30px rgba(0, 0, 0, .5); animation: cuenta .8s ease both; }
+@keyframes cuenta { from { transform: scale(1.8); opacity: 0; } 30% { transform: scale(1); opacity: 1; } to { transform: scale(.7); opacity: 0; } }
+@keyframes entrar { from { transform: translateY(16px) scale(.97); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .numero, .resultado { animation: none; } }

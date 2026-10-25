@@ -1,130 +1,388 @@
 <div class="kb-page">
 
-  <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
-  <div class="kb-header">
+  <!-- ── Encabezado + indicadores ──────────────────────────────────────── -->
+  <header class="kb-header">
     <div class="kb-header-info">
-      <mat-icon class="kb-header-ico">library_books</mat-icon>
+      <div class="kb-logo"><mat-icon>psychology</mat-icon></div>
       <div>
         <h2>Bases de Conocimiento</h2>
-        <p>Los documentos aquí cargados enriquecen al Asistente IA con información específica de tu empresa.</p>
+        <p>La memoria con la que opera la IA de la plataforma. Todo entra por Docling, se organiza por módulo y queda conectado en una red semántica.</p>
       </div>
     </div>
-  </div>
+    <button mat-icon-button matTooltip="Actualizar" (click)="cargarTodo()" aria-label="Actualizar"><mat-icon>refresh</mat-icon></button>
+  </header>
 
-  @if (error()) {
-    <div class="kb-error">
-      <mat-icon>error_outline</mat-icon> {{ error() }}
-      <button mat-icon-button (click)="error.set(null)"><mat-icon>close</mat-icon></button>
+  @if (resumen(); as r) {
+    <div class="kb-kpis">
+      <div class="kb-kpi"><span class="kb-kpi-v">{{ r.bases | number }}</span><span class="kb-kpi-l">bases</span></div>
+      <div class="kb-kpi"><span class="kb-kpi-v">{{ r.fragmentos | number }}</span><span class="kb-kpi-l">fragmentos</span></div>
+      <div class="kb-kpi"><span class="kb-kpi-v">{{ r.conceptos | number }}</span><span class="kb-kpi-l">conceptos</span></div>
+      <div class="kb-kpi"><span class="kb-kpi-v">{{ r.relaciones | number }}</span><span class="kb-kpi-l">relaciones</span></div>
+      <div class="kb-kpi"><span class="kb-kpi-v">{{ r.vectorizadas | number }}</span><span class="kb-kpi-l">con búsqueda semántica</span></div>
+      @if (r.procesando) {
+        <div class="kb-kpi kpi-proc"><mat-progress-spinner mode="indeterminate" diameter="16"></mat-progress-spinner>
+          <span class="kb-kpi-l">{{ r.procesando }} procesando</span></div>
+      }
+      @if (r.conError) {
+        <div class="kb-kpi kpi-err"><span class="kb-kpi-v">{{ r.conError }}</span><span class="kb-kpi-l">con error</span></div>
+      }
     </div>
   }
 
-  <!-- ── Formulario de carga ─────────────────────────────────────────────── -->
-  <div class="kb-upload-card">
-    <h3><mat-icon>upload_file</mat-icon> Subir documento</h3>
-    <p class="upload-hint">
-      El texto del archivo se extrae automáticamente en el navegador y se fragmenta para búsqueda semántica (RAG).
-      Soporta <strong>txt, md, csv, json, log, xml, yaml</strong> — cualquier formato de texto.
-    </p>
-
-    <!-- Selector de archivo -->
-    <div class="file-picker">
-      <button mat-stroked-button (click)="abrirArchivos()">
-        <mat-icon>attach_file</mat-icon>
-        {{ formArchivoNombre() ?? 'Seleccionar archivo' }}
-      </button>
-      @if (formContenido()) {
-        <span class="file-ok">
-          <mat-icon>check_circle</mat-icon>
-          {{ formatBytes(formContenido()!.length) }} de texto extraído
-        </span>
-      }
-      <input #fileInput type="file" hidden (change)="onFile($event)">
+  @if (error()) {
+    <div class="kb-error" role="alert">
+      <mat-icon>error_outline</mat-icon> {{ error() }}
+      <button mat-icon-button (click)="error.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
     </div>
+  }
 
-    <!-- Nombre -->
-    <mat-form-field appearance="outline" class="full-field">
-      <mat-label>Nombre del documento</mat-label>
-      <input matInput [ngModel]="formNombre()" (ngModelChange)="formNombre.set($event)"
-             placeholder="Ej: Reglamento Interno 2025">
-    </mat-form-field>
+  <mat-tab-group class="kb-tabs" [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)"
+                 [preserveContent]="true" mat-stretch-tabs="false" animationDuration="150ms">
 
-    <!-- Módulos asociados -->
-    <div class="form-modulos">
-      <span class="form-modulos-label">Módulos que puede usar este documento:</span>
-      <div class="modulos-grid">
-        @for (m of modulosOpciones; track m.clave) {
-          <label class="modulo-check">
-            <input type="checkbox" [checked]="formModuloActivo(m.clave)" (change)="toggleFormModulo(m.clave)">
-            <mat-icon class="mod-ico">{{ m.icono }}</mat-icon>
-            <span>{{ m.nombre }}</span>
-          </label>
-        }
-      </div>
-    </div>
+    <!-- ═══ 1. PANORAMA (vista masiva) ═══════════════════════════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">hub</mat-icon>Panorama</ng-template>
+      <div class="kb-tab">
 
-    <button mat-flat-button color="primary" class="upload-btn"
-            [disabled]="!formContenido() || !formNombre().trim() || uploading()"
-            (click)="subirDocumento()">
-      @if (uploading()) {
-        <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
-        Subiendo…
-      } @else {
-        <mat-icon>cloud_upload</mat-icon> Subir documento
-      }
-    </button>
-  </div>
-
-  <!-- ── Lista de documentos ─────────────────────────────────────────────── -->
-  <div class="kb-list-section">
-    <h3>Documentos cargados <span class="doc-count">({{ documentos().length }})</span></h3>
-
-    @if (loading()) {
-      <div class="loading-center">
-        <mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner>
-      </div>
-    } @else if (documentos().length === 0) {
-      <div class="empty-state">
-        <mat-icon>auto_stories</mat-icon>
-        <p>Aún no hay documentos. Sube el primero para comenzar.</p>
-      </div>
-    } @else {
-      <div class="doc-list">
-        @for (doc of documentos(); track doc.id) {
-          <div class="doc-card">
-            <div class="doc-card-head">
-              <mat-icon class="doc-ico">description</mat-icon>
-              <div class="doc-info">
-                <span class="doc-nombre">{{ doc.nombre }}</span>
-                <span class="doc-meta">
-                  {{ formatBytes(doc.longitud) }} · {{ doc.tipoMime }}
-                </span>
-              </div>
-              <button mat-icon-button color="warn" matTooltip="Eliminar documento"
-                      (click)="eliminarDocumento(doc)">
-                <mat-icon>delete</mat-icon>
-              </button>
+        <div class="kb-motores">
+          @for (m of motores(); track m.clave) {
+            <div class="kb-motor" [class.ok]="m.ok" [matTooltip]="m.ayuda">
+              <span class="kb-dot"></span>{{ m.nombre }}<small>{{ m.ok ? 'en línea' : 'sin conexión' }}</small>
             </div>
+          }
+          @if (resumen()?.docai?.fragmentos != null) {
+            <span class="kb-motor-nota">{{ resumen()!.docai!.fragmentos | number }} vectores en el clúster de IA</span>
+          }
+        </div>
 
-            @if (doc.preview) {
-              <p class="doc-preview">{{ doc.preview }}</p>
-            }
-
-            <!-- Módulos del documento (editables) -->
-            <div class="doc-modulos">
-              <span class="doc-modulos-label">Módulos:</span>
-              <div class="modulos-grid-sm">
-                @for (m of modulosOpciones; track m.clave) {
-                  <label class="modulo-check-sm">
-                    <input type="checkbox" [checked]="(doc.modulos ?? []).includes(m.clave)"
-                           (change)="toggleDocModulo(doc, m.clave)">
-                    <span>{{ m.nombre }}</span>
-                  </label>
-                }
-              </div>
+        @if ((resumen()?.sinRed ?? 0) > 0) {
+          <div class="kb-banner">
+            <mat-icon>auto_fix_high</mat-icon>
+            <div>
+              <b>{{ resumen()!.sinRed }} bases aún no tienen red semántica</b>
+              <p>Entraron antes de esta versión. Pásalas por la tubería nueva (fragmentos por sección, vectores y conceptos) de a 10.</p>
+              @if (lote(); as l) {
+                <p class="kb-banner-res">{{ l.nota }} @if (l.simulado) { ({{ l.candidatas }} candidatas, tomaría {{ l.ids.length }}) }</p>
+              }
+            </div>
+            <div class="kb-banner-acc">
+              <button mat-stroked-button (click)="simularLote()" [disabled]="loteOcupado()">Simular</button>
+              <button mat-flat-button color="primary" (click)="ejecutarLote()" [disabled]="loteOcupado() || !lote()?.simulado || !lote()?.ids?.length">Procesar 10</button>
             </div>
           </div>
         }
+
+        <div class="kb-panorama">
+          <section class="kb-card kb-grafo-card">
+            <div class="kb-card-cab">
+              <h3><mat-icon>hub</mat-icon> Red semántica de la plataforma</h3>
+              <div class="kb-grafo-filtros">
+                <select [ngModel]="filtroGrafoModulo()" (ngModelChange)="filtroGrafoModulo.set($event); cargarGrafo()" aria-label="Filtrar por módulo">
+                  <option value="">Todos los módulos</option>
+                  @for (m of modulos(); track m.clave) {
+                    @if (m.clave !== 'todos') { <option [value]="m.clave">{{ m.nombre }}</option> }
+                  }
+                </select>
+                <select [ngModel]="maxConceptos()" (ngModelChange)="maxConceptos.set(+$event); cargarGrafo()" aria-label="Conceptos a mostrar">
+                  <option [value]="60">60 conceptos</option>
+                  <option [value]="120">120 conceptos</option>
+                  <option [value]="250">250 conceptos</option>
+                </select>
+                <mat-slide-toggle [checked]="incluirAgentes()" (change)="incluirAgentes.set($event.checked); cargarGrafo()">Informes de guardia</mat-slide-toggle>
+              </div>
+            </div>
+            <p class="kb-ayuda">
+              Módulos (cuadros) → bases que alimentan su IA → conceptos. Los conceptos que comparten varias bases son los que
+              integran el conocimiento. Clic en una base para abrirla; en un módulo para enfocarlo.
+              @if (grafoGlobal()?.meta; as meta) {
+                <b>{{ meta['bases'] }} bases · {{ meta['conceptosMostrados'] }} de {{ meta['conceptosTotales'] }} conceptos · {{ meta['compartidos'] }} compartidos</b>
+              }
+            </p>
+            @if (grafoCargando() && !grafoGlobal()) {
+              <div class="kb-centro"><mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner></div>
+            } @else {
+              <app-grafo-kb [grafo]="grafoGlobal()" [alto]="600" [nombresModulo]="nombresModulo()" (nodo)="alClicNodoGlobal($event)"
+                            mensajeVacio="Aún no hay red: sube un documento o procesa las bases antiguas para verla crecer." />
+            }
+          </section>
+
+          <aside class="kb-lateral">
+            <section class="kb-card">
+              <h3><mat-icon>apps</mat-icon> Bases por módulo</h3>
+              <p class="kb-ayuda">Lo que cada chat de IA puede consultar.</p>
+              <ul class="kb-barras">
+                @for (b of barrasModulo(); track b.clave) {
+                  <li>
+                    <button type="button" (click)="filtroModulo.set(b.clave); tab.set(TAB.bases)" [matTooltip]="'Ver bases de ' + b.nombre">
+                      <span class="kb-barra-n"><mat-icon>{{ iconoModulo(b.clave) }}</mat-icon>{{ b.nombre }}</span>
+                      <span class="kb-barra"><span [style.width.%]="b.pct"></span></span>
+                      <span class="kb-barra-v">{{ b.valor }}</span>
+                    </button>
+                  </li>
+                } @empty { <li class="kb-vacio-sm">Sin bases.</li> }
+              </ul>
+            </section>
+
+            <section class="kb-card">
+              <h3><mat-icon>link</mat-icon> Conceptos que más integran</h3>
+              <p class="kb-ayuda">Aparecen en varias bases a la vez.</p>
+              <ol class="kb-top">
+                @for (c of resumen()?.conceptosTop ?? []; track c.clave) {
+                  <li><span>{{ c.nombre }}</span><small>{{ c.tipo }}</small><b>{{ c.bases }}</b></li>
+                } @empty { <li class="kb-vacio-sm">Todavía no hay conceptos extraídos.</li> }
+              </ol>
+            </section>
+
+            <section class="kb-card kb-acciones-rapidas">
+              <button mat-flat-button color="primary" (click)="tab.set(TAB.subir)"><mat-icon>upload_file</mat-icon> Subir con Docling</button>
+              <button mat-stroked-button (click)="irAConstruir()"><mat-icon>forum</mat-icon> Construir con IA</button>
+              <button mat-stroked-button (click)="tab.set(TAB.probar)"><mat-icon>manage_search</mat-icon> Probar qué ve la IA</button>
+              <button mat-stroked-button (click)="tab.set(TAB.fuentes)"><mat-icon>travel_explore</mat-icon> Fuentes externas</button>
+            </section>
+          </aside>
+        </div>
       </div>
+    </mat-tab>
+
+    <!-- ═══ 2. BASES ═════════════════════════════════════════════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">library_books</mat-icon>Bases <span class="tab-n">{{ documentos().length }}</span></ng-template>
+      <div class="kb-tab">
+        <div class="kb-filtros">
+          <div class="kb-buscar">
+            <mat-icon>search</mat-icon>
+            <input placeholder="Buscar por nombre o resumen" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" aria-label="Buscar bases">
+          </div>
+          <select [ngModel]="filtroModulo()" (ngModelChange)="filtroModulo.set($event)" aria-label="Módulo">
+            <option value="">Todos los módulos</option>
+            @for (m of modulos(); track m.clave) { <option [value]="m.clave">{{ m.nombre }} ({{ m.bases }})</option> }
+          </select>
+          <select [ngModel]="filtroOrigen()" (ngModelChange)="filtroOrigen.set($event)" aria-label="Origen">
+            <option value="">Cualquier origen</option>
+            <option value="archivo">Archivos (Docling)</option>
+            <option value="constructor">Construidas con IA</option>
+            <option value="texto">Texto</option>
+            <option value="fuente">Fuentes externas</option>
+            <option value="agente">Agentes de guardia</option>
+          </select>
+          @if (agentesOcultos() > 0 && filtroOrigen() !== 'agente') {
+            <mat-slide-toggle [checked]="!ocultarAgentes()" (change)="ocultarAgentes.set(!$event.checked)">
+              Ver {{ agentesOcultos() }} informes de guardia
+            </mat-slide-toggle>
+          }
+        </div>
+
+        @if (cargando() && documentos().length === 0) {
+          <div class="kb-centro"><mat-progress-spinner mode="indeterminate" diameter="36"></mat-progress-spinner></div>
+        } @else {
+          <div class="kb-grid">
+            @for (d of documentosFiltrados(); track d.id) {
+              <button type="button" class="kb-base" (click)="abrirBase(d.id)" [class.proc]="d.estado === 'PROCESANDO'" [class.err]="d.estado === 'ERROR'">
+                <div class="kb-base-cab">
+                  <mat-icon class="kb-base-ico">{{ iconoOrigen(d.origen) }}</mat-icon>
+                  <span class="kb-base-nombre">{{ d.nombre }}</span>
+                  @switch (d.estado) {
+                    @case ('PROCESANDO') { <mat-progress-spinner mode="indeterminate" diameter="16" matTooltip="Procesando"></mat-progress-spinner> }
+                    @case ('ERROR') { <mat-icon class="kb-base-err" [matTooltip]="d.estadoDetalle ?? 'Error'">error</mat-icon> }
+                  }
+                </div>
+                <p class="kb-base-res">{{ d.resumen || d.preview }}</p>
+                <div class="kb-base-mods">
+                  @for (m of d.modulos; track m) { <span class="kb-tag">{{ nombreModulo(m) }}</span> }
+                </div>
+                <div class="kb-base-pie">
+                  <span>{{ etiquetaOrigen(d.origen) }}</span>
+                  @if (d.motor === 'docling') { <span class="kb-pill-docling">Docling</span> }
+                  <span>{{ d.fragmentos ?? 0 }} frag.</span>
+                  @if (d.grafoAt) { <span matTooltip="Tiene red semántica"><mat-icon>hub</mat-icon></span> }
+                  @if (d.vectorizado) { <span matTooltip="Búsqueda por significado"><mat-icon>bolt</mat-icon></span> }
+                  <span class="kb-base-fecha">{{ d.createdAt | date: 'dd/MM/yy' }}</span>
+                </div>
+              </button>
+            } @empty {
+              <div class="kb-vacio">
+                <mat-icon>auto_stories</mat-icon>
+                <p>No hay bases con esos filtros.</p>
+                <button mat-stroked-button (click)="tab.set(TAB.subir)">Subir la primera</button>
+              </div>
+            }
+          </div>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ═══ 3. SUBIR CON DOCLING ═════════════════════════════════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">upload_file</mat-icon>Subir con Docling</ng-template>
+      <div class="kb-tab kb-subir">
+        <section class="kb-card">
+          <label class="kb-drop" [class.sobre]="arrastrando()"
+                 (dragover)="alArrastrar($event, true)" (dragleave)="alArrastrar($event, false)" (drop)="alSoltar($event)">
+            <input type="file" multiple hidden (change)="alElegirArchivos($event)"
+                   accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.html,.htm,.md,.txt,.csv,.json,.xml,.yaml,.yml,.log,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
+            <mat-icon>cloud_upload</mat-icon>
+            <b>Arrastra archivos aquí o haz clic para elegirlos</b>
+            <span>PDF (también escaneados), Word, Excel, PowerPoint, HTML, imágenes y texto · hasta 40 MB por archivo</span>
+            <span class="kb-drop-docling"><mat-icon>auto_awesome</mat-icon> Docling conserva títulos, tablas y hace OCR donde haga falta</span>
+          </label>
+
+          <div class="kb-subir-opc">
+            <div>
+              <span class="kb-label">¿Qué IA debe usar estas bases?</span>
+              <div class="kb-chips">
+                @for (m of modulos(); track m.clave) {
+                  <button type="button" class="kb-chip" [class.on]="moduloSubidaActivo(m.clave)" (click)="toggleModuloSubida(m.clave)"
+                          [attr.aria-pressed]="moduloSubidaActivo(m.clave)">
+                    <mat-icon>{{ moduloSubidaActivo(m.clave) ? 'check' : m.icono }}</mat-icon>{{ m.nombre }}
+                  </button>
+                }
+              </div>
+              @if (modulosSubida().length === 0) { <small class="kb-ayuda">Sin elegir = toda la plataforma.</small> }
+            </div>
+            <div>
+              <span class="kb-label">Reconocimiento de texto (OCR)</span>
+              <mat-button-toggle-group [value]="ocr()" (change)="ocr.set($event.value)" aria-label="OCR">
+                <mat-button-toggle value="auto" matTooltip="Solo en páginas sin texto (recomendado)">Automático</mat-button-toggle>
+                <mat-button-toggle value="forzar" matTooltip="Para escaneos con una capa de texto mala">Forzar</mat-button-toggle>
+                <mat-button-toggle value="no" matTooltip="Más rápido; ignora imágenes">Sin OCR</mat-button-toggle>
+              </mat-button-toggle-group>
+            </div>
+          </div>
+        </section>
+
+        @if (cola().length) {
+          <section class="kb-card">
+            <div class="kb-card-cab">
+              <h3><mat-icon>queue</mat-icon> Cola de ingesta</h3>
+              <div class="kb-cola-acc">
+                <button mat-button (click)="limpiarTerminados()">Limpiar terminados</button>
+                <button mat-flat-button color="primary" (click)="subirCola()" [disabled]="pendientesDeSubir() === 0">
+                  <mat-icon>rocket_launch</mat-icon> Procesar {{ pendientesDeSubir() }}
+                </button>
+              </div>
+            </div>
+            <ul class="kb-cola">
+              @for (c of cola(); track c.id) {
+                <li [class]="'est-' + c.estado">
+                  <mat-icon class="kb-cola-ico">{{ iconoCola(c.estado) }}</mat-icon>
+                  <div class="kb-cola-info">
+                    @if (c.estado === 'esperando') {
+                      <input [ngModel]="c.nombre" (ngModelChange)="renombrarEnCola(c.id, $event)" aria-label="Nombre de la base">
+                    } @else {
+                      <b>{{ c.nombre }}</b>
+                    }
+                    <small>{{ c.archivo.name }} · {{ bytes(c.archivo.size) }}
+                      @switch (c.estado) {
+                        @case ('subiendo') { · subiendo… }
+                        @case ('procesando') { · {{ c.detalle || 'Docling procesando…' }} }
+                        @case ('listo') { · lista {{ c.detalle ? '(' + c.detalle + ')' : '' }} }
+                        @case ('error') { · {{ c.detalle }} }
+                      }
+                    </small>
+                  </div>
+                  @if (c.estado === 'subiendo' || c.estado === 'procesando') {
+                    <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner>
+                  }
+                  @if (c.docId && (c.estado === 'listo' || c.estado === 'procesando')) {
+                    <button mat-button (click)="abrirBase(c.docId!)">Ver</button>
+                  }
+                  @if (c.estado === 'esperando' || c.estado === 'error') {
+                    <button mat-icon-button (click)="quitarDeCola(c.id)" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+                  }
+                </li>
+              }
+            </ul>
+          </section>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ═══ 4. CONSTRUIR CON IA ══════════════════════════════════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">forum</mat-icon>Construir con IA</ng-template>
+      <div class="kb-tab">
+        <app-kb-constructor [modulos]="modulos()" [semilla]="semillaConstructor()" (guardado)="alGuardarConstructor($event)" />
+      </div>
+    </mat-tab>
+
+    <!-- ═══ 5. PROBAR LA IA ══════════════════════════════════════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">manage_search</mat-icon>Probar la IA</ng-template>
+      <div class="kb-tab">
+        <section class="kb-card">
+          <h3><mat-icon>manage_search</mat-icon> ¿Qué sabría la IA ante esta pregunta?</h3>
+          <p class="kb-ayuda">Escribe una pregunta como la haría alguien en el chat de un módulo y mira qué fragmentos encuentra por palabras, cuáles por significado y el bloque exacto que se le entrega a la IA.</p>
+          <div class="kb-probar">
+            <input placeholder="Ej.: ¿cuántos días de licencia de luto tiene un trabajador?" [ngModel]="consulta()" (ngModelChange)="consulta.set($event)"
+                   (keydown.enter)="probar()" aria-label="Pregunta de prueba">
+            <select [ngModel]="moduloPrueba()" (ngModelChange)="moduloPrueba.set($event)" aria-label="Chat del módulo">
+              <option value="">Toda la base</option>
+              @for (m of modulos(); track m.clave) {
+                @if (m.clave !== 'todos') { <option [value]="m.clave">Chat de {{ m.nombre }}</option> }
+              }
+            </select>
+            <button mat-flat-button color="primary" (click)="probar()" [disabled]="probando() || consulta().trim().length < 2">
+              @if (probando()) { <mat-progress-spinner mode="indeterminate" diameter="16"></mat-progress-spinner> } @else { <mat-icon>search</mat-icon> }
+              Probar
+            </button>
+          </div>
+        </section>
+
+        @if (prueba(); as p) {
+          <div class="kb-resultados">
+            <section class="kb-card">
+              <h3><mat-icon>bolt</mat-icon> Por significado <small>qdrant · {{ p.significado.length }}</small></h3>
+              @for (h of p.significado; track $index) {
+                <article class="kb-hallazgo">
+                  <header>
+                    <button type="button" class="kb-link" (click)="h.documentoId && abrirBase(h.documentoId)">{{ h.documento || 'Base' }}</button>
+                    @if (h.puntaje != null) { <span class="kb-puntaje">{{ porcentaje(h.puntaje) }}</span> }
+                  </header>
+                  @if (h.seccion) { <small>{{ h.seccion }}</small> }
+                  <p>{{ h.texto }}</p>
+                </article>
+              } @empty { <p class="kb-vacio-sm">Nada por significado (o la base aún no está vectorizada).</p> }
+            </section>
+            <section class="kb-card">
+              <h3><mat-icon>text_fields</mat-icon> Por palabras <small>FULLTEXT · {{ p.palabras.length }}</small></h3>
+              @for (h of p.palabras; track $index) {
+                <article class="kb-hallazgo">
+                  <header><button type="button" class="kb-link" (click)="h.documentoId && abrirBase(h.documentoId)">{{ h.documento || 'Base' }}</button></header>
+                  @if (h.seccion) { <small>{{ h.seccion }}</small> }
+                  <p>{{ h.texto }}</p>
+                </article>
+              } @empty { <p class="kb-vacio-sm">Ninguna coincidencia por palabras.</p> }
+            </section>
+          </div>
+          <section class="kb-card">
+            <h3><mat-icon>input</mat-icon> Contexto que recibe la IA</h3>
+            @if (p.contexto) { <pre class="kb-contexto">{{ p.contexto }}</pre> }
+            @else { <p class="kb-vacio-sm">La IA respondería sin base de conocimiento para esta pregunta.</p> }
+          </section>
+        }
+      </div>
+    </mat-tab>
+
+    <!-- ═══ 6. FUENTES EXTERNAS ══════════════════════════════════════════ -->
+    <mat-tab>
+      <ng-template mat-tab-label><mat-icon class="tab-ico">travel_explore</mat-icon>Fuentes externas</ng-template>
+      <div class="kb-tab">
+        <app-kb-fuentes [modulos]="modulos()" (abrirBase)="abrirBase($event)" (cambio)="refrescarTrasFuente()" />
+      </div>
+    </mat-tab>
+
+    <!-- ═══ 7. BASE INDIVIDUAL ═══════════════════════════════════════════ -->
+    @if (baseAbierta(); as id) {
+      <mat-tab>
+        <ng-template mat-tab-label>
+          <mat-icon class="tab-ico">description</mat-icon><span class="tab-base">{{ nombreBaseAbierta() }}</span>
+          <button type="button" class="tab-cerrar" (click)="$event.stopPropagation(); cerrarBase()" aria-label="Cerrar base"><mat-icon>close</mat-icon></button>
+        </ng-template>
+        <div class="kb-tab">
+          <app-kb-detalle [docId]="id" [modulos]="modulos()" (cambiado)="alCambiarBase($event)" (eliminado)="alEliminarBase($event)"
+                          (construir)="irAConstruir($event)" (abrirBase)="abrirBase($event)" />
+        </div>
+      </mat-tab>
     }
-  </div>
+  </mat-tab-group>
 </div>

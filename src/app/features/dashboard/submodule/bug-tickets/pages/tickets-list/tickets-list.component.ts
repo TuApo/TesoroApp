@@ -1,18 +1,19 @@
 import { Component, ChangeDetectionStrategy, ChangeDetectorRef, OnInit, ViewChild, ElementRef, LOCALE_ID, inject } from '@angular/core';
 import { formatDate } from '@angular/common';
 import { SharedModule } from '../../../../../../shared/shared.module';
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { TicketsService, BugTicket, TicketComentario } from '../../services/tickets.service';
 import { FormControl } from '@angular/forms';
 import { ActivatedRoute } from '@angular/router';
 import Swal from 'sweetalert2';
+import { PanelAgentesTicketComponent } from '../../components/panel-agentes-ticket/panel-agentes-ticket.component';
 import { TareasDialogosService } from '../../../seguimiento-tareas/services/tareas-dialogos.service';
 
 @Component({
   selector: 'app-tickets-list',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [SharedModule, ...TABLA_ESTANDAR],
+  imports: [SharedModule, ...TABLA_ESTANDAR, PanelAgentesTicketComponent],
   templateUrl: './tickets-list.component.html',
   styleUrl: './tickets-list.component.css',
 })
@@ -44,6 +45,24 @@ export class TicketsListComponent implements OnInit {
 
   estados = ['Abierto', 'En Progreso', 'Resuelto', 'Cerrado'];
   prioridades = ['Baja', 'Media', 'Alta', 'Critica'];
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): pasar varios tickets al
+   * mismo estado. Un botón por estado; el comentario se escribe una vez y
+   * queda en cada uno, que es lo que se hace al cerrar una tanda.
+   */
+  readonly accionesMasivas: AccionMasiva<any>[] = this.estados.map((estado): AccionMasiva<any> => ({
+    id: `estado:${estado}`,
+    etiqueta: estado,
+    grupo: 'Pasar a:',
+    tono: estado === 'Cerrado' ? 'aviso' : estado === 'Resuelto' ? 'primario' : 'neutro',
+    aplicaA: (t) => t.estado !== estado,
+    confirmar: { nota: 'Comentario (se guarda en todos)' },
+    ejecutar: (t, ctx) => this.ticketsService.actualizarEstado(t.id, estado, ctx.nota),
+    etiquetaFila: (t) => `#${t.id} ${t.titulo ?? ''}`.trim(),
+    verbo: `pasado(s) a "${estado}"`,
+    alTerminar: () => this.cargarTickets(),
+  }));
 
   @ViewChild('chatContainer') chatContainer!: ElementRef;
   @ViewChild('fileInput') fileInput!: ElementRef<HTMLInputElement>;
@@ -209,6 +228,7 @@ export class TicketsListComponent implements OnInit {
       },
     });
   }
+
 
   // ===== Archivos =====
   abrirSelectorArchivo(): void {

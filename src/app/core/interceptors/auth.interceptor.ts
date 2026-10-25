@@ -7,10 +7,11 @@ import {
 } from '@angular/common/http';
 import { inject } from '@angular/core';
 import { Router } from '@angular/router';
-import { Observable, EMPTY, throwError } from 'rxjs';
-import { catchError } from 'rxjs/operators';
+import { Observable, EMPTY, from, throwError } from 'rxjs';
+import { catchError, switchMap } from 'rxjs/operators';
 
 import { environment } from '../../../environments/environment';
+import { caduca, puedeRenovar, renovarToken } from '../security/renovacion-token';
 
 const API_BASE = environment.apiUrl;
 const API_ORIGIN = new URL(API_BASE).host;
@@ -21,6 +22,10 @@ const API_ORIGIN = new URL(API_BASE).host;
 // interceptor descartaba la petición y mandaba al login: la pantalla pública solo servía
 // en un navegador con sesión iniciada.
 const PUBLIC_PATHS = ['/gestion_admin/auth/login/', '/api/v1/public/'];
+
+// Login, refresh y logout no se renuevan: renovar para cerrar sesión gastaría un refresh en
+// balde, y un 401 del propio refresh no debe intentar renovarse con él.
+const SIN_RENOVAR = '/gestion_admin/auth/';
 
 // Prefijo del header Authorization. Si tu backend requiere otro esquema,
 // cambia a 'Token' o deja '' si NO usa prefijo.
@@ -87,22 +92,22 @@ export const interceptor: HttpInterceptorFn = (
   }
 
   let working = req;
+  const protegida = isBrowser && isApiRequest && !isPublic;
+  let token: string | null = null;
 
   // 🔐 Protegidas: requieren token
-  if (isBrowser && isApiRequest && !isPublic) {
-    const token = getTokenSafe();
+  if (protegida) {
+    token = getTokenSafe();
     if (!token) {
       // No envíes la solicitud; redirige al login
       router.navigateByUrl('/');
       return EMPTY;
     }
-    const headers: Record<string, string> = { Authorization: token };
     // Solo forzar Accept: application/json cuando el caller espera JSON.
     // Para blob/arraybuffer/text, dejar que el caller decida (o el server negocie).
     if (working.responseType === 'json' && !working.headers.has('Accept')) {
-      headers['Accept'] = 'application/json';
+      working = working.clone({ setHeaders: { Accept: 'application/json' } });
     }
-    working = working.clone({ setHeaders: headers });
   }
 
   // Content-Type JSON solo cuando aplica (no multipart/binario)
@@ -119,12 +124,21 @@ export const interceptor: HttpInterceptorFn = (
     working = working.clone({ setHeaders: { 'Content-Type': 'application/json' } });
   }
 
+  const conToken = (t: string | null) =>
+    t ? working.clone({ setHeaders: { Authorization: conEsquema(t) } }) : working;
+  const renovable = protegida && !u.pathname.startsWith(SIN_RENOVAR);
+
   // Manejo centralizado de 401 → limpiar y mandar al login
   // 403 = autenticado pero sin permisos (NO desloguear)
-  return next(working).pipe(
-    catchError((err: any) => {
-      if (isApiRequest && err instanceof HttpErrorResponse && err.status === 401) {
+  const manejar401 = (err: any): Observable<never> => {
+      // Las rutas públicas (/api/v1/public/: parlante en quiosco, acuse de alarma, televisor de
+      // turnos) traen su propio token: un 401 ahí es un enlace vencido, no una sesión vencida,
+      // y no debe borrar la sesión ni mandar al login.
+      if (isApiRequest && !isPublic && err instanceof HttpErrorResponse && err.status === 401) {
         try { localStorage.removeItem('token'); } catch { }
+        // La caché se borra aquí abajo: sin quitar esta marca, los catálogos se darían por
+        // "al día" al volver a entrar y faltarían offline hasta 6 h (catalog-preload).
+        try { localStorage.removeItem('catalogPreload:lastRun'); } catch { }
         // En 401 limpiamos SOLO el cache de GETs (puede contener PII de la
         // sesión anterior). La cola de mutaciones pendientes NO se borra:
         // pertenece al usuario y debe sobrevivir al re-login del mismo
@@ -139,6 +153,34 @@ export const interceptor: HttpInterceptorFn = (
         clearPromise.finally(() => router.navigateByUrl('/'));
       }
       return throwError(() => err);
-    })
-  );
+  };
+
+  // Envío con renovación: un 401 con refresh disponible se renueva UNA vez y se reintenta con el
+  // token nuevo. El 401 por token lo da el filtro de seguridad (gateway o MS) antes de ejecutar
+  // nada, así que reintentar un POST no lo duplica. Solo si la renovación falla (o el reintento
+  // vuelve a dar 401) se cierra la sesión.
+  const enviar = (t: string | null): Observable<HttpEvent<any>> =>
+    next(conToken(t)).pipe(
+      catchError((err: any) => {
+        if (renovable && err instanceof HttpErrorResponse && err.status === 401 && puedeRenovar()) {
+          return from(renovarToken()).pipe(
+            switchMap((nuevo) => nuevo
+              ? next(conToken(nuevo)).pipe(catchError(manejar401))
+              : manejar401(err)),
+          );
+        }
+        return manejar401(err);
+      }),
+    );
+
+  // Token vencido (o a punto) y se puede renovar: se renueva ANTES de enviar, en vez de gastar
+  // una petición en un 401 seguro.
+  if (renovable && caduca(token) && puedeRenovar()) {
+    return from(renovarToken()).pipe(switchMap((nuevo) => enviar(nuevo ?? token)));
+  }
+  return enviar(token);
 };
+
+function conEsquema(t: string): string {
+  return AUTH_SCHEME ? (t.startsWith(`${AUTH_SCHEME} `) ? t : `${AUTH_SCHEME} ${t}`) : t;
+}

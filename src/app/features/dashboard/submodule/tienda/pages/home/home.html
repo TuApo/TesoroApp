@@ -13,6 +13,16 @@
     <app-selector-tienda />
   </header>
 
+  <!-- La tienda del comprador vive aparte, en EconomiAPP. El operador también compra. -->
+  <a class="economiapp" href="/economiapp" (click)="$event.preventDefault(); abrirEconomiapp()">
+    <span class="eco-logo"><mat-icon>savings</mat-icon></span>
+    <span class="eco-texto">
+      <strong>Abrir EconomiAPP</strong>
+      <span>La tienda virtual del colaborador: catálogo de su tienda, catálogo global, cupo de nómina y pedidos.</span>
+    </span>
+    <mat-icon>open_in_new</mat-icon>
+  </a>
+
   @if (resumen(); as r) {
     @if (r.sin_tiendas || r.sin_alcance) {
       <div class="tienda-tarjeta tienda-vacio">

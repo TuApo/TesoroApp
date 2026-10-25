@@ -1,0 +1,335 @@
+<div class="eco-app" (pointerdown)="alToque($event)">
+  <header class="barra">
+    <div class="barra-fila">
+      <button type="button" class="volver" (click)="volverATuApo()" title="Volver a Tu Apo">
+        <mat-icon>arrow_back</mat-icon>
+        <span class="solo-ancho">Tu Apo</span>
+      </button>
+
+      <a class="marca" routerLink="/economiapp" aria-label="EconomiAPP inicio">
+        <span class="logo" [class.p0]="sonidos.pulso() > 0 && sonidos.pulso() % 2 === 0" [class.p1]="sonidos.pulso() % 2 === 1"><mat-icon>savings</mat-icon></span>
+        <span class="marca-texto">Economi<b>APP</b></span>
+      </a>
+
+      <button type="button" class="tienda-chip" (click)="selectorAbierto.set(true)"
+              [disabled]="!store.inicio()" aria-haspopup="dialog">
+        <mat-icon>location_on</mat-icon>
+        <span class="tienda-chip-texto">
+          <small>{{ store.modoOficina() && !store.soloTienda() ? 'Comprando en' : (store.esSuTienda() ? 'Su tienda' : 'Comprando en') }}</small>
+          <b>{{ store.etiquetaAmbito() }}</b>
+        </span>
+        <mat-icon class="flecha">expand_more</mat-icon>
+      </button>
+
+      <form class="buscador solo-ancho" (ngSubmit)="buscar()" role="search">
+        <mat-icon>search</mat-icon>
+        <input type="search" name="q" [ngModel]="texto()" (ngModelChange)="escribir($event)"
+               (focus)="panelBusqueda.set(true)" (blur)="salirBusqueda()" (keydown.escape)="cerrarBusqueda()"
+               role="combobox" [attr.aria-expanded]="panelBusqueda() && texto().trim().length >= 2" aria-controls="sugerencias-busqueda"
+               placeholder="Buscar productos, marcas o pregúntele a MatIA…" autocomplete="off" />
+        <app-escaner-codigo class="lector" modo="continuo" titulo="Escanear y agregar al carrito" [procesar]="procesarCodigo" (cerrado)="alCerrarEscaner()" />
+      </form>
+
+      <a class="cupo-pill solo-ancho" routerLink="/economiapp/cuenta" title="Su bono mercado">
+        <mat-icon>account_balance_wallet</mat-icon>
+        @if (store.motivoSinCupo()) {
+          <span>Sin bono mercado</span>
+        } @else {
+          <span><small>Bono mercado</small>{{ pesos(store.cupo()?.disponible) }}</span>
+        }
+      </a>
+
+      <a class="puntos-chip" routerLink="/economiapp/premios" routerLinkActive="activo" title="Sus puntos y premios"
+         [attr.aria-label]="'Sus puntos: ' + (store.puntos()?.saldo ?? 0)">
+        <mat-icon>stars</mat-icon><span>{{ miles(store.puntos()?.saldo ?? 0) }}</span><small class="solo-ancho">pts</small>
+      </a>
+
+      <button type="button" class="icono-btn sonido-btn solo-ancho" data-sin-sonido (click)="sonidos.alternar()" [class.mudo]="!sonidos.activo()"
+              [title]="sonidos.activo() ? 'Silenciar los sonidos' : 'Activar los sonidos'" [attr.aria-pressed]="sonidos.activo()" aria-label="Sonidos de la app">
+        @if (sonidos.activo()) {
+          <span class="ecualizador" [class.p0]="sonidos.pulso() % 2 === 0" [class.p1]="sonidos.pulso() % 2 === 1" aria-hidden="true"><i></i><i></i><i></i><i></i></span>
+        } @else { <mat-icon>volume_off</mat-icon> }
+      </button>
+
+      <button type="button" class="icono-btn campana" (click)="abrirAvisos()" title="Notificaciones"
+              [attr.aria-label]="'Notificaciones' + (store.avisosNoLeidos() ? ', ' + store.avisosNoLeidos() + ' sin leer' : '')">
+        <mat-icon>notifications</mat-icon>
+        @if (store.avisosNoLeidos() + store.promociones().length > 0) {
+          <span class="badge" [class.suave]="!store.avisosNoLeidos()">{{ store.avisosNoLeidos() || store.promociones().length }}</span>
+        }
+      </button>
+
+      <a class="asesor-btn solo-ancho" routerLink="/economiapp/asesor" routerLinkActive="activo" title="MatIA: su asistente con IA. Planea el mercado, da recetas, compara y le arma el carrito">
+        <mat-icon>auto_awesome</mat-icon><span>MatIA</span>
+      </a>
+
+      @if (operador.perfil()) {
+        <button type="button" class="icono-btn" (click)="operador.abrir()" title="Asistente operador: háblele y lo lleva, consulta y hace tareas (Alt+A)"
+                aria-label="Abrir el asistente operador">
+          <mat-icon>graphic_eq</mat-icon>
+        </button>
+      }
+
+      <a class="icono-btn solo-ancho con-globo" routerLink="/economiapp/pedidos" title="Mis pedidos">
+        <mat-icon>receipt_long</mat-icon>
+        @if (store.modulos().pedidosAccion) { <i class="badge">{{ store.modulos().pedidosAccion }}</i> }
+        @else if (store.modulos().pedidos) { <i class="badge info">{{ store.modulos().pedidos }}</i> }
+      </a>
+      <a class="icono-btn solo-celular con-globo" routerLink="/economiapp/cuenta" title="Mi cuenta" aria-label="Mi cuenta">
+        <mat-icon>person</mat-icon>
+        @if (store.modulos().cuentaAlerta) { <i class="badge">!</i> }
+      </a>
+
+      <a class="carrito-btn solo-ancho" routerLink="/economiapp/carrito" [class.lleno]="store.unidades() > 0" title="Carrito">
+        <mat-icon>shopping_cart</mat-icon>
+        @if (store.unidades() > 0) {
+          <span class="badge">{{ store.unidades() }}</span>
+          <span class="carrito-total solo-ancho">{{ pesos(store.total()) }}</span>
+        }
+      </a>
+    </div>
+
+    <!-- Banderines de temporada (solo se pintan en Halloween y si no apagó los adornos) -->
+    <div class="guirnalda" aria-hidden="true">
+      <span class="g-hilo" [class.cae]="sustoArana()">
+        <button type="button" class="g-arana" data-sin-sonido tabindex="-1" (click)="boo()" aria-label="¡Bu!"></button>
+      </span>
+    </div>
+
+    <form class="buscador solo-celular" (ngSubmit)="buscar()" role="search">
+      <mat-icon>search</mat-icon>
+      <input type="search" name="qm" [ngModel]="texto()" (ngModelChange)="escribir($event)"
+               (focus)="panelBusqueda.set(true)" (blur)="salirBusqueda()" (keydown.escape)="cerrarBusqueda()"
+               role="combobox" [attr.aria-expanded]="panelBusqueda() && texto().trim().length >= 2" aria-controls="sugerencias-busqueda"
+             placeholder="¿Qué necesita hoy? Busque o pregunte…" autocomplete="off" />
+      <app-escaner-codigo class="lector" modo="continuo" titulo="Escanear y agregar al carrito" [procesar]="procesarCodigo" (cerrado)="alCerrarEscaner()" />
+    </form>
+    @if (panelBusqueda() && texto().trim().length >= 2) {
+      <div class="sugerencias-panel" id="sugerencias-busqueda" role="listbox" (mousedown)="$event.preventDefault()">
+        <button type="button" class="sug tendero" [class.destacada]="esPregunta()" (click)="preguntarAlTendero()">
+          <span class="sug-icono tendero-icono"><mat-icon>storefront</mat-icon></span>
+          <span class="sug-texto"><b>Preguntarle a MatIA</b><small>«{{ texto().trim() }}»</small></span>
+          <mat-icon>arrow_forward</mat-icon>
+        </button>
+        @if (sugerencias(); as s) {
+          @if (s.categorias.length) {
+            <span class="sug-grupo">Categorías</span>
+            @for (c of s.categorias; track c.id) {
+              <button type="button" class="sug" (click)="irSugerencia(['/economiapp/explorar'], { categoria: c.id })">
+                <span class="sug-icono"><mat-icon>{{ c.icono || 'category' }}</mat-icon></span>
+                <span class="sug-texto"><b>{{ c.nombre }}</b><small>{{ c.ruta }}</small></span>
+              </button>
+            }
+          }
+          @if (s.marcas.length) {
+            <span class="sug-grupo">Marcas</span>
+            @for (m of s.marcas; track m.marca) {
+              <button type="button" class="sug" (click)="irSugerencia(['/economiapp/explorar'], { f: 'marca:' + m.marca })">
+                <span class="sug-icono"><mat-icon>sell</mat-icon></span>
+                <span class="sug-texto"><b>{{ m.marca }}</b><small>{{ m.productos }} producto{{ m.productos === 1 ? '' : 's' }}</small></span>
+              </button>
+            }
+          }
+          @if (s.productos.length) {
+            <span class="sug-grupo">Productos</span>
+            @for (p of s.productos; track p.id) {
+              <button type="button" class="sug" (click)="irSugerencia(['/economiapp/producto', p.id])">
+                <span class="sug-foto"><eco-imagen [doc]="p.imagen" [nombre]="p.nombre" icono="shopping_bag" /></span>
+                <span class="sug-texto"><b>{{ p.nombre }}</b><small>{{ p.marca }}@if (p.disponibilidad === 'EN_STOCK') { · disponible hoy } @else if (p.disponibilidad === 'BAJO_PEDIDO') { · bajo pedido@if (p.dias_entrega) { · llega en {{ p.dias_entrega }} días } } @else if (p.dias_entrega) { · llega en {{ p.dias_entrega }} días }</small></span>
+                <span class="sug-precio">@if (p.con_opciones) { <small>desde</small> }{{ pesos(p.precio_promo ?? p.precio) }}</span>
+              </button>
+            }
+          }
+          @if (!s.categorias.length && !s.marcas.length && !s.productos.length && !buscando()) {
+            <p class="sug-vacio">No hay productos con «{{ texto().trim() }}». Pregúntele a MatIA: ella le busca lo más parecido.</p>
+          }
+        } @else if (buscando()) {
+          <p class="sug-vacio">Buscando…</p>
+        }
+        @if (!esPregunta()) {
+          <button type="button" class="sug ver-todo" (click)="buscar()"><mat-icon>search</mat-icon> Ver todos los resultados de «{{ texto().trim() }}»</button>
+        }
+      </div>
+    }
+  </header>
+
+  <main class="contenido">
+    @if (store.cargando() && !store.inicio()) {
+      <div class="cargando-app">
+        <span class="logo grande"><mat-icon>savings</mat-icon></span>
+        <p>Abriendo su tienda…</p>
+      </div>
+    } @else if (store.errorInicio()) {
+      <div class="estado-vacio">
+        <mat-icon>cloud_off</mat-icon>
+        <h2>No pudimos abrir EconomiAPP</h2>
+        <p>{{ store.errorInicio() }}</p>
+        <button type="button" class="eco-btn" (click)="store.iniciar(true)">Reintentar</button>
+      </div>
+    } @else if (store.inicio() && !store.tiendaId()) {
+      <div class="estado-vacio">
+        <mat-icon>storefront</mat-icon>
+        <h2>Todavía no hay tiendas abiertas</h2>
+        <p>Cuando su punto publique su catálogo, lo verá aquí.</p>
+        <button type="button" class="eco-btn secundario" (click)="volverATuApo()">Volver a Tu Apo</button>
+      </div>
+    } @else {
+      <router-outlet />
+    }
+  </main>
+
+  @if (true) {
+    <nav class="tabs solo-celular" aria-label="Secciones">
+      <a routerLink="/economiapp" routerLinkActive="activo" [routerLinkActiveOptions]="{ exact: true }">
+        <mat-icon>home</mat-icon><span>Inicio</span>
+      </a>
+      <a routerLink="/economiapp/explorar" routerLinkActive="activo">
+        <mat-icon>grid_view</mat-icon><span>Explorar</span>
+        @if (store.modulos().ofertas) { <i class="badge suave" [attr.aria-label]="store.modulos().ofertas + ' ofertas'">{{ store.modulos().ofertas }}</i> }
+      </a>
+      <!-- El carrito va al centro y grande: es a donde termina toda compra. -->
+      <a routerLink="/economiapp/carrito" routerLinkActive="activo" class="tab-carrito" [class.lleno]="store.unidades() > 0"
+         [attr.aria-label]="'Carrito' + (store.unidades() ? ', ' + store.unidades() + ' productos' : '')">
+        <span class="carrito-centro"><mat-icon>shopping_cart</mat-icon>
+          @if (store.unidades() > 0) { <i class="badge">{{ store.unidades() }}</i> }</span>
+        <span>{{ store.unidades() > 0 ? pesos(store.total()) : 'Carrito' }}</span>
+      </a>
+      <a routerLink="/economiapp/asesor" routerLinkActive="activo" class="tab-asesor">
+        <mat-icon>auto_awesome</mat-icon><span>MatIA</span>
+      </a>
+      <a routerLink="/economiapp/pedidos" routerLinkActive="activo"
+         [attr.aria-label]="'Pedidos' + (store.modulos().pedidos ? ', ' + store.modulos().pedidos + ' en curso' : '')">
+        <mat-icon>receipt_long</mat-icon><span>Pedidos</span>
+        @if (store.modulos().pedidosAccion) { <i class="badge">{{ store.modulos().pedidosAccion }}</i> }
+        @else if (store.modulos().pedidos) { <i class="badge info">{{ store.modulos().pedidos }}</i> }
+      </a>
+    </nav>
+  }
+
+  @if (selectorAbierto()) {
+    <div class="velo" (click)="selectorAbierto.set(false)"></div>
+    <section class="hoja" role="dialog" aria-modal="true" aria-labelledby="titulo-tiendas">
+      <header class="hoja-cabeza">
+        <h2 id="titulo-tiendas">¿Dónde quiere comprar?</h2>
+        <button type="button" class="icono-btn" (click)="selectorAbierto.set(false)" aria-label="Cerrar">
+          <mat-icon>close</mat-icon>
+        </button>
+      </header>
+
+      @if (store.inicio()?.sin_tienda_asignada) {
+        <p class="aviso warn">
+          <mat-icon>info</mat-icon>
+          Su oficina{{ store.inicio()?.oficina ? ' (' + store.inicio()?.oficina + ')' : '' }} todavía no tiene una
+          tienda asignada. Le mostramos todas las tiendas abiertas; confirme con su jefe cuál le corresponde.
+        </p>
+      } @else if (store.inicio()?.oficina) {
+        <p class="hoja-sub">Lo contrataron en <b>{{ store.inicio()?.oficina }}</b>. La tienda que surte su oficina va primero.</p>
+      }
+
+      @if (store.modoOficina()) {
+        <button type="button" class="toda-oficina" [class.actual]="!store.soloTienda()" (click)="elegirOficina()">
+          <span class="t-icono"><mat-icon>apartment</mat-icon></span>
+          <span class="t-texto">
+            <b>Toda mi oficina</b>
+            <small>Un solo carrito con el inventario de sus {{ store.inicio()?.tiendas?.length }} tiendas. Cada tienda alista su parte.</small>
+          </span>
+          @if (!store.soloTienda()) { <mat-icon class="check">check_circle</mat-icon> }
+        </button>
+        <p class="hoja-sub">O compre en una sola:</p>
+      }
+      <ul class="lista-tiendas">
+        @for (t of store.inicio()?.tiendas ?? []; track t.id) {
+          <li>
+            <button type="button" (click)="elegir(t.id)" [class.actual]="store.modoOficina() ? t.id === store.soloTienda() : t.id === store.tiendaId()">
+              <span class="t-icono"><mat-icon>{{ t.tipo === 'GLOBAL' ? 'public' : 'storefront' }}</mat-icon></span>
+              <span class="t-texto">
+                <b>{{ t.nombre }}</b>
+                <small>{{ t.direccion || '' }}{{ t.direccion && t.municipio ? ' · ' : '' }}{{ t.municipio || '' }}</small>
+                <span class="t-chips">
+                  @if (t.id === store.tiendaSugerida()) { <i class="chip ok">Su tienda</i> }
+                  @if (t.permite_domicilio) { <i class="chip">Domicilio</i> }
+                  @if (t.permite_recogida) { <i class="chip">Recoger</i> }
+                </span>
+              </span>
+              @if (store.modoOficina() ? t.id === store.soloTienda() : t.id === store.tiendaId()) { <mat-icon class="check">check_circle</mat-icon> }
+            </button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (avisosAbiertos()) {
+    <div class="velo" (click)="avisosAbiertos.set(false)"></div>
+    <section class="hoja avisos" role="dialog" aria-modal="true" aria-labelledby="titulo-avisos">
+      <header class="hoja-cabeza">
+        <h2 id="titulo-avisos">Notificaciones</h2>
+        <div>
+          @if (store.avisosNoLeidos()) { <button type="button" class="enlace" (click)="store.marcarTodosLeidos()">Marcar leídas</button> }
+          <button type="button" class="icono-btn" (click)="avisosAbiertos.set(false)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+        </div>
+      </header>
+
+      @if (store.promociones().length) {
+        <h3 class="avisos-sub">Ofertas en {{ store.tienda()?.nombre }}</h3>
+        @for (p of store.promociones(); track p.id) {
+          <button type="button" class="aviso-item oferta" (click)="irPromocion(p.id)">
+            <span class="aviso-icono"><mat-icon>local_offer</mat-icon></span>
+            <span class="aviso-texto">
+              <b>{{ p.nombre }}</b>
+              @if (p.descripcion) { <small>{{ p.descripcion }}</small> }
+              @if (p.vigente_hasta) { <i>Hasta el {{ p.vigente_hasta | date: "d 'de' MMMM" : undefined : 'es-CO' }}</i> }
+            </span>
+            <mat-icon class="ir">chevron_right</mat-icon>
+          </button>
+        }
+      }
+
+      <h3 class="avisos-sub">Sus pedidos</h3>
+      @for (a of store.avisos(); track a.id) {
+        <button type="button" class="aviso-item" [class.nuevo]="!a.leida" (click)="irAviso(a)">
+          <span class="aviso-icono"><mat-icon>{{ a.icono || 'local_mall' }}</mat-icon></span>
+          <span class="aviso-texto">
+            <b>{{ a.titulo }}</b>
+            @if (a.mensaje) { <small>{{ a.mensaje }}</small> }
+            <i>{{ a.creada_en | date: 'd MMM, h:mm a' : undefined : 'es-CO' }}</i>
+          </span>
+          @if (!a.leida) { <span class="punto-nuevo" aria-label="Sin leer"></span> }
+        </button>
+      } @empty {
+        <p class="hoja-sub vacio-avisos">Aquí le avisamos cuando la tienda confirme, aliste o despache su pedido.</p>
+      }
+    </section>
+  }
+
+  @if (store.ruletaAbierta()) { <eco-ruleta /> }
+
+  @if (store.festejo(); as f) {
+    <div class="festejo-velo" (click)="store.festejo.set(null)">
+      <eco-confeti />
+      <div class="festejo" role="dialog" aria-modal="true" [attr.aria-label]="f.titulo" (click)="$event.stopPropagation()">
+        <span class="festejo-icono"><mat-icon>{{ f.icono }}</mat-icon></span>
+        <span class="festejo-puntos">+{{ miles(f.puntos) }}<small>puntos</small></span>
+        <h2>{{ f.titulo }}</h2>
+        <p>{{ f.detalle }}</p>
+        <div class="festejo-acciones">
+          <button type="button" class="eco-btn" (click)="store.festejo.set(null)">¡Genial!</button>
+          <a class="eco-btn secundario" routerLink="/economiapp/premios" (click)="store.festejo.set(null)"><mat-icon>redeem</mat-icon> Ver premios</a>
+        </div>
+      </div>
+    </div>
+  }
+
+  @if (store.toast(); as t) {
+    <div class="toast" [class.error]="t.tipo === 'error'" role="status">
+      <mat-icon>{{ t.tipo === 'error' ? 'error' : 'check_circle' }}</mat-icon>
+      <span>{{ t.texto }}</span>
+      @if (t.tipo === 'ok' && store.unidades() > 0 && !enCarrito()) {
+        <a routerLink="/economiapp/carrito">Ver carrito</a>
+      }
+    </div>
+  }
+
+  <!-- Asistente operador (el mismo de Tu Apo): orbe flotante, sobre las pestañas en el celular. -->
+  <app-operador app="economiapp" />
+</div>

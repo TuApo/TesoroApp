@@ -91,3 +91,19 @@
 .tv__banda { display: flex; align-items: center; gap: 1vw; margin: 1.2vh 1.2vh 0; padding: 1.2vh 1.6vh; border-left: .8vh solid #9BD441; border-radius: 1.4vh; background: var(--panel); font-size: 2.4vh; }
 .tv__banda mat-icon { font-size: 3vh; width: 3vh; height: 3vh; }
 .tv__banda span { color: var(--muted); }
+
+/* Llamado con plano: ocupa la pantalla mientras se canta el turno (debajo de los avisos). */
+.tv__plano-llamado { position: absolute; inset: 0; z-index: 7; display: grid; grid-template-columns: minmax(28vw, 36%) 1fr; gap: 2vh; padding: 2.4vh;
+  background: radial-gradient(circle at 70% 40%, #14223d 0%, #0B1020 75%); animation: tv-aviso .35s ease; }
+.tv[data-orientacion="VERTICAL"] .tv__plano-llamado { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
+.plano-llamado__tarjeta { display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 1.2vh; padding: 3vh 2vw; border-radius: 3vh;
+  background: var(--azul, #2B59F0); color: #fff; text-align: center; animation: tv-pulso 1.2s ease-in-out infinite; }
+.plano-llamado__codigo { font-size: 16vh; line-height: 1; font-weight: 800; font-family: ui-monospace, Menlo, monospace; letter-spacing: .04em; }
+.plano-llamado__punto { display: flex; align-items: center; gap: .6vw; font-size: 5.4vh; font-weight: 800; }
+.plano-llamado__punto mat-icon { font-size: 5.4vh; width: 5.4vh; height: 5.4vh; }
+.plano-llamado__area { font-size: 2.8vh; opacity: .92; }
+.plano-llamado__nombre { font-size: 3.4vh; font-weight: 700; opacity: .95; }
+.plano-llamado__guia { display: flex; align-items: center; gap: .4vw; margin-top: 1.4vh; padding: .8vh 1.6vw; border-radius: 99px; background: #9BD441; color: #21263C; font-size: 2.6vh; font-weight: 800; }
+.plano-llamado__guia mat-icon { font-size: 3vh; width: 3vh; height: 3vh; }
+.plano-llamado__plano { position: relative; min-height: 0; border-radius: 3vh; overflow: hidden; background: #0b1222; box-shadow: inset 0 0 0 2px rgba(155, 212, 65, .35); }
+.plano-llamado__plano app-plano-oficina { position: absolute; inset: 0; }

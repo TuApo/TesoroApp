@@ -1,0 +1,163 @@
+<div class="pagina juegos">
+  @if (error()) {
+    <div class="estado-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p></div>
+  } @else if (!datos()) {
+    <div class="esqueleto torneo-esq"></div>
+    <div class="esqueleto fila-esq"></div>
+  } @else if (datos(); as d) {
+    <!-- ── Torneo de la semana ─────────────────────────────────────────── -->
+    <section class="torneo" [class.halloween]="halloween()">
+      <div class="t-cabeza">
+        <span class="t-chip"><mat-icon>emoji_events</mat-icon> Torneo de la semana</span>
+        <span class="t-reloj"><mat-icon>timer</mat-icon> Cierra en <b>{{ faltan() }}</b></span>
+      </div>
+      @if (torneo(); as t) {
+        <div class="t-juego">
+          <span class="t-icono"><mat-icon>{{ t.icono }}</mat-icon></span>
+          <div><h1>{{ t.nombre }}</h1><p>{{ t.descripcion }}</p></div>
+        </div>
+      }
+
+      <!-- Premio actual y lo que falta para subirlo -->
+      <div class="pozo">
+        <div class="pozo-premios">
+          <span><i>🥇</i><b>{{ d.semana.premios.primero }}</b><small>pts</small></span>
+          <span><i>🥈</i><b>{{ d.semana.premios.segundo }}</b><small>pts</small></span>
+          <span><i>🥉</i><b>{{ d.semana.premios.tercero }}</b><small>pts</small></span>
+        </div>
+        <div class="pozo-barra">
+          <div class="barra"><i [style.width.%]="avance()"></i></div>
+          @if (d.semana.siguiente; as s) {
+            <p><b>{{ d.semana.participantes }}</b> jugando esta semana. Con <b>{{ s.jugadores }}</b> el premio sube a
+              <b>{{ s.primero }} / {{ s.segundo }} / {{ s.tercero }}</b> — ¡faltan {{ s.faltan }}! Invite a sus compañeros.</p>
+          } @else {
+            <p><b>{{ d.semana.participantes }}</b> jugando: ¡premio máximo desbloqueado!</p>
+          }
+        </div>
+        <p class="pozo-equivale">200 puntos = un perro sencillo · 300 puntos = un perro especial 🌭</p>
+      </div>
+
+      <!-- Podio -->
+      <div class="podio">
+        @for (p of podio(); track p.puesto) {
+          <div class="escalon" [class]="'escalon p' + p.puesto" [class.yo]="p.x?.yo">
+            @if (p.x; as x) {
+              <span class="avatar">{{ x.nombre.charAt(0) }}</span>
+              <b class="p-nombre">{{ x.yo ? 'Usted' : x.nombre }}</b>
+              <small>{{ x.puntaje }} pts</small>
+            } @else {
+              <span class="avatar vacio">?</span><b class="p-nombre">Libre</b><small>¡Puede ser suyo!</small>
+            }
+            <div class="bloque"><i>{{ medalla(p.puesto) }}</i><small>+{{ premioDe(p.puesto) }}</small></div>
+          </div>
+        }
+      </div>
+      <p class="mi-puesto">
+        @if (d.semana.yo; as yo) { Usted va <b>#{{ yo.puesto }}</b> con <b>{{ yo.puntaje }}</b> puntos. }
+        @else { Todavía no juega esta semana: ¡su primera partida ya lo pone en el ranking! }
+      </p>
+      @if (torneo(); as t) {
+        <a class="eco-btn jugar" [routerLink]="['/economiapp/juego', t.codigo.toLowerCase()]"><mat-icon>play_arrow</mat-icon> Jugar ahora</a>
+      }
+    </section>
+
+    <!-- ── Ruleta ──────────────────────────────────────────────────────── -->
+    <button type="button" class="ruleta-tarjeta" (click)="abrirRuleta()">
+      <span class="r-rueda">🎡</span>
+      <span class="r-texto">
+        <b>Ruleta del día</b>
+        <small>{{ store.ruleta()?.girada_hoy ? 'Ya giró hoy: mañana tiene otro giro' : '¡Tiene un giro disponible! Puntos, perros calientes y premios' }}</small>
+      </span>
+      <span class="r-cta">{{ store.ruleta()?.girada_hoy ? 'Ver' : 'Girar' }}</span>
+    </button>
+
+    <!-- ── Más juegos ──────────────────────────────────────────────────── -->
+    <section class="seccion">
+      <div class="seccion-cabeza"><div><h2>Más juegos</h2><p>Cada uno con su ranking semanal y su récord.</p></div></div>
+      <div class="juegos-lista">
+        @for (j of otros(); track j.codigo) {
+          <article class="juego" [class]="'juego j-' + j.codigo.toLowerCase()">
+            <span class="j-icono"><mat-icon>{{ j.icono }}</mat-icon></span>
+            <div class="j-texto">
+              <b>{{ j.nombre }}</b>
+              <small>{{ j.descripcion }}</small>
+              <span class="j-marcas">
+                <span>Mi mejor: <b>{{ j.mi_mejor_semana ?? '—' }}</b></span>
+                <span>Récord: <b>{{ j.record?.puntaje ?? '—' }}</b></span>
+                <span>{{ j.jugadores_semana }} jugando</span>
+              </span>
+            </div>
+            <div class="j-acciones">
+              <a class="eco-btn" [routerLink]="['/economiapp/juego', j.codigo.toLowerCase()]"><mat-icon>play_arrow</mat-icon> Jugar</a>
+              <button type="button" class="enlace" (click)="verRanking(j.codigo, true)">Ranking</button>
+            </div>
+          </article>
+        }
+      </div>
+    </section>
+
+    <!-- ── Ranking ─────────────────────────────────────────────────────── -->
+    <section class="seccion" id="ranking">
+      <div class="seccion-cabeza"><div><h2>Ranking de la semana</h2><p>La mejor partida de cada persona. A igual puntaje gana quien llegó primero.</p></div></div>
+      <div class="pestanas" role="tablist">
+        @for (j of d.juegos; track j.codigo) {
+          <button type="button" role="tab" class="eco-filtro" [class.activo]="rankingSel() === j.codigo" (click)="verRanking(j.codigo)">
+            <mat-icon>{{ j.icono }}</mat-icon> {{ j.nombre }}@if (j.torneo) { <i class="t-mini">🏆</i> }
+          </button>
+        }
+      </div>
+      @if (cargandoRanking() && !ranking()) {
+        <div class="esqueleto fila-esq"></div>
+      } @else if (ranking(); as r) {
+        @if (!r.top.length) {
+          <p class="vacio">Nadie ha jugado {{ nombreJuego(r.juego) }} esta semana. ¡Estrene el ranking!</p>
+        } @else {
+          <ol class="tabla">
+            @for (f of r.top; track f.puesto) {
+              <li [class.yo]="f.yo" [class.podio]="f.puesto <= 3">
+                <span class="pos">{{ medalla(f.puesto) }}</span>
+                <span class="nom">{{ f.yo ? 'Usted' : f.nombre }}</span>
+                <span class="pun">{{ f.puntaje }}</span>
+              </li>
+            }
+          </ol>
+          @if (r.yo && r.yo.puesto > r.top.length) {
+            <p class="fuera">Usted va <b>#{{ r.yo.puesto }}</b> con {{ r.yo.puntaje }} puntos.</p>
+          }
+        }
+        @if (r.record) { <p class="record"><mat-icon>military_tech</mat-icon> Récord de todos los tiempos: <b>{{ r.record.puntaje }}</b> de {{ r.record.nombre }}</p> }
+      }
+    </section>
+
+    <!-- ── Mis premios del torneo ──────────────────────────────────────── -->
+    @if (d.mis_premios.length) {
+      <section class="seccion">
+        <div class="seccion-cabeza"><h2>Mis podios</h2></div>
+        <div class="mis-podios">
+          @for (m of d.mis_premios; track m.semana + m.juego_codigo) {
+            <div class="mi-podio"><i>{{ medalla(m.puesto) }}</i><span><b>+{{ m.puntos_premio }} pts</b><small>{{ m.juego_nombre }} · semana del {{ fecha(m.semana) }} · {{ m.puntaje }}</small></span></div>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── Salón de la fama ────────────────────────────────────────────── -->
+    <section class="seccion">
+      <div class="seccion-cabeza"><div><h2>Salón de la fama</h2><p>Los podios de las semanas anteriores.</p></div></div>
+      @if (!d.salon_fama.length) {
+        <p class="vacio">Aquí quedarán los ganadores de cada semana. El primer torneo cierra este domingo.</p>
+      } @else {
+        <div class="salon">
+          @for (s of d.salon_fama; track s.semana) {
+            <article class="semana">
+              <header><b>Semana del {{ fecha(s.semana) }}</b><small>{{ s.juego_nombre }} · {{ s.participantes }} jugadores</small></header>
+              @for (g of s.podio; track g.puesto) {
+                <p><i>{{ medalla(g.puesto) }}</i> {{ g.nombre }} <span>{{ g.puntaje }} · +{{ g.puntos_premio }}</span></p>
+              }
+            </article>
+          }
+        </div>
+      }
+    </section>
+  }
+</div>

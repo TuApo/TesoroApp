@@ -419,6 +419,8 @@ export function libroFilasSinCruce(filas: FilaLiquidacion[]): XLSX.WorkBook {
         'Fecha de pago': fechaCorta(f.fechaPago),
         'Numero incapacidad EPS': f.numeroIncapacidadEps ?? '',
         'Soporte contable': f.soporteContable ?? '',
+        // Columna opcional de la plantilla desde la V64_2 (mismo nombre: el Excel se vuelve a subir).
+        'Causal EPS (días no reconocidos)': f.causalTexto ?? '',
         Observaciones: f.observaciones ?? '',
         'Fila original': f.fila,
         Resultado: f.resultadoEtiqueta ?? f.resultado,
@@ -426,7 +428,7 @@ export function libroFilasSinCruce(filas: FilaLiquidacion[]): XLSX.WorkBook {
         Sugerencias: sugerenciasTexto(f),
       })),
     );
-    hoja['!cols'] = [18, 14, 12, 20, 14, 10, 10, 12, 18, 18, 24, 8, 14, 50, 60].map((wch) => ({ wch }));
+    hoja['!cols'] = [18, 14, 12, 20, 14, 10, 10, 12, 18, 18, 40, 24, 8, 14, 50, 60].map((wch) => ({ wch }));
     XLSX.utils.book_append_sheet(libro, hoja, 'Pagos');
   }
 

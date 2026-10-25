@@ -26,6 +26,7 @@ import {
   Component,
   DestroyRef,
   ElementRef,
+  HostListener,
   OnDestroy,
   TemplateRef,
   computed,
@@ -75,6 +76,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { BuscadorRemotoComponent } from '@/app/shared/components/buscador-remoto/buscador-remoto.component';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
 import { obtenerUsuarioActual } from '@/app/core/utils/usuario-actual';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 
 import { IncapacidadService } from '../../services/incapacidad/incapacidad.service';
 import { IncapacidadV2Service } from '../../services/incapacidad-v2/incapacidad-v2.service';
@@ -109,12 +111,21 @@ import {
 } from '../../utils/fechas';
 import { codigoSinGuion } from '../../utils/codigos';
 import {
+  alcanceSalud,
+  dividirNombreCompleto,
+  unirNombreCompleto,
+  usaFormularioSimplificado,
+} from '../../utils/nivel-salud';
+import { esTipoArl } from '../../utils/entidad-cobro';
+import Swal from 'sweetalert2';
+import {
   TIPOS_DOCUMENTO_CANONICOS,
   TipoDocumentoCanonico,
   canonizarTipoDocumento,
   empiezaConX,
   pareceNumeroDocumento,
 } from '../../utils/tipo-documento';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 // ─────────────────────────────────────────────────────────────────────────
 // Constantes de presentacion (solo UI: nada de reglas de negocio)
@@ -332,11 +343,20 @@ export function cargoDeContratacion(crudo: unknown): string {
 
 // ─────────────────────────────────────────────────────────────────────────
 
+/** Lo que muestra la ventana del radicado al terminar la SIMULACION de la guia (no existe en la base). */
+const EJEMPLO_RADICADO = {
+  codigoConsecutivo: 'APFPR001',
+  codigoUnico: '1234567890-20261001',
+  nombreCompleto: 'TRABAJADOR DE EJEMPLO',
+  cedula: '1234567890',
+} as unknown as IncapacidadV2;
+
 @Component({
   selector: 'app-registro-incapacidad',
   standalone: true,
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
+    GuiaSaludComponent,
     ReactiveFormsModule,
     MatCardModule,
     MatIconModule,
@@ -389,10 +409,27 @@ export class RegistroIncapacidadComponent implements OnDestroy {
    * pedirla con un desplegable; la oficina nunca se guarda vacia.
    */
   readonly usuario = obtenerUsuarioActual();
+
+  /**
+   * Reunion funcional 2026-10-20: el NIVEL 1 (quien recibe y sube) ve el formulario simplificado
+   * —nombre en un solo campo, sin edad, sexo, fondo ni numero de documento repetido, sin el panel
+   * de validacion en vivo—. Los niveles 2 y 3 ven el formulario completo.
+   */
+  readonly simplificado = usaFormularioSimplificado(this.usuario.roles);
+
+  /** Alcance por finca del usuario ("Andes y Monteverde"), o '' si ve todo. */
+  readonly alcanceFinca = alcanceSalud(this.usuario.roles);
+  /**
+   * Trabaja desde una sede transversal (ADMINISTRATIVOS, VIRTUAL): atiende a gente de
+   * todas las oficinas, así que la incapacidad no puede quedar con su sede; se elige.
+   */
+  readonly desdeTransversal = inject(SedeScopeService).trabajaDesdeTransversal();
+  /** Oficina con la que arranca el formulario: la suya, o vacía si es transversal. */
+  private readonly oficinaInicial = this.desdeTransversal ? '' : this.usuario.sedeNombre;
   // Multi-sede (V40): con UNA sede el campo queda bloqueado como siempre; con
   // varias se ofrece un desplegable limitado a las sedes del usuario.
   readonly oficinaBloqueada = signal(
-    this.usuario.sedeNombre.length > 0 && this.usuario.sedes.length <= 1,
+    !this.desdeTransversal && this.usuario.sedeNombre.length > 0 && this.usuario.sedes.length <= 1,
   );
   readonly nombreBloqueado = signal(this.usuario.nombreCompleto.length > 0);
   readonly oficinasDisponibles = signal<string[]>([]);
@@ -401,7 +438,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   // ── Formulario tipado ─────────────────────────────────────────────────
   readonly form = new FormGroup({
     oficina: new FormGroup({
-      oficina: new FormControl(this.usuario.sedeNombre, {
+      oficina: new FormControl(this.oficinaInicial, {
         nonNullable: true,
         validators: [Validators.required],
       }),
@@ -563,6 +600,8 @@ export class RegistroIncapacidadComponent implements OnDestroy {
 
   // ── Estado del guardado ───────────────────────────────────────────────
   readonly guardando = signal(false);
+  /** La guia esta simulando sobre esta pantalla (2026-10-21): mientras dure, aqui no se guarda nada. */
+  readonly simulando = signal(false);
   readonly errorGuardado = signal('');
   readonly intentoGuardar = signal(false);
   readonly progresoSubida = signal<{ actual: number; total: number; etiqueta: string } | null>(
@@ -969,6 +1008,113 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     this.conectarValidacionEnVivo();
     this.conectarConsultaDeProrroga();
     this.conectarModoEdicion();
+    this.conectarEntidadDeCobro();
+  }
+
+  // ── Entidad de cobro dinamica (reunion 2026-10-20) ────────────────────
+
+  /**
+   * true si el tipo elegido se cobra a la ARL (accidente de trabajo o enfermedad laboral): la
+   * casilla EPS de la incapacidad pasa a mostrar la ARL, que es "a quien se le cobra".
+   */
+  readonly cobraArl = computed(() => esTipoArl(this.valores().incapacidad.tipoIncapacidad));
+
+  /**
+   * Con un tipo de ARL la EPS deja de ser obligatoria (no se le cobra; se conserva la del trabajador
+   * como dato de afiliacion) y la casilla muestra la ARL. Con cualquier otro tipo vuelve a pedirse.
+   */
+  private conectarEntidadDeCobro(): void {
+    const tipo = this.form.controls.incapacidad.controls.tipoIncapacidad;
+    const eps = this.form.controls.incapacidad.controls.eps;
+    tipo.valueChanges
+      .pipe(startWith(tipo.value), takeUntilDestroyed(this.destroyRef))
+      .subscribe((valor) => {
+        if (esTipoArl(valor)) {
+          eps.removeValidators(Validators.required);
+        } else if (!eps.hasValidator(Validators.required)) {
+          eps.addValidators(Validators.required);
+        }
+        eps.updateValueAndValidity({ emitEvent: false });
+      });
+  }
+
+  // ── Nombre en un solo campo (nivel 1) ─────────────────────────────────
+
+  /** Apellidos y nombres juntos, en el orden de la plataforma. */
+  readonly nombreUnificado = computed(() => unirNombreCompleto(this.valores().personal));
+
+  /** true si el nombre llego de contratacion: entonces el campo unico es de solo lectura. */
+  readonly nombreUnificadoSoloLectura = computed(
+    () => this.soloLectura('primerApellido') && this.soloLectura('primerNombre'),
+  );
+
+  /** El nombre escrito en el campo unico se reparte en los cuatro campos que guarda el backend. */
+  alCambiarNombreUnificado(texto: string): void {
+    const partes = dividirNombreCompleto(texto);
+    const personal = this.form.controls.personal;
+    personal.patchValue(partes);
+    personal.controls.primerApellido.markAsTouched();
+    personal.controls.primerNombre.markAsTouched();
+  }
+
+  /** Lo que falta, con nombre, para la barra de abajo del nivel 1 (que no tiene el panel). */
+  readonly resumenFaltantes = computed(() => this.camposFaltantes().join(', '));
+
+  // ── Confirmacion del radicado (reunion 2026-10-20) ────────────────────
+
+  /**
+   * Ventana EN EL CENTRO con el numero de radicado (codigo de cartera por sede, p. ej. APFPR001) y
+   * el codigo unico largo: el aviso verde de abajo pasaba desapercibido ("¿y cual es el radicado?").
+   * Resuelve al cerrarla, para encadenar lo que venga despues.
+   */
+  private mostrarRadicado(inc: IncapacidadV2, validada: boolean, edicion: boolean, ejemplo = false): Promise<unknown> {
+    const corto = (inc.codigoConsecutivo ?? '').trim();
+    const largo = this.sinGuion(inc.codigoUnico ?? '');
+    const radicado = corto || largo;
+    const persona = [inc.nombreCompleto, inc.cedula ? `C.C. ${inc.cedula}` : ''].filter(Boolean).join(' · ');
+    const estado = validada ? 'VALIDADA' : 'RECIBIDA';
+    // Estilos EN LINEA: SweetAlert pinta fuera del componente y el CSS encapsulado no llega.
+    const html =
+      `<div style="text-align:center">` +
+      (ejemplo
+        ? `<p style="margin:0 0 12px;padding:8px 10px;border-radius:10px;background:#fff8e1;color:#7a4f01;font-size:14px;font-weight:700">` +
+          `Simulación de la guía: no se guardó nada.</p>`
+        : '') +
+      (persona
+        ? `<p style="margin:0 0 14px;font-size:15px;color:#455a64">${escaparHtml(persona)}</p>`
+        : '') +
+      `<p style="margin:0;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:#607d8b">` +
+      `Número de radicado</p>` +
+      `<div style="margin:6px auto 10px;padding:14px 18px;border-radius:14px;background:#e3f2fd;` +
+      `border:2px dashed #1976d2;font-size:34px;font-weight:800;letter-spacing:.08em;color:#0d47a1;` +
+      `font-family:ui-monospace,Menlo,Consolas,monospace;user-select:all">` +
+      `${escaparHtml(radicado || 'Sin código')}</div>` +
+      (corto && largo
+        ? `<p style="margin:0 0 8px;font-size:14px;color:#455a64">Código único: ` +
+          `<strong style="font-family:ui-monospace,Menlo,Consolas,monospace">${escaparHtml(largo)}</strong></p>`
+        : '') +
+      `<p style="margin:0 0 14px;font-size:14px;color:#455a64">Quedó en estado <strong>${estado}</strong>.</p>` +
+      `<button type="button" id="reg-radicado-copiar" style="border:1px solid #1976d2;background:#fff;` +
+      `color:#1976d2;border-radius:20px;padding:6px 16px;font-size:14px;cursor:pointer">` +
+      `Copiar el número</button>` +
+      `</div>`;
+    return Swal.fire({
+      icon: 'success',
+      title: ejemplo ? 'Ejemplo: así se ve al guardar' : edicion ? 'Cambios guardados con éxito' : '¡Incapacidad radicada con éxito!',
+      html,
+      confirmButtonText: 'Listo',
+      confirmButtonColor: '#1976d2',
+      allowOutsideClick: false,
+      didOpen: (popup) => {
+        const boton = popup.querySelector<HTMLButtonElement>('#reg-radicado-copiar');
+        boton?.addEventListener('click', () => {
+          void navigator.clipboard?.writeText(radicado).then(
+            () => (boton.textContent = 'Copiado'),
+            () => (boton.textContent = 'No se pudo copiar'),
+          );
+        });
+      },
+    });
   }
 
   /**
@@ -1847,6 +1993,10 @@ export class RegistroIncapacidadComponent implements OnDestroy {
    */
   guardar(conValidacion: boolean): void {
     if (this.guardando()) return;
+    if (this.simulando()) {
+      this.errorGuardado.set('Estás en la simulación: aquí no se guarda nada. Sal de la guía para registrar de verdad.');
+      return;
+    }
 
     this.intentoGuardar.set(true);
     this.errorGuardado.set('');
@@ -1931,6 +2081,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
   /** El guardado propiamente dicho (tras pasar los chequeos y avisos de `guardar`). */
   private ejecutarGuardado(conValidacion: boolean, peticion: CrearIncapacidadV2Request): void {
     const id = this.idEfectivo();
+    const edicionAlGuardar = id !== null;
     this.guardando.set(true);
     // ORDEN OBLIGATORIO: guardar -> subir soportes (+ relectura) -> promover.
     // El servidor recalcula `soportesCargados` con cada subida y sobre ese dato
@@ -1961,6 +2112,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       .subscribe((res) => {
         if (!res) return;
         this.resultado.set({ incapacidad: res.creada, validada: res.validada });
+        const confirmacion = this.mostrarRadicado(res.creada, res.validada, edicionAlGuardar);
         // Lo que se pinta es el estado REAL del servidor, incluidos los
         // soportes que el recalculo dejo como cargados.
         this.sincronizarSoportesDelServidor(res.creada);
@@ -1973,11 +2125,14 @@ export class RegistroIncapacidadComponent implements OnDestroy {
               ? res.motivos
               : ['La incapacidad quedo en RECIBIDA: el backend no permitio validarla.'],
           );
-          this.dialogo.open(this.plantillaBloqueo(), {
-            width: '540px',
-            panelClass: 'reg-dialogo-panel',
-            autoFocus: false,
-          });
+          // Primero el radicado (ya quedo guardada); al cerrarlo, por que no se pudo validar.
+          void confirmacion.then(() =>
+            this.dialogo.open(this.plantillaBloqueo(), {
+              width: '540px',
+              panelClass: 'reg-dialogo-panel',
+              autoFocus: false,
+            }),
+          );
         }
         this.desplazarArriba();
       });
@@ -2152,6 +2307,25 @@ export class RegistroIncapacidadComponent implements OnDestroy {
       });
   }
 
+  /**
+   * Ordenes de la guia de Salud (simulacion sobre esta pantalla, 2026-10-21). Llegan como CustomEvent
+   * `tuapo-guia` en document para no acoplar los componentes: al empezar se limpia el formulario y se
+   * bloquea el guardado; al terminar se muestra la ventana del radicado DE EJEMPLO y se limpia otra vez.
+   */
+  @HostListener('document:tuapo-guia', ['$event'])
+  alOrdenDeGuia(evento: Event): void {
+    const detalle = (evento as CustomEvent<{ accion?: string; pantalla?: string; completado?: boolean }>).detail ?? {};
+    if (detalle.pantalla !== 'registro') return;
+    if (detalle.accion === 'inicio-simulacion') {
+      this.limpiar();
+      this.simulando.set(true);
+    } else if (detalle.accion === 'fin-simulacion') {
+      this.simulando.set(false);
+      const cierre = detalle.completado ? this.mostrarRadicado(EJEMPLO_RADICADO, false, false, true) : Promise.resolve();
+      void cierre.then(() => this.limpiar());
+    }
+  }
+
   /** Devuelve la pantalla al estado inicial (conservando el usuario). */
   limpiar(): void {
     for (const archivo of Object.values(this.archivos())) {
@@ -2183,7 +2357,7 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     const manuales = (this.catalogos()?.estadosDocumento ?? []).filter((e) => !e.automatico);
     this.form.reset({
       oficina: {
-        oficina: this.usuario.sedeNombre,
+        oficina: this.oficinaInicial,
         nombreQuienRecibe: this.usuario.nombreCompleto,
       },
       personal: { arl: ARL_POR_DEFECTO },
@@ -2291,4 +2465,14 @@ export class RegistroIncapacidadComponent implements OnDestroy {
     }
     return '';
   }
+}
+
+/** Para pintar texto del servidor dentro del HTML de la ventana de confirmacion. */
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }

@@ -206,6 +206,23 @@ describe('LiquidacionComponent', () => {
     expect(componente.filasVisibles().map((f) => f.id)).toEqual([5, 6]);
   });
 
+  // V64_2 (respuesta 2 de la funcional 2026-10-07): la causal de lo no reconocido siempre debe verse.
+  it('la revision de Pagos muestra la causal EPS de cada fila (raya si no la trae)', () => {
+    responderHistorial();
+    const filas = filasCarga();
+    filas[0] = { ...filas[0], causalTexto: 'NO SE RECONOCEN LOS DIAS 1 Y 2' };
+    simular(detalleCarga(filas));
+
+    expect(componente.hoja()).toBe('PAGOS');
+    const columna = componente.columnasPagos.find((c) => c.id === 'causalEps')!;
+    expect(columna.header).toBe('Causal EPS');
+    expect(columna.prioridad).toBeUndefined();
+    const celdas = Array.from((fixture.nativeElement as HTMLElement).querySelectorAll('.celda-causal')).map((c) =>
+      (c.textContent ?? '').trim(),
+    );
+    expect(celdas).toEqual(['NO SE RECONOCEN LOS DIAS 1 Y 2', '—', '—']);
+  });
+
   it('asigna con un clic la sugerencia (otra fecha de inicio) y la alerta se recalcula', () => {
     responderHistorial();
     simular();

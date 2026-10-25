@@ -1,5 +1,6 @@
 
 import {  Component, ElementRef, OnDestroy, OnInit, ViewChild, inject , ChangeDetectionStrategy, ChangeDetectorRef } from '@angular/core';
+import { NgTemplateOutlet } from '@angular/common';
 import { MatButtonModule } from '@angular/material/button';
 import { MatDialogModule, MatDialogRef, MAT_DIALOG_DATA } from '@angular/material/dialog';
 import { MatIconModule } from '@angular/material/icon';
@@ -7,9 +8,46 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatTooltipModule } from '@angular/material/tooltip';
 
+import { Subscription } from 'rxjs';
+
 import { DeteccionRostroService, LecturaRostro } from '../../service/rostro/deteccion-rostro.service';
+import { FotoDocumentoService, FotoProcesada } from '../../service/rostro/foto-documento.service';
+import { CajaRostro, TEXTO_AVISO, espejarCaja } from '../../service/rostro/foto-documento.util';
+import { ValidacionFotoIa, ValidacionFotoIaService } from '../../service/rostro/validacion-foto-ia.service';
 
 export type CameraDialogResult = { file: File; previewUrl: string };
+
+/** Lo que puede recibir el diálogo. Todo opcional. */
+export interface CameraDialogData {
+  /** Foto que ya tiene la persona: se muestra al abrir. */
+  initialPreviewUrl?: string | null;
+  /** Cédula de la persona: solo viaja a la verificación por IA, para el registro. */
+  numeroDocumento?: string | null;
+  /**
+   * `false` = foto LIBRE: sin recorte, sin fondo blanco y sin IA (el fotograma
+   * tal cual, como antes). Por defecto es foto tipo documento.
+   */
+  fotoDocumento?: boolean;
+}
+
+/** Qué está pasando con la foto. */
+export type FaseFoto =
+  /** Cámara (o selector de archivo) a la espera. */
+  | 'captura'
+  /** Recortando, poniendo el fondo blanco. */
+  | 'procesando'
+  /** Foto en pantalla para aprobarla o repetirla. */
+  | 'revision';
+
+/** Veredicto de la IA sobre la foto en pantalla. */
+export type EstadoIa =
+  /** La foto no pasó por la IA (la que ya tenía la persona, o foto libre). */
+  | 'nada'
+  | 'verificando'
+  | 'apta'
+  | 'no-apta'
+  /** La IA no respondió: se puede continuar, con los chequeos locales como guía. */
+  | 'sin-ia';
 
 /** Pasos de la comprobación de que hay una persona delante. */
 export type PasoRostro =
@@ -37,16 +75,20 @@ export type PasoRostro =
     MatButtonModule,
     // El `matTooltip` del obturador dice POR QUÉ está esperando; sin el módulo
     // el binding ni siquiera compila.
-    MatTooltipModule
+    MatTooltipModule,
+    // La foto en revisión es la misma pieza para la cámara y el adjunto.
+    NgTemplateOutlet,
 ],
   templateUrl: './camera-dialog.component.html',
   styleUrl: './camera-dialog.component.css'
 } )
 export class CameraDialogComponent implements OnInit, OnDestroy {
   private dialogRef = inject(MatDialogRef<CameraDialogComponent>);
-  private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as { initialPreviewUrl?: string | null } | null;
+  private dialogData = inject(MAT_DIALOG_DATA, { optional: true }) as CameraDialogData | null;
   private cdr = inject(ChangeDetectorRef);
   private rostro = inject(DeteccionRostroService);
+  private fotoDoc = inject(FotoDocumentoService);
+  private validadorIa = inject(ValidacionFotoIaService);
 
   @ViewChild('videoEl', { static: false }) videoEl?: ElementRef<HTMLVideoElement>;
   @ViewChild('canvasEl', { static: false }) canvasEl?: ElementRef<HTMLCanvasElement>;
@@ -133,6 +175,85 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
    * seguiría corriendo durante esos milisegundos y dispararía varias veces.
    */
   private capturaEnCurso = false;
+  /**
+   * La última lectura del detector. Su caja es de donde sale el recorte de la
+   * foto: el disparo ocurre en el mismo fotograma (o el siguiente) que se leyó.
+   */
+  private ultimaLectura: LecturaRostro | null = null;
+
+  // ══════════════════════════════════════════════════════════════════════
+  // FOTO TIPO DOCUMENTO (pedidos #4 y #5 del 24-sep)
+  //
+  // Tras el disparo —o al elegir un archivo— la foto se RECORTA 3:4 alrededor
+  // de la cara, se mide su luz y su nitidez, se pone sobre FONDO BLANCO y sale
+  // en JPEG 600×800. Después la revisa la IA de visión: si dice que no sirve,
+  // Confirmar queda apagado y se explica por qué; si no contesta, se avisa y
+  // se deja continuar —una IA caída no puede dejar a nadie sin foto—.
+  //
+  // "que la IA confirme de que quedó bien y ya puede continuar"
+  // ══════════════════════════════════════════════════════════════════════
+
+  fase: FaseFoto = 'captura';
+  /** Qué se está haciendo mientras `fase === 'procesando'`. */
+  pasoProceso = '';
+  /** La foto procesada en pantalla; null = foto que no pasó por aquí (la que ya tenía). */
+  procesada: FotoProcesada | null = null;
+  /** Comparar: mostrar el recorte ANTES del fondo blanco. */
+  verAntes = false;
+  estadoIa: EstadoIa = 'nada';
+  ia: ValidacionFotoIa | null = null;
+  /** Error que impide usar la foto (p. ej., un adjunto sin cara). */
+  errorFoto = '';
+
+  /**
+   * Cada foto nueva (o "Repetir") incrementa la sesión. Lo asíncrono —el
+   * procesado, la respuesta de la IA— comprueba que sigue siendo la suya antes
+   * de pintar: sin esto, la respuesta tardía de la foto anterior aprobaba la
+   * que la persona acababa de repetir.
+   */
+  private sesionFoto = 0;
+  private iaSub?: Subscription;
+
+  /** Foto tipo documento (recorte + fondo + IA) o foto libre. */
+  private get modoDocumento(): boolean {
+    return this.dialogData?.fotoDocumento !== false;
+  }
+
+  /** La imagen que se ve en la revisión: el antes o el después. */
+  get imagenVisible(): string | null {
+    return this.verAntes && this.procesada?.urlAntes ? this.procesada.urlAntes : this.previewUrl;
+  }
+
+  /**
+   * Confirmar exige que la IA la apruebe —o que la IA no haya podido opinar—.
+   * La foto que ya tenía la persona (sin procesar) se confirma como siempre.
+   */
+  get puedeConfirmar(): boolean {
+    if (!this.capturedFile || !this.previewUrl || this.fase === 'procesando') return false;
+    if (!this.procesada) return true;
+    return this.estadoIa === 'apta' || this.estadoIa === 'sin-ia';
+  }
+
+  /** Por qué Confirmar está apagado (tooltip). */
+  get motivoSinConfirmar(): string {
+    if (this.estadoIa === 'verificando') return 'Esperando la verificación con IA…';
+    if (this.estadoIa === 'no-apta') return 'La IA indicó que la foto no sirve: vuelve a tomarla';
+    return '';
+  }
+
+  /** Avisos de luz y nitidez medidos en el equipo, ya en palabras. */
+  get avisosLocales(): string[] {
+    const p = this.procesada;
+    if (!p) return [];
+    const avisos = p.calidad.avisos.map((a) => TEXTO_AVISO[a]);
+    if (p.fondo !== 'aplicado') avisos.push('No se pudo poner el fondo blanco');
+    return avisos;
+  }
+
+  /** ¿Se muestran los avisos locales? Con la IA aprobando, solo confundirían. */
+  get mostrarAvisosLocales(): boolean {
+    return this.estadoIa !== 'apta' && this.avisosLocales.length > 0;
+  }
 
   /** ¿Se puede disparar la foto a mano? */
   get puedeCapturar(): boolean {
@@ -152,6 +273,30 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       case 'listo': return this.cuenta > 0 ? 'No te muevas…' : '¡Listo!';
       default: return '';
     }
+  }
+
+  /** El detector y su bucle ya se arrancaron (una sola vez por diálogo). */
+  private validacionArrancada = false;
+
+  /**
+   * Arranca la validación si todavía no corre; si ya corre, la reinicia.
+   *
+   * Hacía falta porque el diálogo que ABRE con la foto que ya tenía la persona
+   * no enciende la cámara ni el detector, y "Repetir" solo reiniciaba un bucle
+   * que nunca había arrancado: la guía se quedaba en "Ubica la cara" y el
+   * obturador apagado para siempre.
+   */
+  private asegurarValidacion(): void {
+    if (this.validacionArrancada) {
+      this.reiniciarValidacion();
+      return;
+    }
+    this.validacionArrancada = true;
+    // El del fondo blanco (16 MB) va DESPUÉS del detector, no a la vez: los dos
+    // compiten por la misma CPU y el que hace falta primero es el de la guía.
+    void this.iniciarValidacion().then(() => {
+      if (this.modoDocumento) this.fotoDoc.precargar();
+    });
   }
 
   /** Arranca el detector y el bucle de lectura. */
@@ -202,6 +347,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     const ahora = performance.now();
     const lectura = this.rostro.leer(video, ahora);
     if (!lectura) return;
+    this.ultimaLectura = lectura;
 
     const antes = this.pasoRostro;
     const cercaAntes = this.cercania;
@@ -339,7 +485,7 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
           await this.startCamera();
           // El detector se carga en paralelo: pesa, y la cámara no debe
           // esperarlo para encenderse.
-          void this.iniciarValidacion();
+          this.asegurarValidacion();
         } catch {
           this.cameraError = 'No fue posible acceder a la cámara. Puedes adjuntar una imagen.';
         }
@@ -350,8 +496,11 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
   }
 
   ngOnDestroy(): void {
+    // Lo que siga en vuelo (procesado, IA) ya no pinta nada ni deja URLs vivas.
+    this.sesionFoto++;
     this.detenerValidacion();
     this.stopCamera();
+    this.descartarProcesado();
     this.revokePreview();
   }
 
@@ -540,6 +689,20 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     }
     ctx.drawImage(video, 0, 0, w, h);
 
+    if (this.modoDocumento) {
+      // La caja viene del fotograma CRUDO; si la foto va en espejo, la caja
+      // también. Sin lectura con cara (detector no disponible) → recorte
+      // centrado, y que decida la IA.
+      const l = this.ultimaLectura;
+      const caja: CajaRostro | null = l?.hayCara && l.caja
+        ? (this.isMirror ? espejarCaja(l.caja) : l.caja)
+        : null;
+      this.personaVerificada = verificada;
+      void this.procesar(canvas, caja, ++this.sesionFoto);
+      return;
+    }
+
+    // Foto libre: el fotograma tal cual, como siempre.
     canvas.toBlob((blob) => {
       if (!blob) {
         // Sin archivo no hay nada que revisar: devolver la cámara al bucle.
@@ -554,16 +717,133 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
     }, 'image/png', 0.92);
   }
 
-  onFileSelected(ev: Event): void {
+  /**
+   * "Adjuntar": la imagen pasa por lo mismo que la foto de la cámara. Antes
+   * se aceptaba cualquier imagen —una cédula, un paisaje— como foto de perfil.
+   * Ahora se busca la cara (detector en modo IMAGE) y, si no hay, se dice.
+   */
+  async onFileSelected(ev: Event): Promise<void> {
     const input = ev.target as HTMLInputElement;
     const file = input.files?.[0];
     if (!file) return;
     // Un archivo del disco no pasó por la cámara: nadie parpadeó delante.
     this.personaVerificada = false;
-    this.setPreviewFile(file);
+    if (!this.modoDocumento) {
+      this.setPreviewFile(file);
+      return;
+    }
+
+    const sesion = ++this.sesionFoto;
+    this.errorFoto = '';
+    this.fase = 'procesando';
+    this.pasoProceso = 'Buscando el rostro…';
+    this.cdr.markForCheck();
+
+    let lienzo: HTMLCanvasElement;
+    try {
+      lienzo = await this.fotoDoc.cargarArchivo(file);
+    } catch {
+      return this.fallarAdjunto(sesion, 'No se pudo abrir la imagen. Prueba con otra en JPG o PNG.');
+    }
+    const det = await this.rostro.detectarEnImagen(lienzo);
+    if (sesion !== this.sesionFoto) return;
+    // det === null: no hay detector. No se bloquea: recorte centrado y la IA decide.
+    if (det && det.caras === 0) {
+      return this.fallarAdjunto(sesion,
+        'No se encontró un rostro en la imagen. Elige una foto donde se vea la cara de frente.');
+    }
+    if (det && det.caras > 1) {
+      return this.fallarAdjunto(sesion,
+        'En la imagen hay más de una persona. Elige una foto donde salga solo quien se va a registrar.');
+    }
+    await this.procesar(lienzo, det?.caja ?? null, sesion);
+  }
+
+  private fallarAdjunto(sesion: number, mensaje: string): void {
+    if (sesion !== this.sesionFoto) return;
+    this.fase = 'captura';
+    this.errorFoto = mensaje;
+    if (this.fileInput?.nativeElement) this.fileInput.nativeElement.value = '';
+    this.cdr.markForCheck();
+  }
+
+  /**
+   * Recorte → calidad → fondo blanco → JPEG, y después la IA. Si algo del
+   * procesado falla (navegador sin canvas, memoria), se dice y se vuelve a la
+   * cámara: no se entrega una foto a medias.
+   */
+  private async procesar(fuente: HTMLCanvasElement, caja: CajaRostro | null, sesion: number): Promise<void> {
+    this.capturaEnCurso = true;
+    this.errorFoto = '';
+    this.fase = 'procesando';
+    this.pasoProceso = 'Recortando la foto…';
+    this.cdr.markForCheck();
+
+    let r: FotoProcesada;
+    try {
+      r = await this.fotoDoc.procesar(fuente, caja, (paso) => {
+        if (sesion !== this.sesionFoto) return;
+        this.pasoProceso = paso;
+        this.cdr.markForCheck();
+      });
+    } catch (e) {
+      console.warn('[camara] No se pudo preparar la foto:', e);
+      if (sesion !== this.sesionFoto) return;
+      this.fase = 'captura';
+      this.capturaEnCurso = false;
+      this.errorFoto = 'No se pudo preparar la foto. Intenta de nuevo.';
+      this.cdr.markForCheck();
+      return;
+    }
+
+    if (sesion !== this.sesionFoto) {
+      // Se repitió o se cerró mientras tanto: esta foto ya no es de nadie.
+      URL.revokeObjectURL(r.urlDespues);
+      if (r.urlAntes) URL.revokeObjectURL(r.urlAntes);
+      return;
+    }
+
+    this.descartarProcesado();
+    this.procesada = r;
+    this.verAntes = false;
+    this.setPreviewFile(r.archivo, r.urlDespues);
+    this.fase = 'revision';
+    this.verificarConIa(r.dataUrl, sesion);
+  }
+
+  private verificarConIa(dataUrl: string, sesion: number): void {
+    this.iaSub?.unsubscribe();
+    this.ia = null;
+    this.estadoIa = 'verificando';
+    this.cdr.markForCheck();
+    this.iaSub = this.validadorIa
+      .validar(dataUrl, this.dialogData?.numeroDocumento ?? null)
+      .subscribe((res) => {
+        if (sesion !== this.sesionFoto) return;
+        this.ia = res;
+        this.estadoIa = !res.disponible || res.apta === null ? 'sin-ia' : res.apta ? 'apta' : 'no-apta';
+        this.cdr.markForCheck();
+      });
+  }
+
+  /** Suelta la foto procesada: la verificación en vuelo y la URL del "antes". */
+  private descartarProcesado(): void {
+    this.iaSub?.unsubscribe();
+    this.iaSub = undefined;
+    if (this.procesada?.urlAntes) URL.revokeObjectURL(this.procesada.urlAntes);
+    // La URL del "después" es `previewUrl`: la revoca revokePreview().
+    this.procesada = null;
+    this.ia = null;
+    this.estadoIa = 'nada';
+    this.verAntes = false;
   }
 
   clearSelection(): void {
+    // Invalida lo que esté en vuelo (procesado, IA) de la foto anterior.
+    this.sesionFoto++;
+    this.descartarProcesado();
+    this.fase = 'captura';
+    this.errorFoto = '';
     this.capturedFile = null;
     this.revokePreview();
     this.previewUrl = null;
@@ -577,27 +857,37 @@ export class CameraDialogComponent implements OnInit, OnDestroy {
       this.startCamera();
       // Repetir la foto vuelve a exigir encuadre y parpadeo: si no, la segunda
       // toma se colaría con la validación de la primera —y se dispararía sola
-      // en el acto, sin dar tiempo ni a recolocarse—.
-      this.reiniciarValidacion();
+      // en el acto, sin dar tiempo ni a recolocarse—. Si el diálogo abrió con
+      // la foto anterior, aquí es donde arranca el detector por primera vez.
+      this.asegurarValidacion();
     }
     this.cdr.markForCheck();
   }
 
   confirm(): void {
-    if (!this.capturedFile || !this.previewUrl) return; // exige archivo para “Usar esta imagen”
+    // Exige archivo para "Usar esta imagen" y, si la foto es nueva, que la IA
+    // la haya aprobado (o que no haya podido opinar).
+    if (!this.puedeConfirmar || !this.capturedFile || !this.previewUrl) return;
     this.stopCamera();
     this.dialogRef.close({ file: this.capturedFile, previewUrl: this.previewUrl } satisfies CameraDialogResult);
   }
 
   cancel(): void {
+    this.sesionFoto++;
     this.stopCamera();
     this.dialogRef.close(undefined);
   }
 
-  private setPreviewFile(file: File): void {
+  /** Cambia la vista de la revisión entre el recorte original y el de fondo blanco. */
+  mostrarAntes(antes: boolean): void {
+    this.verAntes = antes;
+    this.cdr.markForCheck();
+  }
+
+  private setPreviewFile(file: File, url?: string): void {
     this.revokePreview();
     this.capturedFile = file;
-    this.previewUrl = URL.createObjectURL(file);
+    this.previewUrl = url ?? URL.createObjectURL(file);
     this.capturaEnCurso = false;
     this.cdr.markForCheck();
   }

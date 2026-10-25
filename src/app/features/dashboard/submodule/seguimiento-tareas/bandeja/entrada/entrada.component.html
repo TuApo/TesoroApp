@@ -1,0 +1,95 @@
+<div class="en" [class.en--abierto]="abierto()">
+  <section class="en-lista" aria-label="Conversaciones">
+    <div class="en-filtros">
+      <label class="en-buscar">
+        <mat-icon>search</mat-icon>
+        <input type="search" placeholder="Buscar en asuntos, mensajes, contactos…" [ngModel]="q()" (ngModelChange)="buscar($event)" />
+      </label>
+      <div class="en-canales" role="group" aria-label="Canal">
+        <button type="button" [class.on]="canal() === ''" (click)="elegirCanal('')">Todo</button>
+        <button type="button" [class.on]="canal() === 'CORREO'" (click)="elegirCanal('CORREO')"><mat-icon>mail</mat-icon>Correo</button>
+        <button type="button" [class.on]="canal() === 'WHATSAPP'" (click)="elegirCanal('WHATSAPP')"><mat-icon>chat</mat-icon>WhatsApp</button>
+      </div>
+    </div>
+    <div class="en-vistas" role="tablist">
+      @for (v of vistas; track v.clave) {
+        <button type="button" role="tab" [attr.aria-selected]="vista() === v.clave" [class.on]="vista() === v.clave" (click)="elegirVista(v.clave)">
+          <mat-icon>{{ v.icono }}</mat-icon>{{ v.etiqueta }}
+          @if (v.clave === vista() && !cargando()) { <b>{{ total() }}</b> }
+        </button>
+      }
+    </div>
+
+    @if (error()) {
+      <div class="en-error"><mat-icon>error</mat-icon>{{ error() }}</div>
+    }
+
+    <ul class="en-items">
+      @for (h of hilos(); track h.id) {
+        <li>
+          <button type="button" class="en-item" [class.en-item--on]="abierto() === h.id" [class.en-item--nuevo]="h.no_leidos > 0" (click)="abrir(h)">
+            <span class="en-avatar" [attr.data-canal]="h.canal"><mat-icon>{{ h.es_grupo ? 'groups' : iconoCanal(h.canal) }}</mat-icon></span>
+            <span class="en-cuerpo">
+              <span class="en-fila">
+                <span class="en-titulo">
+                  @if (h.fijado) { <mat-icon class="en-pin">push_pin</mat-icon> }
+                  {{ tituloHilo(h) }}
+                </span>
+                <time class="en-hora">{{ cuando(h.ultimo_mensaje_en) }}</time>
+              </span>
+              @if (h.canal === 'CORREO' && h.asunto && h.asunto !== tituloHilo(h)) {
+                <span class="en-asunto">{{ h.asunto }}</span>
+              }
+              <span class="en-previa">
+                @if (h.ultima_direccion === 'SALIENTE') { <mat-icon class="en-yo">done_all</mat-icon> }
+                {{ h.vista_previa }}
+              </span>
+              <span class="en-chips">
+                <span class="chip" [attr.data-tono]="ESTADOS[h.estado].tono">
+                  {{ ESTADOS[h.estado].texto }}@if (h.estado === 'POR_RESPONDER' && h.pendiente_desde) { · {{ espera(h.pendiente_desde) }} }
+                </span>
+                @if (h.prioridad === 'ALTA') { <span class="chip" data-tono="peligro"><mat-icon>priority_high</mat-icon>Urgente</span> }
+                @if (h.compromisos_abiertos > 0) { <span class="chip" data-tono="info"><mat-icon>handshake</mat-icon>{{ h.compromisos_abiertos }}</span> }
+                @if (h.tareas > 0) {
+                  <span class="chip" [attr.data-tono]="h.tareas_abiertas > 0 ? 'violeta' : 'ok'"><mat-icon>task</mat-icon>{{ h.tareas_abiertas }}/{{ h.tareas }}</span>
+                }
+                @if (h.categoria) { <span class="chip">{{ h.categoria | lowercase }}</span> }
+                @if (h.no_leidos > 0) { <span class="en-noleidos">{{ h.no_leidos }}</span> }
+              </span>
+            </span>
+          </button>
+        </li>
+      } @empty {
+        @if (!cargando()) {
+          <li class="en-vacio">
+            <mat-icon>{{ vista() === 'pendientes' ? 'mark_email_read' : 'inbox' }}</mat-icon>
+            @if ((estado.resumen()?.cuentas ?? 0) === 0 && !estado.supervisando()) {
+              <p>Aún no has vinculado tu correo ni tu WhatsApp.</p>
+              <a mat-flat-button routerLink="/dashboard/tareas/bandeja/cuentas"><mat-icon>link</mat-icon>Vincular una cuenta</a>
+            } @else if (vista() === 'pendientes') {
+              <p>¡Al día! No hay conversaciones esperando tu respuesta.</p>
+            } @else {
+              <p>No hay conversaciones en esta vista.</p>
+            }
+          </li>
+        }
+      }
+    </ul>
+    @if (cargando()) {
+      <div class="en-centro"><mat-spinner diameter="32" /></div>
+    } @else if (hayMas()) {
+      <button mat-stroked-button class="en-mas" (click)="cargar(false)">Cargar más ({{ total() - hilos().length }})</button>
+    }
+  </section>
+
+  <section class="en-detalle" aria-label="Conversación">
+    @if (abierto(); as id) {
+      <app-hilo-detalle [hiloId]="id" (cerrar)="cerrar()" (cambio)="alCambiar()" />
+    } @else {
+      <div class="en-sin">
+        <mat-icon>forum</mat-icon>
+        <p>Elige una conversación para ver los mensajes, lo que la IA detectó, los compromisos y las tareas.</p>
+      </div>
+    }
+  </section>
+</div>

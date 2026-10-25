@@ -1,0 +1,119 @@
+<div class="tienda-pagina">
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>sell</mat-icon> Ofertas y combos</h1>
+      <p class="tienda-subtitulo">Cree promociones y combos para EconomiAPP y el mostrador. El precio rebajado se ve en la vitrina y se cobra igual al confirmar.</p>
+    </div>
+  </header>
+
+  <div class="pestanas">
+    <button type="button" class="boton" [class.secundario]="pestana() !== 'promocion'" (click)="pestana.set('promocion')"><mat-icon>local_offer</mat-icon> Nueva promoción</button>
+    <button type="button" class="boton" [class.secundario]="pestana() !== 'combo'" (click)="pestana.set('combo')"><mat-icon>redeem</mat-icon> Nuevo combo</button>
+  </div>
+
+  @if (aviso()) { <div class="ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+  @if (error()) { <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div> }
+
+  <section class="tienda-tarjeta formulario">
+    <div class="fila">
+      <div class="campo ancho"><label>Nombre *</label>
+        <input type="text" [placeholder]="pestana() === 'combo' ? 'Mercado básico de la quincena' : 'Semana del mercado'" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" /></div>
+      <div class="campo ancho"><label>Descripción</label>
+        <input type="text" placeholder="Lo que verá la persona en EconomiAPP" [ngModel]="descripcion()" (ngModelChange)="descripcion.set($event)" /></div>
+    </div>
+
+    @if (pestana() === 'promocion') {
+      <div class="bloque">
+        <label class="etiqueta">Tipo de descuento</label>
+        <div class="chips">
+          @for (t of [['PORCENTAJE','% de descuento'],['MONTO_FIJO','$ menos'],['PRECIO_ESPECIAL','Precio especial'],['NXM','Lleve N, pague M'],['ENVIO_GRATIS','Domicilio gratis']]; track t[0]) {
+            <button type="button" class="chip" [class.activo]="tipo() === t[0]" (click)="tipo.set($any(t[0]))">{{ t[1] }}</button>
+          }
+        </div>
+        <div class="fila">
+          @if (tipo() === 'PORCENTAJE' || tipo() === 'MONTO_FIJO' || tipo() === 'PRECIO_ESPECIAL') {
+            <div class="campo"><label>{{ tipo() === 'PORCENTAJE' ? 'Porcentaje (máx. 90)' : 'Valor en pesos' }}</label>
+              <input type="number" min="1" [ngModel]="valor()" (ngModelChange)="valor.set($event)" /></div>
+          }
+          @if (tipo() === 'NXM') {
+            <div class="campo"><label>Lleve</label><input type="number" min="2" [ngModel]="lleva()" (ngModelChange)="lleva.set(+$event)" /></div>
+            <div class="campo"><label>Pague</label><input type="number" min="1" [ngModel]="paga()" (ngModelChange)="paga.set(+$event)" /></div>
+          }
+          <div class="campo"><label>Máx. por persona</label><input type="number" min="1" placeholder="Sin tope" [ngModel]="maxPorPersona()" (ngModelChange)="maxPorPersona.set($event)" /></div>
+        </div>
+      </div>
+
+      <div class="bloque">
+        <label class="etiqueta">¿A qué aplica?</label>
+        <div class="chips">
+          <button type="button" class="chip" [class.activo]="alcanceObjetivo() === 'TODO'" (click)="alcanceObjetivo.set('TODO')">Todo el catálogo</button>
+          <button type="button" class="chip" [class.activo]="alcanceObjetivo() === 'CATEGORIA'" (click)="alcanceObjetivo.set('CATEGORIA')">Categorías</button>
+          <button type="button" class="chip" [class.activo]="alcanceObjetivo() === 'PRODUCTO'" (click)="alcanceObjetivo.set('PRODUCTO')">Productos</button>
+        </div>
+        @if (alcanceObjetivo() === 'CATEGORIA') {
+          <div class="chips">
+            @for (c of categorias(); track c.id) {
+              <button type="button" class="chip" [class.activo]="categoriasElegidas().includes(c.id)" (click)="alternar('categorias', c.id)">{{ c.nombre }}</button>
+            }
+          </div>
+        }
+      </div>
+    }
+
+    @if (pestana() === 'combo' || alcanceObjetivo() === 'PRODUCTO') {
+      <div class="bloque">
+        <label class="etiqueta">{{ pestana() === 'combo' ? 'Productos del combo (mínimo 2)' : 'Productos en promoción' }}</label>
+        <div class="buscador">
+          <input type="search" placeholder="Buscar por nombre o SKU" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" (keyup.enter)="buscar()" />
+          <button type="button" class="boton" (click)="buscar()"><mat-icon>search</mat-icon></button>
+        </div>
+        @for (p of resultados(); track p.id) {
+          <button type="button" class="resultado" (click)="agregar(p)"><mat-icon>add</mat-icon> {{ p.nombre }}</button>
+        }
+        <ul class="elegidos">
+          @for (e of (pestana() === 'combo' ? componentes() : productosElegidos()); track e.id) {
+            <li>
+              <span>{{ e.nombre }}</span>
+              @if (pestana() === 'combo') {
+                <input type="number" min="1" [ngModel]="e.cantidad" (ngModelChange)="cantidad(e.id, +$event)" aria-label="Cantidad" />
+              }
+              <button type="button" class="boton secundario" (click)="quitar(e.id)" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+            </li>
+          }
+        </ul>
+      </div>
+    }
+
+    @if (pestana() === 'combo') {
+      <div class="fila">
+        <div class="campo"><label>Precio del combo en mostrador</label>
+          <input type="number" min="0" placeholder="Suma de los productos" [ngModel]="precioCombo()" (ngModelChange)="precioCombo.set($event)" /></div>
+      </div>
+      <p class="ayuda">En EconomiAPP el combo se compra como kit: agrega sus productos al carrito con sus precios y promociones.</p>
+    }
+
+    <div class="bloque">
+      <label class="etiqueta">Tiendas</label>
+      <div class="chips">
+        @for (t of ctx.tiendas(); track t.id) {
+          <button type="button" class="chip" [class.activo]="tiendasElegidas().includes(t.id)" (click)="alternar('tiendas', t.id)">{{ t.nombre }}</button>
+        }
+      </div>
+    </div>
+
+    <div class="fila">
+      @if (pestana() === 'promocion') {
+        <div class="campo"><label>Desde</label><input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></div>
+        <div class="campo"><label>Hasta</label><input type="date" [min]="desde()" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></div>
+      }
+      <div class="campo ancho"><label>{{ pestana() === 'combo' ? 'Foto del combo (cuadrada, 800×800)' : 'Banner de la promoción (1600×800, opcional)' }}</label>
+        <input type="file" accept="image/*" (change)="elegirImagen($event)" /></div>
+    </div>
+    @if (vistaImagen()) { <img class="vista" [src]="vistaImagen()" alt="Vista previa" [class.cuadrada]="pestana() === 'combo'" /> }
+
+    <button type="button" class="boton guardar" (click)="guardar()" [disabled]="!listo()">
+      <mat-icon>{{ ocupado() ? 'hourglass_top' : 'save' }}</mat-icon>
+      {{ pestana() === 'combo' ? 'Crear y publicar combo' : 'Crear promoción' }}
+    </button>
+  </section>
+</div>

@@ -181,9 +181,10 @@
 
           <div class="secure">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6l8-3z"/><path d="M8.5 12l2.5 2.5 4.5-5"/></svg>
-            Conexión cifrada · Tratamiento de datos conforme a Ley 1581 de 2012
+            Conexión cifrada · <a href="/privacidad.html" target="_blank" rel="noopener">Política de privacidad</a> · Ley 1581 de 2012
           </div>
 
+          @if (!enAppNativa) {
           <div class="apps">
             <h4>Descargar aplicación</h4>
             <div class="apps-grid">
@@ -209,6 +210,7 @@
               </button>
             </div>
           </div>
+          }
         }
 
         <!-- ─────────────── RECUPERAR: pedir código ─────────────── -->
@@ -267,7 +269,7 @@
         @case ('nueva-contrasena') {
           <div class="hello">
             <h2>Nueva contraseña</h2>
-            <p>Mínimo 12 caracteres, combinando al menos tres de: minúsculas, mayúsculas, números y símbolos.</p>
+            <p>Escribe la contraseña que quieras usar.</p>
           </div>
           <form class="pane" [formGroup]="newPasswordForm" (ngSubmit)="onResetContrasena()" autocomplete="off">
             <div class="field">
@@ -279,13 +281,6 @@
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
                 </button>
               </div>
-              @if (newPasswordForm.get('password')?.touched) {
-                @if (newPasswordForm.get('password')?.hasError('minLength')) {
-                  <p class="field-error">Mínimo 12 caracteres.</p>
-                } @else if (newPasswordForm.get('password')?.hasError('passwordStrength')) {
-                  <p class="field-error">Combina al menos 3 de: minúsculas, mayúsculas, números, símbolos.</p>
-                }
-              }
             </div>
             <div class="field">
               <label for="confirmar">Confirmar contraseña</label>

@@ -11,4 +11,8 @@ export const routes: Routes = [
   { path: 'etiquetas', loadComponent: () => import('./etiquetas/etiquetas').then(m => m.EtiquetasActivos) },
   // Analítica de actividad y mapa de proceso (gráficas + perfil IA).
   { path: 'actividad', loadComponent: () => import('./pages/actividad/actividad').then(m => m.Actividad) },
+  // Levantamiento de procesos: grafo que crece, hallazgos con procedencia y comunicaciones.
+  { path: 'procesos', loadComponent: () => import('./pages/procesos/procesos').then(m => m.Procesos) },
+  // Reporte integral de un equipo (todo lo del PC, imprimible).
+  { path: 'reporte/:id', loadComponent: () => import('./pages/reporte/reporte').then(m => m.ReporteEquipoPage) },
 ];

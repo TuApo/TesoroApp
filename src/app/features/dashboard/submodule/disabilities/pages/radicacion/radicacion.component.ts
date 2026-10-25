@@ -5,7 +5,8 @@
  * vuelve aqui a anotar el numero que le devolvieron, por pagina web, por correo dias despues o
  * en persona. La pantalla tiene:
  *  - el bloque "Radicar por codigo unico" (uno o varios codigos → un mismo radicado),
- *  - "Pendientes por radicar": validadas sin radicado, para traerlas al bloque sin teclear,
+ *  - "Pendientes por radicar": validadas o recibidas sin radicado (respuesta 1 de la funcional
+ *    2026-10-07: se puede radicar en RECIBIDA), para traerlas al bloque sin teclear,
  *  - "Radicados recientes": lo ultimo que se anoto, para revisar.
  * Quien radico lo pone el backend con la sesion; la carga masiva vieja (Excel) sigue a mano.
  */
@@ -62,6 +63,7 @@ import {
   periodo,
   tonoEstado,
 } from './radicacion.utils';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Pestanas de la parte de abajo (el bloque de codigos va siempre arriba). */
 export const TAB_PENDIENTES = 0;
@@ -71,6 +73,7 @@ export const TAB_RECIENTES = 1;
   selector: 'app-radicacion',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     FormsModule,
     RouterLink,
     MatButtonModule,

@@ -1,7 +1,7 @@
 import { CommonModule } from '@angular/common';
 import { HttpClient } from '@angular/common/http';
 import { COMMA, ENTER } from '@angular/cdk/keycodes';
-import { Component, ElementRef, Inject, OnDestroy, OnInit, ViewChild, ChangeDetectionStrategy, DestroyRef, inject } from '@angular/core';
+import { Component, ElementRef, Inject, Injector, OnDestroy, OnInit, ViewChild, ChangeDetectionStrategy, DestroyRef, afterNextRender, inject, signal } from '@angular/core';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 import {
   AbstractControl,
@@ -42,10 +42,14 @@ import {
   ResultadoLabor,
 } from '../../service/vacancy-cascade/vacancy-cascade.service';
 import { CalendarioPago, CentroGrupoPago } from '../../../users/services/parametrizacion-vacantes/parametrizacion-vacantes.service';
+import { sedeOfrecidaEnSeleccion } from '@/app/shared/utils/sedes-seleccion';
+import { PRODUCTO_NO_APLICA, conNoAplica } from '../../models/producto-finca';
 import {
   CargoAutorizado,
   ParametrizacionVacantesService,
 } from '../../../users/services/parametrizacion-vacantes/parametrizacion-vacantes.service';
+import { SalarioMinimoService } from '../../../hiring/service/salario-minimo/salario-minimo.service';
+import { formatoPesosCO, salarioMinimoDelAnio } from '../../../hiring/components/generate-contracting-documents/salario.util';
 
 /**
  * Los once perfiles de vacante que vivían cableados aquí. Se conservan como respaldo del
@@ -96,6 +100,7 @@ const ETIQUETAS_CAMPO: Record<string, string> = {
   area_operativa_codigo: 'Área operativa',
   ubicacionPruebaTecnica: 'Ubicación de la prueba',
   empresa_ref: 'Empresa usuaria',
+  salario: 'Salario',
   // El control se sigue llamando `descripcion` (es la clave del backend), pero en
   // pantalla el campo es «Características del cargo»: el aviso tiene que nombrarlo
   // como lo ve quien lo está llenando.
@@ -133,6 +138,23 @@ type DetalleCargoGroup = FormGroup<DetalleCargoControls>;
 
 type DepCiudades = { ciudades: string[] };
 
+/** Un obligatorio sin resolver, tal como se lista en el aviso de arriba al guardar. */
+interface CampoFaltante {
+  etiqueta: string;
+  /** Número de la sección donde está (1-5), para decir dónde buscarlo. */
+  seccion: number | null;
+  /** Elemento al que se salta al pulsar el aviso. */
+  el: HTMLElement | null;
+}
+
+/** Reglas del formulario completo que no son un campo: se nombran con su texto. */
+const ERRORES_DE_GRUPO: ReadonlyArray<{ clave: string; etiqueta: string; seccion: number }> = [
+  { clave: 'excesoDetallesCargo', etiqueta: 'Detalle del cargo: la suma supera las personas solicitadas', seccion: 2 },
+  { clave: 'faltanDetallesCargo', etiqueta: 'Detalle del cargo: la suma no llega a las personas solicitadas', seccion: 2 },
+  { clave: 'excesoMunicipios', etiqueta: 'Reparto por municipio: la suma supera el total', seccion: 4 },
+  { clave: 'sumaNoIgualTotal', etiqueta: 'Reparto por municipio: la suma no cuadra con el total', seccion: 4 },
+];
+
 @Component({
   selector: 'app-crear-editar-vacante',
   imports: [
@@ -165,6 +187,16 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   private readonly PRUEBA = 'Prueba';
   private readonly CONTRATACION = 'Contratación';
   private readonly destroyRef = inject(DestroyRef);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
+
+  /**
+   * Se pulsó Guardar con algo pendiente. Desde ese momento los campos sin resolver
+   * se pintan con fondo rojo y arriba sale la lista de lo que falta, que se va
+   * vaciando a medida que se llena. Antes el botón simplemente no respondía.
+   */
+  readonly intentoGuardar = signal(false);
+  readonly faltantes = signal<CampoFaltante[]>([]);
 
   vacanteForm!: FormGroup;
 
@@ -289,7 +321,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
    * petición falla. Sin ese plan B, un parametrizador caído dejaría el campo vacío y,
    * como es obligatorio, no se podría publicar ninguna vacante.
    */
-  areas: string[] = AREAS_DE_RESPALDO;
+  areas: string[] = conNoAplica(AREAS_DE_RESPALDO);
 
   today: Date = new Date();
 
@@ -341,8 +373,47 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
    */
   private readonly CAMPOS_SIEMPRE_EDITABLES: readonly string[] = ['salario', 'auxilio_transporte'];
 
-  /** Salario mínimo legal mensual vigente: el valor por defecto de toda vacante. */
+  /**
+   * Salario mínimo legal mensual vigente: respaldo del valor por defecto de toda vacante
+   * cuando Parametrización de vacantes › Salario mínimo no tiene el año o no carga.
+   */
   static readonly SALARIO_MINIMO = 1750905;
+
+  private readonly salarioMinimoService = inject(SalarioMinimoService);
+
+  /**
+   * El mínimo que se SUGIERE (no se impone): el del año en curso según
+   * `salario_minimo_vigencia` y, mientras carga o si no hay fila, el de respaldo.
+   * El campo es obligatorio y editable: el salario se negocia por vacante.
+   */
+  minimoSugerido = CrearEditarVacanteComponent.SALARIO_MINIMO;
+  readonly anioMinimo = new Date().getFullYear();
+
+  /** La vacante abierta ya traía un salario propio: el mínimo que llegue tarde no lo pisa. */
+  private salarioGuardado = false;
+
+  get minimoSugeridoTexto(): string {
+    return formatoPesosCO(this.minimoSugerido);
+  }
+
+  /**
+   * Trae el mínimo del año y lo pone en el campo SOLO si el campo aún tiene el respaldo
+   * puesto por defecto y nadie lo tocó (crear, o editar una vacante sin salario).
+   */
+  private cargarMinimoDelAnio(): void {
+    this.salarioMinimoService.vigencias()
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((vigencias) => {
+        const minimo = salarioMinimoDelAnio(vigencias, this.anioMinimo);
+        if (minimo == null || Math.round(minimo) === this.minimoSugerido) return;
+        const anterior = this.minimoSugerido;
+        this.minimoSugerido = Math.round(minimo);
+        const ctrl = this.vacanteForm?.get('salario');
+        if (ctrl && !ctrl.dirty && !this.salarioGuardado && Number(ctrl.value) === anterior) {
+          ctrl.setValue(this.minimoSugerido, { emitEvent: false });
+        }
+      });
+  }
 
   /** Campos heredados que quedaron abiertos porque la ficha no los trae. */
   private abiertos = new Set<string>();
@@ -659,13 +730,14 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   /** Qué controles mira cada sección. `extra` son reglas que no son un control. */
   private readonly SECCIONES: ReadonlyArray<{ id: number; controles: string[] }> = [
-    // Empresa, salario y auxilio ya no se pintan (se retiró la fila de datos
-    // heredados): siguen viajando en el payload, pero contarlos aquí dejaba la
-    // barra en rojo por campos que nadie puede ver ni tocar.
+    // Empresa y auxilio ya no se pintan (se retiró la fila de datos heredados):
+    // siguen viajando en el payload, pero contarlos aquí dejaba la barra en rojo
+    // por campos que nadie puede ver ni tocar. El salario volvió a la vista
+    // (2026-10-14, obligatorio y editable) y cuenta en la sección 2.
     { id: 1, controles: ['temporal', 'centro_clave', 'direccion'] },
     // `grupo_pago_ref` cuenta en la 2: el desplegable se pregunta tras el codigo bot,
     // y la barra tiene que medir la seccion donde el campo esta a la vista.
-    { id: 2, controles: ['cargo', 'area_operativa_codigo', 'area', 'personas_solicitadas', 'tipo_contratacion', 'experiencia', 'codigo_elite', 'grupo_pago_ref', 'descripcion'] },
+    { id: 2, controles: ['cargo', 'area_operativa_codigo', 'area', 'personas_solicitadas', 'tipo_contratacion', 'salario', 'experiencia', 'codigo_elite', 'grupo_pago_ref', 'descripcion'] },
     { id: 3, controles: ['prueba_ocontratacion', 'fechadeIngreso', 'fechadePruebatecnica', 'horade_pruebatecnica', 'ubicacionPruebaTecnica'] },
     { id: 4, controles: ['municipio'] },
     { id: 5, controles: ['oficinasSeleccionadas'] },
@@ -883,7 +955,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
           `${this.user?.datos_basicos?.nombres ?? ''} ${this.user?.datos_basicos?.apellidos ?? ''}`.trim(),
         ],
         estadovacante: ['Activa'],
-        salario: [CrearEditarVacanteComponent.SALARIO_MINIMO, [Validators.required, Validators.min(0)]],
+        salario: [this.minimoSugerido, [Validators.required, Validators.min(1)]],
         codigo_elite: [''],
 
         // Condicional 1: Fecha de ingreso
@@ -923,7 +995,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         // "Perfil vacante": ahora admite VARIAS. Se guarda como texto separado por
         // coma en la misma columna `area`, que es como ya lo leen todos sus
         // consumidores (el cruce de ms-hr, los formatos Excel y la Remisión).
-        area: [[] as string[], Validators.required],
+        // «Producto finca» (antes «Perfil vacante»): opcional, arranca en «No aplica».
+        area: [[PRODUCTO_NO_APLICA] as string[]],
         // Area OPERATIVA del parametrizador ('CU', 'PO', 'AD'...), el
         // vocabulario con el que se resuelve la labor. Solo aplica a los centros
         // que trabajan por area; en el resto queda en null.
@@ -971,10 +1044,16 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       }
     );
 
+    // Tras un intento de guardar, la lista de faltantes se va vaciando sola.
+    this.vacanteForm.statusChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => { if (this.intentoGuardar()) this.marcarFaltantes(false); });
+
     this.aplicarAlcanceDeTipos(this.data?.tipo_contratacion);
 
     // Si viene data, cargar primero para no pelear con subscribes
     if (this.data) this.cargarParaEdicion(this.data);
+    this.cargarMinimoDelAnio();
 
     // --------- AUTOCOMPLETE CARGOS ----------
     const cargoCtrl = this.vacanteForm.get('cargo') as FormControl<string>;
@@ -1006,7 +1085,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         const nombres = (lista ?? []).map((p) => String(p?.nombre ?? '').trim()).filter(Boolean);
         // Un catálogo vacío también cae al respaldo: dejar el desplegable sin
         // opciones bloquearía la publicación, porque el campo es obligatorio.
-        if (nombres.length) this.areas = nombres;
+        if (nombres.length) this.areas = conNoAplica(nombres);
       });
 
     // --------- TEMPORALES: primer eslabon de la cascada ----------
@@ -1023,7 +1102,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       });
 
     // --------- SEDES ----------
-    type SedeDto = { nombre: string; activa?: boolean | null };
+    type SedeDto = { nombre: string; activa?: boolean | null; opera_seleccion?: boolean | number | null };
 
     this.adminService
       .traerSucursales()
@@ -1041,7 +1120,10 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         }
 
         this.sedes = sucursales
-          .filter((s: SedeDto) => s?.activa !== false)
+          // Sedes que ya no contratan (V129 `opera_seleccion = 0`: ANDES, MONTE_VERDE):
+          // siguen activas para el resto de módulos, pero no se ofrecen como oficina
+          // de la vacante. Antes era una lista fija aquí; ahora la decide el catálogo.
+          .filter((s: SedeDto) => sedeOfrecidaEnSeleccion(s))
           .map((s: SedeDto) => ({
             nombre: String(s?.nombre ?? '').trim(),
             activa: s?.activa ?? true,
@@ -1565,10 +1647,11 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
   // ---------- Edición ----------
   private cargarParaEdicion(v: any): void {
+    this.salarioGuardado = Number(v?.salario) > 0;
     this.vacanteForm.patchValue({
       cargo: v?.cargo ?? '',
       // Viene como texto separado por coma; se parte para el selector múltiple.
-      area: partirPerfiles(v?.area),
+      area: partirPerfiles(v?.area).length ? partirPerfiles(v?.area) : [PRODUCTO_NO_APLICA],
       finca: v?.finca ?? '',
       empresa_usuaria_solicita: v?.empresa_usuaria_solicita ?? '',
       direccion: v?.direccion ?? '',
@@ -1583,8 +1666,8 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
 
       quienpublicolavacante: v?.quienpublicolavacante ?? '',
       estadovacante: v?.estadovacante ?? 'Activa',
-      // Una vacante guardada sin salario (o en 0) se abre con el mínimo legal.
-      salario: Number(v?.salario) > 0 ? Number(v?.salario) : CrearEditarVacanteComponent.SALARIO_MINIMO,
+      // Una vacante guardada sin salario (o en 0) se abre con el mínimo legal (sugerido).
+      salario: Number(v?.salario) > 0 ? Number(v?.salario) : this.minimoSugerido,
       codigo_elite: v?.codigo_elite ?? '',
 
       oficinasSeleccionadas: Array.isArray(v?.oficinas_que_contratan)
@@ -1890,7 +1973,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
         temporal: String(this.vacanteForm.get('temporal')?.value ?? '') || null,
         // Sin centro, el salario vuelve al mínimo legal: `null` dejaba el campo
         // vacío y obligatorio, y la vacante no se podía guardar sin teclearlo.
-        salario: CrearEditarVacanteComponent.SALARIO_MINIMO,
+        salario: this.minimoSugerido,
         auxilio_transporte: null,
       },
       ...lista,
@@ -1950,7 +2033,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       const delCentro = Number(centro.salario);
       patch['salario'] = Number.isFinite(delCentro) && delCentro > 0
         ? delCentro
-        : CrearEditarVacanteComponent.SALARIO_MINIMO;
+        : this.minimoSugerido;
     }
     if (opts.pisarAjustes) {
       // Se resuelve SIEMPRE, no solo cuando la ficha lo dice. El campo dejó de
@@ -2385,8 +2468,12 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     const input = event.target as HTMLInputElement;
     const digits = (input?.value || '').replace(/\D/g, '');
 
-    // Mantén el formControl NUMÉRICO
-    this.vacanteForm.get('salario')?.setValue(Number(digits || 0), { emitEvent: false });
+    // Mantén el formControl NUMÉRICO (entero limpio, sin puntos). Vacío = null, no 0:
+    // con 0 el `required` pasaba y la vacante se guardaba sin salario.
+    const ctrl = this.vacanteForm.get('salario');
+    ctrl?.setValue(digits ? Number(digits) : null, { emitEvent: false });
+    ctrl?.markAsDirty();
+    ctrl?.updateValueAndValidity({ emitEvent: false });
 
     // Formatea sólo el input
     input.value = this.formatNumber(digits);
@@ -2395,7 +2482,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
   onBlur(event: FocusEvent): void {
     const input = event.target as HTMLInputElement;
     const valueNum = Number(this.vacanteForm.get('salario')?.value) || 0;
-    if (input) input.value = this.formatNumber(valueNum);
+    if (input) input.value = valueNum > 0 ? this.formatNumber(valueNum) : '';
   }
 
   formatNumber(value: string | number): string {
@@ -2417,6 +2504,7 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
       // pero un campo obligatorio vacío escondido dentro de una sección cerrada
       // deja el botón sin responder y sin decir por qué.
       this.abrirSeccionesIncompletas();
+      this.marcarFaltantes(true);
       return;
     }
 
@@ -2505,6 +2593,82 @@ export class CrearEditarVacanteComponent implements OnInit, OnDestroy {
     for (const s of this.SECCIONES) {
       if (this.avanceSeccion(s.id) < 100) this.plegadas.delete(s.id);
     }
+  }
+
+  // ── Aviso de obligatorios al guardar ─────────────────────────────────────
+
+  /**
+   * Arma la lista de lo que falta y, si `saltar`, lleva al primero.
+   *
+   * Se lee del DOM ya pintado (`.ng-invalid` con `formcontrolname`) y no solo del
+   * modelo: así cada faltante sale con el MISMO nombre que se ve en pantalla y se
+   * puede saltar a él. Lo que el modelo da por inválido sin estar a la vista
+   * (sección plegada, campo condicional) se añade con su etiqueta de respaldo.
+   */
+  private marcarFaltantes(saltar: boolean, preferido?: string): void {
+    this.intentoGuardar.set(true);
+    afterNextRender(() => {
+      const lista = this.recolectarFaltantes();
+      this.faltantes.set(lista);
+      if (saltar) this.irAFaltante(lista.find((f) => f.etiqueta === preferido) ?? lista[0]);
+    }, { injector: this.injector });
+  }
+
+  private recolectarFaltantes(): CampoFaltante[] {
+    const raiz = this.host.nativeElement;
+    const secciones = Array.from(raiz.querySelectorAll<HTMLElement>('section.vac-sec'));
+    const seccionDe = (el: Element): number | null => {
+      const sec = el.closest('section.vac-sec');
+      const i = sec ? secciones.indexOf(sec as HTMLElement) : -1;
+      return i >= 0 ? i + 1 : null;
+    };
+
+    const out: CampoFaltante[] = [];
+    const vistos = new Set<string>();
+    raiz.querySelectorAll<HTMLElement>('.vac-form [formcontrolname].ng-invalid').forEach((el) => {
+      const campo = (el.closest('mat-form-field') ?? el) as HTMLElement;
+      const nombre = el.getAttribute('formcontrolname') ?? '';
+      const rotulo = (campo.querySelector('mat-label')?.textContent ?? '').replace(/\*/g, '').trim();
+      const etiqueta = rotulo || ETIQUETAS_CAMPO[nombre] || nombre;
+      // Las filas de los FormArray repiten nombre ("cantidad"): se distinguen por
+      // elemento, no por nombre.
+      if (out.some((f) => f.el === campo)) return;
+      vistos.add(nombre);
+      out.push({ etiqueta, seccion: seccionDe(campo), el: campo });
+    });
+
+    // Inválidos del modelo que no están pintados.
+    for (const [nombre, ctrl] of Object.entries(this.vacanteForm.controls)) {
+      if (ctrl.disabled || ctrl.valid || vistos.has(nombre)) continue;
+      if (ctrl instanceof FormArray) continue; // sus filas ya salieron arriba
+      const seccion = this.SECCIONES.find((s) => s.controles.includes(nombre))?.id ?? null;
+      out.push({
+        etiqueta: ETIQUETAS_CAMPO[nombre] ?? nombre,
+        seccion,
+        el: seccion ? secciones[seccion - 1] ?? null : null,
+      });
+    }
+
+    // Reglas del formulario entero (sumas que no cuadran).
+    for (const r of ERRORES_DE_GRUPO) {
+      if (!this.vacanteForm.hasError(r.clave)) continue;
+      out.push({ etiqueta: r.etiqueta, seccion: r.seccion, el: secciones[r.seccion - 1] ?? null });
+    }
+    return out;
+  }
+
+  /** Lleva la vista al campo y le da el foco. */
+  irAFaltante(f: CampoFaltante | undefined): void {
+    if (!f?.el) return;
+    if (f.seccion && this.estaPlegada(f.seccion)) {
+      this.plegadas.delete(f.seccion);
+      // La sección se acaba de abrir: el elemento guardado ya no es el que se pinta.
+      this.marcarFaltantes(true, f.etiqueta);
+      return;
+    }
+    f.el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const foco = f.el.querySelector<HTMLElement>('input:not([readonly]), textarea, mat-select, [tabindex="0"]');
+    foco?.focus({ preventScroll: true });
   }
 
   cancelar(): void {

@@ -53,6 +53,7 @@ import {
   DialogoInformeUmbralComponent,
 } from '../consulta-incapacidades/dialogos/dialogo-informe-umbral/dialogo-informe-umbral.component';
 import { PanelUmbralesComponent } from '../../components/panel-umbrales/panel-umbrales.component';
+import { GuiaSaludComponent } from '../../components/guia-salud/guia-salud.component';
 
 /** Paleta categorica fija (misma familia que la analitica de nomina; CVD-safe en claro). */
 export const PALETA_INFORMES: readonly string[] = [
@@ -117,6 +118,7 @@ export type FilaTopConPuesto = FilaTopPersona & { puesto: number };
   selector: 'app-informes-incapacidades',
   standalone: true,
   imports: [
+    GuiaSaludComponent,
     PanelUmbralesComponent,
     DecimalPipe,
     FormsModule,

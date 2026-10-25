@@ -452,8 +452,12 @@ mat-form-field,
 }
 /* Solo aquí hay rojo, y solo cuando el campo se tocó y quedó vacío. */
 :host ::ng-deep .vac-form .mat-mdc-form-field.mat-form-field-invalid .mat-mdc-text-field-wrapper {
-  border-color: #dc2626;
-  box-shadow: 0 0 0 3px rgba(220, 38, 38, .10);
+  background: var(--danger-bg);
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .12);
+}
+:host ::ng-deep .vac-form .mat-mdc-form-field.mat-form-field-invalid .vac-icono {
+  color: var(--danger-fg);
 }
 
 /* Todos los campos con la misma altura: es lo que alinea las filas de la
@@ -928,4 +932,82 @@ mat-form-field,
   .det-cargo-texto {
     grid-column: 1 / -1;
   }
+}
+
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   Aviso de obligatorios al guardar
+   ───────────────────────────────────────────────────────────────────────────
+   Antes, Guardar con un campo vacío no hacía nada visible. Ahora sale esta
+   lista pegada arriba del contenido; cada ítem lleva al campo, que está con
+   fondo rojo. Usa los tokens de estado del tema, así que respeta el modo oscuro.
+   ═══════════════════════════════════════════════════════════════════════════ */
+.vac-faltan {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  margin: 0 0 14px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--danger-bg);
+  border: 1px solid var(--danger-border);
+  color: var(--danger-fg);
+  box-shadow: 0 6px 16px -10px rgba(185, 28, 28, .45);
+}
+.vac-faltan-head {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.vac-faltan-head mat-icon {
+  flex: 0 0 auto;
+  color: var(--danger);
+}
+.vac-faltan-head strong {
+  display: block;
+  font-size: 14px;
+}
+.vac-faltan-head span {
+  font-size: 12px;
+  opacity: .85;
+}
+.vac-faltan-lista {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 10px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+.vac-faltan-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  border: 1px solid var(--danger-border);
+  background: var(--surface);
+  color: var(--danger-fg);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color .12s ease, box-shadow .12s ease;
+}
+.vac-faltan-item:hover,
+.vac-faltan-item:focus-visible {
+  border-color: var(--danger);
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, .14);
+  outline: none;
+}
+.vac-faltan-sec {
+  display: inline-grid;
+  place-items: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: linear-gradient(140deg, #21263C 0%, #39405e 100%);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
 }

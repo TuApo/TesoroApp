@@ -1,0 +1,69 @@
+<div class="pa-tabs">
+  <button type="button" [class.activo]="vista() === 'encuestas'" (click)="vista.set('encuestas')"><mat-icon>poll</mat-icon> Encuestas</button>
+  <button type="button" [class.activo]="vista() === 'retos'" (click)="vista.set('retos')"><mat-icon>code</mat-icon> Retos</button>
+  <button type="button" [class.activo]="vista() === 'entregas'" (click)="vista.set('entregas'); cargarEntregas()"><mat-icon>assignment</mat-icon> Entregas</button>
+</div>
+
+@if (vista() === 'retos') {
+  <app-aula-retos [aula]="aula" [sala]="sala" [dirijo]="dirijo" />
+} @else {
+
+@if (vista() === 'encuestas') {
+  @if (dirijo && !abierta()) {
+    <section class="pa-caja">
+      <h4>Pregunta rápida</h4>
+      <input [(ngModel)]="pregunta" placeholder="¿Qué quieres preguntar?" maxlength="500" />
+      @for (o of opciones; track trackI($index); let i = $index) {
+        <div class="pa-opcion">
+          <input type="radio" name="correcta" [checked]="correcta === i" (change)="correcta = i" title="Marcar como correcta (opcional)" />
+          <input [ngModel]="o" (ngModelChange)="setOpcion(i, $event)" [placeholder]="'Opción ' + (i + 1)" />
+          @if (opciones.length > 2) { <button type="button" class="pa-mini" (click)="quitarOpcion(i)" aria-label="Quitar"><mat-icon>close</mat-icon></button> }
+        </div>
+      }
+      <div class="pa-fila">
+        @if (opciones.length < 8) { <button type="button" class="pa-btn" (click)="agregarOpcion()"><mat-icon>add</mat-icon> Opción</button> }
+        <button type="button" class="pa-btn pa-btn--primario" (click)="lanzar()"><mat-icon>send</mat-icon> Lanzar</button>
+      </div>
+      <p class="pa-nota">Marca una opción si quieres que sea una comprobación: la correcta se muestra al cerrar.</p>
+    </section>
+  }
+  @for (e of encuestas(); track e.id) {
+    <section class="pa-encuesta" [class.cerrada]="e.estado === 'CERRADA'">
+      <header><strong>{{ e.pregunta }}</strong><span>{{ e.total }} voto{{ e.total === 1 ? '' : 's' }} · {{ e.estado === 'ABIERTA' ? 'abierta' : 'cerrada' }}</span></header>
+      @for (o of e.opciones; track $index; let i = $index) {
+        <button type="button" class="pa-voto" [class.mio]="e.mi_voto === i" [class.correcta]="e.correcta === i"
+                [disabled]="e.estado !== 'ABIERTA'" (click)="votar(e, i)">
+          <span class="pa-barra" [style.width.%]="(dirijo || e.mi_voto !== null || e.estado === 'CERRADA') ? pct(e, i) : 0"></span>
+          <span class="pa-texto">{{ o }}</span>
+          @if (dirijo || e.mi_voto !== null || e.estado === 'CERRADA') { <span class="pa-pct">{{ pct(e, i) }}%</span> }
+          @if (e.correcta === i) { <mat-icon>check_circle</mat-icon> }
+        </button>
+      }
+      @if (dirijo && e.estado === 'ABIERTA') { <button type="button" class="pa-btn" (click)="cerrar(e)"><mat-icon>lock</mat-icon> Cerrar y mostrar resultados</button> }
+    </section>
+  } @empty {
+    <p class="pa-vacio">{{ dirijo ? 'Lanza una pregunta para ver qué entendió el grupo.' : 'Aquí aparecerán las preguntas de quien dirige.' }}</p>
+  }
+} @else {
+  @for (en of entregas(); track en.id) {
+    <section class="pa-entrega">
+      <header>
+        <strong>{{ en.titulo }}</strong>
+        <span>{{ en.equipo_nombre ?? en.autor_nombre }} · {{ en.created_at | date: 'h:mm a' }}</span>
+      </header>
+      @if (en.calificando) { <p class="pa-calif">Calificando con las pruebas…</p> }
+      @else if (en.nota !== null) { <p class="pa-calif">Nota {{ en.nota | number: '1.0-1' }} @if (en.feedback) { · {{ en.feedback }} }</p> }
+      <div class="pa-fila">
+        <button type="button" class="pa-btn" (click)="verEntrega.set(verEntrega() === en.id ? null : en.id)"><mat-icon>visibility</mat-icon> {{ verEntrega() === en.id ? 'Ocultar' : 'Ver' }}</button>
+        @if (dirijo) { <button type="button" class="pa-btn pa-btn--primario" (click)="revisar(en)"><mat-icon>grading</mat-icon> Revisar</button> }
+      </div>
+      @if (verEntrega() === en.id) {
+        @if (en.resultado) { <app-resultado-pruebas [resultado]="en.resultado" /> }
+        <pre>{{ en.contenido }}</pre>
+      }
+    </section>
+  } @empty {
+    <p class="pa-vacio">Sin entregas todavía. Desde el panel de código: <strong>Entregar</strong>.</p>
+  }
+}
+}

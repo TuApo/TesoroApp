@@ -19,10 +19,12 @@ import { VacancyFiltersService } from '../../service/vacancy-filters/vacancy-fil
 import { SharedModule } from '@/app/shared/shared.module';
 import { CrearEditarVacanteComponent } from '../../components/crear-editar-vacante/crear-editar-vacante.component';
 import { CumplimientoDialogComponent } from '../../components/cumplimiento-dialog/cumplimiento-dialog.component';
+import { CargaMasivaVacantesComponent } from '../../components/carga-masiva-vacantes/carga-masiva-vacantes.component';
 import { VacancyFiltersPanelComponent } from '../../components/vacancy-filters-panel/vacancy-filters-panel.component';
 import { DateRangeDialogComponent } from '@/app/shared/components/date-rang-dialog/date-rang-dialog.component';
 import { StandardFilterTable } from '@/app/shared/components/standard-filter-table/standard-filter-table';
 import { ColumnCellTemplateDirective } from '@/app/shared/directives/column-cell-template.directive';
+import { productosParaGuardar } from '../../models/producto-finca';
 import {
   AuxilioTransporte,
   ConteoEstados,
@@ -296,7 +298,7 @@ export class VacancyListComponent implements OnInit, AfterViewInit, OnDestroy {
       const perfiles: string[] = Array.isArray(result.area)
         ? (result.area as unknown[]).map((x) => t(x)).filter((x: string) => !!x)
         : [t(result.area)].filter((x: string) => !!x);
-      if (!perfiles.length) missing.push('Perfil vacante');
+      // «Producto finca» es opcional: vacío se guarda como «No aplica».
       if (!t(result.experiencia)) missing.push('Experiencia');
       if (!t(result.descripcion)) missing.push('Descripción');
       if (!t(result.tipo_contratacion)) missing.push('Tipo de contratación');
@@ -391,12 +393,12 @@ export class VacancyListComponent implements OnInit, AfterViewInit, OnDestroy {
       const payload = {
         cargo: t(result.cargo) || null,
         temporal: t(result.temporal) || null,
-        // "Perfil vacante" admite varios y se guardan aquí separados por coma: es
+        // "Producto finca" (antes "Perfil vacante") admite varios y se guardan aquí separados por coma: es
         // la forma que ya leen el cruce de ms-hr, los formatos Excel del detalle de
         // cumplimiento y el prellenado de la Remisión. La columna se amplió a 255
         // en la V14 de ms-automation porque con MySQL en modo estricto pasarse de
         // largo no trunca, falla.
-        area: perfiles.join(', ') || null,
+        area: productosParaGuardar(perfiles).join(', '),
         empresa_usuaria_solicita: t(result.empresa_usuaria_solicita) || null,
         finca: t(result.finca) || null,
         direccion: t(result.direccion) || null,
@@ -502,7 +504,7 @@ export class VacancyListComponent implements OnInit, AfterViewInit, OnDestroy {
       const perfiles: string[] = Array.isArray(result.area)
         ? (result.area as unknown[]).map((x) => t(x)).filter((x: string) => !!x)
         : [t(result.area)].filter((x: string) => !!x);
-      if (!perfiles.length) missing.push('Perfil vacante');
+      // «Producto finca» es opcional: vacío se guarda como «No aplica».
       if (!t(result.experiencia)) missing.push('Experiencia');
       if (!t(result.descripcion)) missing.push('Descripción');
       if (!t(result.tipo_contratacion)) missing.push('Tipo de contratación');
@@ -596,12 +598,12 @@ export class VacancyListComponent implements OnInit, AfterViewInit, OnDestroy {
 
       const payload = {
         cargo: t(result.cargo) || null,
-        // "Perfil vacante" admite varios y se guardan aquí separados por coma: es
+        // "Producto finca" (antes "Perfil vacante") admite varios y se guardan aquí separados por coma: es
         // la forma que ya leen el cruce de ms-hr, los formatos Excel del detalle de
         // cumplimiento y el prellenado de la Remisión. La columna se amplió a 255
         // en la V14 de ms-automation porque con MySQL en modo estricto pasarse de
         // largo no trunca, falla.
-        area: perfiles.join(', ') || null,
+        area: productosParaGuardar(perfiles).join(', '),
         empresa_usuaria_solicita: t(result.empresa_usuaria_solicita) || null,
         finca: t(result.finca) || null,
         ubicacionPruebaTecnica: isPrueba ? (t(result.ubicacionPruebaTecnica) || null) : null,
@@ -889,26 +891,18 @@ export class VacancyListComponent implements OnInit, AfterViewInit, OnDestroy {
   }
 
   // ✅ XLSX lazy-load: evita que “se congele” al entrar a la página
-  async onFileSelected(event: Event): Promise<void> {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) { input.value = ''; return; }
-
-    const XLSX = await import('xlsx');
-
-    const reader = new FileReader();
-    reader.onload = (e: any) => {
-      const data = new Uint8Array(e.target.result);
-      const workbook = XLSX.read(data, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      XLSX.utils.sheet_to_json(worksheet, { header: 1 });
-
-      Swal.fire('Aviso', 'Implementa el endpoint para subir Excel (crearDetalleLaboral).', 'info');
-    };
-    reader.readAsArrayBuffer(file);
-
-    input.value = '';
+  /**
+   * Carga masiva desde Excel: plantilla con catálogos vivos, validación fila por fila
+   * contra el parametrizador y creación de todo o nada. El diálogo devuelve `true` si
+   * creó algo.
+   */
+  abrirCargaMasiva(): void {
+    this.dialog
+      .open(CargaMasivaVacantesComponent, { width: '1200px', maxWidth: '96vw', disableClose: true })
+      .afterClosed()
+      .subscribe((creo: boolean) => {
+        if (creo) this.datos.recargar();
+      });
   }
 
   abrirFormularioPreRegistroVacantes(): void {

@@ -1,0 +1,112 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>inventory</mat-icon> Alistamiento</h1>
+      <p class="tienda-subtitulo">Tome un pedido, júntelo artículo por artículo, imprima la orden, el formato de mercado que el cliente firma al recibir y los stickers. Al quedar listo sale a la bolsa de los domiciliarios.</p>
+    </div>
+    <div class="herramientas">
+      @if (ctx.tiendas().length > 1) {
+        <select class="campo" [ngModel]="tienda()" (ngModelChange)="tienda.set($event); cargar()" aria-label="Tienda">
+          <option value="">Todas mis tiendas</option>
+          @for (t of ctx.tiendas(); track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+        </select>
+      }
+      <button type="button" class="chip" [class.on]="sonido()" (click)="sonido.set(!sonido())" [attr.aria-pressed]="sonido()">
+        <mat-icon>{{ sonido() ? 'notifications_active' : 'notifications_off' }}</mat-icon> Avisos
+      </button>
+      <app-impresora />
+    </div>
+  </div>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  <div class="pestanas" role="tablist">
+    <button type="button" role="tab" [class.activa]="vista() === 'cola'" (click)="vista.set('cola')">Por alistar <span>{{ porAlistar().length }}</span></button>
+    <button type="button" role="tab" [class.activa]="vista() === 'mios'" (click)="vista.set('mios')">Míos <span>{{ mios().length }}</span></button>
+    <button type="button" role="tab" [class.activa]="vista() === 'listos'" (click)="vista.set('listos')">Listos hoy <span>{{ listos().length }}</span></button>
+    @if (actualizado(); as a) { <small class="act">Actualizado {{ a | date:'shortTime' }}</small> }
+  </div>
+
+  @if (cargando()) {
+    <div class="tienda-vacio">Cargando…</div>
+  } @else if (!visibles().length) {
+    <div class="tienda-vacio">
+      @switch (vista()) {
+        @case ('cola') { No hay pedidos esperando. Le avisamos cuando llegue uno. }
+        @case ('mios') { No tiene pedidos tomados. }
+        @default { Nada alistado en las últimas horas. }
+      }
+    </div>
+  } @else {
+    <div class="tarjetas">
+      @for (p of visibles(); track p.id) {
+        <article class="tienda-tarjeta pedido" [class.mio]="esMio(p)" [class.listo]="p.estado === 'LISTO'">
+          <header>
+            <div>
+              <b class="numero">{{ p.numero }}</b>
+              <span class="insignia" [class.dom]="p.tipo_entrega === 'DOMICILIO'">{{ p.tipo_entrega === 'DOMICILIO' ? 'Domicilio' : p.tipo_entrega === 'RECOGE_OFICINA' ? 'Recoge en oficina' : 'Recoge en tienda' }}</span>
+            </div>
+            <small>{{ hace(minutos(p)) }}</small>
+          </header>
+          <p class="tienda">{{ p.tienda }} · {{ p.cliente_nombre }}</p>
+          @if (p.direccion_texto && p.tipo_entrega === 'DOMICILIO') { <p class="dir"><mat-icon>place</mat-icon> {{ p.direccion_texto }}</p> }
+          <div class="datos">
+            <span><mat-icon>format_list_bulleted</mat-icon> {{ p.lineas }} líneas · {{ +p.unidades }} und.</span>
+            <span>{{ pesos(p.total) }}</span>
+            @if (compromiso(p.fecha_compromiso); as c) { <span class="comp" [attr.data-t]="c.tono"><mat-icon>event</mat-icon> {{ c.texto }}</span> }
+            @if (franja(p); as f) { <span class="prog"><mat-icon>event_available</mat-icon> {{ f }}</span> }
+            @else if (p.tipo_entrega === 'DOMICILIO') { <span class="sin-hora"><mat-icon>schedule</mat-icon> Hora sin confirmar</span> }
+            @if (+(p.videos ?? 0) || +(p.fotos ?? 0)) { <span><mat-icon>videocam</mat-icon> {{ +(p.videos ?? 0) }} video · {{ +(p.fotos ?? 0) }} foto</span> }
+            @if (+(p.casos_abiertos ?? 0)) { <span class="caso"><mat-icon>report</mat-icon> {{ p.casos_abiertos }} caso</span> }
+            @if (p.prestamo_numero) {
+              <span class="spb" [class.firmada]="p.prestamo_estado !== 'PENDIENTE_FIRMA'">
+                <mat-icon>draw</mat-icon> {{ p.prestamo_estado === 'PENDIENTE_FIRMA' ? 'Autorización por firmar' : 'Autorización firmada' }}
+              </span>
+            }
+          </div>
+          @if (p.estado !== 'CONFIRMADO') {
+            <div class="progreso"><span [style.width.%]="p.lineas ? +p.alistadas / p.lineas * 100 : 0"></span></div>
+            <small class="muted">{{ +p.alistadas }} de {{ p.lineas }} artículos marcados</small>
+          }
+          @if (p.alistador_nombre) { <small class="muted"><mat-icon class="mini">person</mat-icon> {{ esMio(p) ? 'Usted lo está alistando' : 'Lo alista ' + p.alistador_nombre }}</small> }
+          @if (p.estado === 'LISTO') {
+            <small class="muted">
+              <mat-icon class="mini">inventory_2</mat-icon> {{ p.bultos }} {{ p.bultos === 1 ? 'bulto' : 'bultos' }} ·
+              @if (p.tipo_entrega === 'DOMICILIO') { {{ +p.tomado ? 'ya lo tomó un domiciliario' : 'en la bolsa, esperando domiciliario' }} } @else { listo para recoger }
+            </small>
+          }
+          @if (horaDe() === p.id) {
+            <app-confirmar-hora [pedido]="{ id: p.id, numero: p.numero, cliente_nombre: p.cliente_nombre, cliente_telefono: p.cliente_telefono,
+              fecha_compromiso: p.fecha_compromiso, programado_en: p.programado_en, programado_hasta: p.programado_hasta, hora_confirmada_en: p.hora_confirmada_en }"
+              (confirmada)="horaConfirmada()" (cancelar)="horaDe.set(null)" />
+          }
+          <div class="mini">
+            @if (p.tipo_entrega === 'DOMICILIO') { <button type="button" (click)="horaDe.set(horaDe() === p.id ? null : p.id)"><mat-icon>event_available</mat-icon> {{ p.hora_confirmada_en ? 'Cambiar hora' : 'Confirmar hora' }}</button> }
+            <button type="button" (click)="casoDe.set(p.id)"><mat-icon>manage_search</mat-icon> Caso</button>
+          </div>
+          <div class="acciones">
+            @if (p.estado === 'LISTO') {
+              <a class="boton secundario" [routerLink]="['/dashboard/tienda/alistar', p.id]"><mat-icon>label</mat-icon> Stickers</a>
+              <button type="button" class="boton secundario" [disabled]="ocupado() === p.id" (click)="paquete(p)"><mat-icon>picture_as_pdf</mat-icon> Paquete</button>
+            } @else if (esMio(p)) {
+              <a class="boton" [routerLink]="['/dashboard/tienda/alistar', p.id]" [queryParams]="{ desde: 'cola' }"><mat-icon>checklist</mat-icon> Seguir alistando</a>
+              <button type="button" class="boton secundario" [disabled]="ocupado() === p.id" (click)="soltar(p)">Soltar</button>
+            } @else if (!p.alistador_id) {
+              <button type="button" class="boton" [disabled]="ocupado() === p.id" (click)="tomar(p)"><mat-icon>pan_tool</mat-icon> Tomar y alistar</button>
+            } @else {
+              <button type="button" class="boton secundario" [disabled]="ocupado() === p.id" (click)="tomar(p, true)">Reasignármelo</button>
+            }
+          </div>
+        </article>
+      }
+    </div>
+  }
+</div>
+
+@if (casoDe(); as id) {
+  <div class="capa-caso" (click)="casoDe.set(null)">
+    <div class="capa-cuerpo" (click)="$event.stopPropagation()">
+      <app-caso-pedido [pedidoId]="id" (cerrar)="casoDe.set(null)" />
+    </div>
+  </div>
+}

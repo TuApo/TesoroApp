@@ -1,4 +1,5 @@
-import { Component, ChangeDetectionStrategy, inject } from '@angular/core';
+import { Component, ChangeDetectionStrategy, inject, signal } from '@angular/core';
+import { ActivatedRoute, Router } from '@angular/router';
 import { CommonModule } from '@angular/common';
 import { BehaviorSubject } from 'rxjs';
 import { map, switchMap } from 'rxjs/operators';
@@ -17,6 +18,8 @@ import { ResumenPorOficina, ResumenPorEmpresa } from '../../models/afiliaciones-
 import { MatCardModule } from '@angular/material/card';
 import { MatIconModule } from '@angular/material/icon';
 import { MatButtonToggleModule } from '@angular/material/button-toggle';
+import { MatTabsModule } from '@angular/material/tabs';
+import { ArchivoHistoricoComponent } from '../archivo-historico/archivo-historico.component';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -27,6 +30,8 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
     MatCardModule,
     MatIconModule,
     MatButtonToggleModule,
+    MatTabsModule,
+    ArchivoHistoricoComponent,
     AfiliacionesFiltersBarComponent,
     AfiliacionesKpiStripComponent,
     ContratacionesTableComponent,
@@ -38,6 +43,16 @@ import { MatButtonToggleModule } from '@angular/material/button-toggle';
 })
 export class AfiliacionesDashboard {
   public service = inject(AfiliacionesDashboardService);
+  private readonly router = inject(Router);
+  private readonly route = inject(ActivatedRoute);
+
+  // Pestaña en la URL (?vista=archivo) para poder enlazar directo al archivo histórico.
+  readonly pestana = signal(this.route.snapshot.queryParamMap.get('vista') === 'archivo' ? 1 : 0);
+
+  cambiarPestana(i: number) {
+    this.pestana.set(i);
+    this.router.navigate([], { relativeTo: this.route, queryParams: { vista: i === 1 ? 'archivo' : null }, queryParamsHandling: 'merge', replaceUrl: true });
+  }
 
   // KPIs + resúmenes: ahora vienen AGREGADOS del backend (no de las 5.000 filas topadas).
   kpiSummary$ = this.service.kpiSummary$;

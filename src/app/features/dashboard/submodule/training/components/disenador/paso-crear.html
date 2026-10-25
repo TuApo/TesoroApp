@@ -1,0 +1,56 @@
+@if (diseno.estado === 'APLICADO') {
+  <div class="pz-tarjeta pcr-listo">
+    <span class="pcr-listo__icono"><mat-icon>celebration</mat-icon></span>
+    <h2>¡El curso está creado!</h2>
+    <p>Quedó en <strong>borrador</strong>. Revísalo en la consola: ahí puedes agregar videos, ajustar las preguntas,
+      ver la vista previa y publicarlo cuando esté listo.</p>
+    @if (resultado(); as r) {
+      <div class="pcr-cifras">
+        <span><strong>{{ r.modulos }}</strong> módulos</span>
+        <span><strong>{{ r.lecciones }}</strong> clases</span>
+        <span><strong>{{ r.preguntas }}</strong> preguntas</span>
+        <span><strong>{{ r.actividades }}</strong> actividades</span>
+        <span><strong>{{ r.medios }}</strong> medios</span>
+      </div>
+      @if (r.avisos.length) {
+        <div class="pcr-avisos"><strong>Para revisar</strong>
+          <ul>@for (a of r.avisos; track $index) { <li>{{ a }}</li> }</ul></div>
+      }
+    }
+    <button type="button" class="pz-btn pz-btn--primario" (click)="abrirCurso()" [disabled]="!diseno.course_id && !resultado()">
+      <mat-icon>open_in_new</mat-icon> Abrir el curso en la consola
+    </button>
+  </div>
+} @else {
+  <div class="pcr">
+    <div class="pz-tarjeta pcr-resumen">
+      <h2>{{ diseno.propuesta?.curso?.titulo || diseno.titulo }}</h2>
+      @if (diseno.propuesta?.curso?.descripcion) { <p class="pz-ayuda">{{ diseno.propuesta?.curso?.descripcion }}</p> }
+      <div class="pcr-cifras">
+        <span><strong>{{ diseno.propuesta?.modulos?.length ?? 0 }}</strong> módulos</span>
+        <span><strong>{{ lecciones.length }}</strong> clases</span>
+        <span><strong>{{ escritas }}</strong> escritas</span>
+        <span><strong>{{ preguntas }}</strong> preguntas</span>
+        <span><strong>{{ actividades }}</strong> actividades</span>
+        <span><strong>{{ (minutos / 60) | number: '1.0-1' }}</strong> horas</span>
+      </div>
+      @if (diseno.propuesta?.evaluacion_final?.incluir) {
+        <p class="pcr-nota"><mat-icon>fact_check</mat-icon> Con evaluación final de {{ diseno.propuesta?.evaluacion_final?.preguntas }} preguntas
+          (nota mínima {{ diseno.propuesta?.evaluacion_final?.nota_minima ?? 70 }}).</p>
+      }
+      <ul class="pcr-que">
+        <li><mat-icon>check</mat-icon> Cada clase con su texto y sus objetivos</li>
+        <li><mat-icon>check</mat-icon> Un quiz por clase con las preguntas revisadas</li>
+        <li><mat-icon>check</mat-icon> Las actividades como tareas entregables</li>
+        <li><mat-icon>check</mat-icon> Un banco de preguntas propio del curso ("IA · …")</li>
+        <li><mat-icon>check</mat-icon> Los medios listos (fichas, audios, clips, YouTube) dentro de cada clase</li>
+      </ul>
+    </div>
+    <div class="pz-tarjeta pcr-pie">
+      <button type="button" class="pz-btn" (click)="ir.emit('medios')"><mat-icon>arrow_back</mat-icon> Medios</button>
+      <button type="button" class="pz-btn pz-btn--lima" [disabled]="creando() || ocupado" (click)="crear()">
+        <mat-icon>rocket_launch</mat-icon> {{ creando() ? 'Creando el curso…' : 'Crear el curso en borrador' }}
+      </button>
+    </div>
+  </div>
+}

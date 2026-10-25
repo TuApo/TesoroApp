@@ -1,0 +1,275 @@
+<div class="inicio">
+  <!-- ── Encabezado ─────────────────────────────────────────────────────── -->
+  <header class="cabecera">
+    <div class="cabecera__icono" aria-hidden="true"><mat-icon>agriculture</mat-icon></div>
+    <div class="cabecera__texto">
+      <p class="cabecera__saludo">Coordinadores · Asistencia al trabajador en misión</p>
+      <h1 class="cabecera__nombre">{{ primerNombre ? 'Hola, ' + primerNombre : nombre }}</h1>
+      <p class="cabecera__detalle">{{ nombre }}@if (rol) { · <span class="rol">{{ rol }}</span> }</p>
+      <div class="oficinas" aria-label="Oficinas">
+        @if (todasLasOficinas) {
+          <span class="chip chip--oficina"><mat-icon>public</mat-icon> Todas las oficinas</span>
+        } @else {
+          @for (o of oficinas; track o) {
+            <span class="chip chip--oficina"><mat-icon>location_city</mat-icon> {{ o }}</span>
+          } @empty {
+            <span class="chip chip--aviso"><mat-icon>info</mat-icon> Sin oficina asignada</span>
+          }
+        }
+      </div>
+      <!-- Alcance REAL de las cifras: lo decide ms-forms (COORDINADOR / JEFE-DE-AREA ven solo sus oficinas). -->
+      @if (alcance(); as a) {
+        <p class="cabecera__detalle" [class.alcance--aviso]="a.restringido && !a.oficinas.length">
+          <mat-icon class="alcance__icono" aria-hidden="true">{{ a.restringido ? 'filter_alt' : 'public' }}</mat-icon>
+          {{ a.texto }}
+        </p>
+      }
+    </div>
+  </header>
+
+  <!-- ── Resumen del módulo ─────────────────────────────────────────────── -->
+  @if (resumen().formularios > 0) {
+    <section class="kpis" aria-label="Resumen">
+      <div class="kpi">
+        <span class="kpi__valor">{{ resumen().mes | number }}{{ resumen().parcial ? '+' : '' }}</span>
+        <span class="kpi__etiqueta">Registros este mes</span>
+      </div>
+      @if (resumen().mios !== null && puedeLlenarAlguno()) {
+        <div class="kpi">
+          <span class="kpi__valor">{{ resumen().mios | number }}</span>
+          <span class="kpi__etiqueta">Hechos por ti</span>
+        </div>
+      }
+      <div class="kpi">
+        <span class="kpi__valor">{{ resumen().total | number }}</span>
+        <span class="kpi__etiqueta">Registros en total</span>
+      </div>
+      @if (tieneProceso() && puedeLlenarAlguno()) {
+        <div class="kpi" [class.kpi--alerta]="devueltos() > 0">
+          <span class="kpi__valor">{{ devueltos() | number }}</span>
+          <span class="kpi__etiqueta">Devueltos a ti</span>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- ── Pendientes ─────────────────────────────────────────────────────── -->
+  @if (tieneProceso() && puedeLlenarAlguno() && (cargandoStats() || resumenDisponible())) {
+    <section class="bloque" aria-labelledby="t-pendientes">
+      <div class="bloque__titulo">
+        <h2 id="t-pendientes"><mat-icon>pending_actions</mat-icon> Tus pendientes</h2>
+        <span class="bloque__nota">Casos tuyos devueltos (de cualquier fecha) o sin estado (últimos 30 días)</span>
+      </div>
+      @if (cargandoStats()) {
+        <div class="cargando"><span class="esqueleto"></span><span class="esqueleto"></span></div>
+      } @else {
+        @if (pendientes().length) {
+          <ul class="pendientes">
+            @for (p of pendientesVisibles(); track p.formId + '-' + p.submissionId) {
+              <li>
+                <a class="pendiente" [routerLink]="p.rutaProceso">
+                  <span class="chip chip--{{ claseEstado(p.estado) }}">{{ p.estado }}</span>
+                  <span class="pendiente__texto">
+                    <strong>{{ p.formulario }}</strong>
+                    <small>#{{ p.submissionId }}@if (p.llave) { · {{ p.llave }} } · {{ fechaCorta(p.fecha) }}</small>
+                  </span>
+                  <mat-icon aria-hidden="true">chevron_right</mat-icon>
+                </a>
+              </li>
+            }
+          </ul>
+          @if (pendientes().length > pendientesVisibles().length) {
+            <button type="button" class="enlace" (click)="verTodosPendientes.set(true)">
+              Ver los {{ pendientes().length }} pendientes
+            </button>
+          }
+          @if (pendientesFuera() > 0) {
+            <p class="bloque__nota bloque__nota--pie">
+              Se muestran los {{ pendientes().length }} más recientes de {{ pendientesTotal() | number }}.
+              El resto se consulta en «Control del proceso» de cada formulario.
+            </p>
+          }
+        } @else {
+          <p class="vacio"><mat-icon>task_alt</mat-icon> No tienes casos devueltos ni sin estado.</p>
+        }
+      }
+    </section>
+  }
+
+  <!-- ── Formularios por grupo ──────────────────────────────────────────── -->
+  @if (cargandoFormularios()) {
+    <div class="cargando cargando--rejilla">
+      <span class="esqueleto esqueleto--tarjeta"></span>
+      <span class="esqueleto esqueleto--tarjeta"></span>
+      <span class="esqueleto esqueleto--tarjeta"></span>
+    </div>
+  } @else {
+    @for (g of grupos(); track g.slug) {
+      <section class="bloque" [attr.aria-labelledby]="'t-' + g.slug">
+        <div class="bloque__titulo">
+          <h2 [id]="'t-' + g.slug"><mat-icon>{{ g.icono }}</mat-icon> {{ g.nombre }}</h2>
+          @if (g.descripcion) { <span class="bloque__nota">{{ g.descripcion }}</span> }
+        </div>
+
+        <div class="rejilla">
+          @for (f of g.formularios; track f.ruta) {
+            @let s = stat(f);
+            <article class="tarjeta">
+              <div class="tarjeta__cabeza">
+                <span class="tarjeta__icono" aria-hidden="true"><mat-icon>{{ f.icono }}</mat-icon></span>
+                <h3>{{ f.nombre }}</h3>
+              </div>
+
+              @if (s) {
+                <dl class="cifras">
+                  @if (s.total !== null) {
+                    <div><dt>Total</dt><dd>{{ s.total | number }}</dd></div>
+                  }
+                  @if (s.delMes !== null) {
+                    <div><dt>Este mes</dt><dd>{{ s.delMes | number }}{{ s.delMesParcial ? '+' : '' }}</dd></div>
+                  }
+                  @if (s.mios !== null && f.acceso?.can_fill) {
+                    <div><dt>Tuyos</dt><dd>{{ s.mios | number }}</dd></div>
+                  }
+                </dl>
+
+                @if (s.estados.length) {
+                  <div class="estados">
+                    <span class="estados__titulo">
+                      Estado del caso{{ s.alcanceEstados === 'mes' ? ' (este mes)' : '' }}
+                    </span>
+                    <ul>
+                      @for (e of s.estados; track e.estado) {
+                        <li>
+                          <span class="estados__nombre">{{ e.estado }}</span>
+                          <span class="estados__barra" aria-hidden="true">
+                            <span class="estados__relleno estados__relleno--{{ claseEstado(e.estado) }}"
+                                  [style.width.%]="porcentaje(s, e.total)"></span>
+                          </span>
+                          <span class="estados__n">{{ e.total | number }}</span>
+                        </li>
+                      }
+                    </ul>
+                  </div>
+                }
+
+                @if (s.lineaTiempo.length) {
+                  <div class="linea">
+                    <span class="estados__titulo">Últimos 90 días</span>
+                    <app-linea-tiempo-mini [puntos]="s.lineaTiempo" />
+                  </div>
+                }
+
+                @if (s.ultimoRegistro) {
+                  <p class="tarjeta__ultimo">Último registro: {{ fechaCorta(s.ultimoRegistro) }}</p>
+                }
+              } @else if (cargandoStats() && (f.acceso?.can_process || f.acceso?.can_view_analytics)) {
+                <div class="cargando"><span class="esqueleto"></span></div>
+              }
+
+              <div class="acciones">
+                @if (f.acceso?.can_fill) {
+                  <a class="boton boton--principal" [routerLink]="f.ruta">
+                    <mat-icon>edit_note</mat-icon> Llenar
+                  </a>
+                }
+                <div class="acciones__secundarias">
+                  @if (f.acceso?.can_view_responses) {
+                    <a class="boton boton--secundario" [routerLink]="f.ruta + '/respuestas'">
+                      <mat-icon>quick_reference_all</mat-icon> Respuestas
+                    </a>
+                  }
+                  @if (f.acceso?.can_process) {
+                    <a class="boton boton--secundario" [routerLink]="f.ruta + '/proceso'">
+                      <mat-icon>fact_check</mat-icon> Proceso
+                    </a>
+                  }
+                  @if (f.acceso?.can_view_analytics) {
+                    <a class="boton boton--secundario" [routerLink]="f.ruta + '/analitica'">
+                      <mat-icon>insights</mat-icon> Analítica
+                    </a>
+                  }
+                </div>
+                @if (!f.acceso) {
+                  <!-- Sin acceso resuelto (backend viejo): al menos se puede abrir. -->
+                  <a class="boton boton--secundario" [routerLink]="f.ruta"><mat-icon>open_in_new</mat-icon> Abrir</a>
+                }
+              </div>
+            </article>
+          }
+        </div>
+      </section>
+    } @empty {
+      <section class="bloque">
+        <p class="vacio">
+          <mat-icon>inbox</mat-icon>
+          No tienes formularios de Coordinadores en tu menú. Si deberías tenerlos, pide a tu
+          jefe de área que revise tu rol.
+        </p>
+      </section>
+    }
+  }
+
+  <!-- ── Incapacidades de la oficina ────────────────────────────────────── -->
+  @if (enlacesIncapacidades.length) {
+    <section class="bloque" aria-labelledby="t-incapacidades">
+      <div class="bloque__titulo">
+        <h2 id="t-incapacidades"><mat-icon>healing</mat-icon> Incapacidades</h2>
+        @if (incapacidades()?.alcance) {
+          <span class="bloque__nota">{{ incapacidades()!.alcance }}</span>
+        } @else {
+          <span class="bloque__nota">De tu(s) oficina(s)</span>
+        }
+      </div>
+
+      @if (cargandoIncapacidades()) {
+        <div class="cargando"><span class="esqueleto"></span><span class="esqueleto"></span></div>
+      } @else if (incapacidades(); as k) {
+        <div class="kpis kpis--compactos">
+          @if (k.activasHoy !== null) {
+            <div class="kpi"><span class="kpi__valor">{{ k.activasHoy | number }}</span><span class="kpi__etiqueta">Activas hoy</span></div>
+          }
+          @if (k.delMes !== null) {
+            <div class="kpi">
+              <span class="kpi__valor">{{ k.delMes | number }}</span>
+              <span class="kpi__etiqueta">
+                {{ k.fuente === 'inicio' ? 'Iniciaron este mes' : 'Registradas este mes' }}
+                @if (k.variacionMesPct !== null) {
+                  <em [class.sube]="k.variacionMesPct > 0" [class.baja]="k.variacionMesPct < 0">
+                    {{ k.variacionMesPct > 0 ? '+' : '' }}{{ k.variacionMesPct | number: '1.0-0' }} %
+                  </em>
+                }
+              </span>
+            </div>
+          }
+          <div class="kpi">
+            <span class="kpi__valor">{{ k.total | number }}</span>
+            <span class="kpi__etiqueta">{{ k.fuente === 'inicio' ? 'En el periodo' : 'En total' }}</span>
+          </div>
+          @if (k.sinSoporte !== null) {
+            <div class="kpi" [class.kpi--alerta]="k.sinSoporte > 0">
+              <span class="kpi__valor">{{ k.sinSoporte | number }}</span><span class="kpi__etiqueta">Sin soportes</span>
+            </div>
+          }
+        </div>
+        @if (k.porEstado.length) {
+          <div class="chips-estado">
+            @for (e of k.porEstado; track e.clave) {
+              <span class="chip chip--info">{{ e.etiqueta }} · {{ e.cantidad | number }}</span>
+            }
+          </div>
+        }
+      } @else {
+        <p class="vacio"><mat-icon>cloud_off</mat-icon> No se pudieron leer las incapacidades de tu oficina.</p>
+      }
+
+      <div class="acciones acciones--fila">
+        @for (e of enlacesIncapacidades; track e.ruta; let primero = $first) {
+          <a class="boton" [class.boton--principal]="primero" [class.boton--secundario]="!primero" [routerLink]="e.ruta">
+            <mat-icon>{{ e.icono }}</mat-icon> {{ e.nombre }}
+          </a>
+        }
+      </div>
+    </section>
+  }
+</div>

@@ -57,6 +57,54 @@ export const routes: Routes = [
       import('./pages/admin-compliance/admin-compliance').then(m => m.AdminCompliance)
   },
   {
+    // Quien dicta un grupo: planilla, entregas y lista. No tiene nodo propio en el menú
+    // porque ser instructor no es un rol; se llega desde el aviso de "Mis cursos" y desde
+    // el tablero. Antes de ':enrollmentId' por lo mismo que las demás.
+    path: 'profesor',
+    loadComponent: () =>
+      import('./pages/instructor-home/instructor-home').then(m => m.InstructorHome)
+  },
+  {
+    path: 'profesor/:groupId',
+    loadComponent: () =>
+      import('./pages/instructor-home/instructor-home').then(m => m.InstructorHome)
+  },
+  {
+    // Capacitaciones en vivo: agenda de aulas, entrar con código, crear, y cursos libres.
+    // Antes de ':enrollmentId', como todas.
+    path: 'en-vivo',
+    loadComponent: () => import('./pages/aulas-agenda/aulas-agenda').then(m => m.AulasAgenda)
+  },
+  {
+    path: 'aula/:id',
+    loadComponent: () => import('./pages/aula/aula').then(m => m.AulaPage)
+  },
+  {
+    // Diseñador de cursos con IA: el profesor sube su material, la IA lo entrevista y arma el
+    // curso. Sin nodo en el menú, como 'profesor': lo usa quien dicta o administra formación y
+    // se llega desde el tablero, el catálogo y la pantalla del profesor. Antes de ':enrollmentId'.
+    path: 'disenar',
+    loadComponent: () => import('./pages/disenador-lista/disenador-lista').then(m => m.DisenadorLista)
+  },
+  {
+    path: 'disenar/:id',
+    loadComponent: () => import('./pages/disenador/disenador').then(m => m.Disenador)
+  },
+  {
+    // Diseño del certificado por curso. Es el nodo "Certificados" (ca07) del menú, que
+    // apunta aquí desde V122 de ms-auth-admin.
+    path: 'plantillas-certificados',
+    loadComponent: () =>
+      import('./pages/admin-certificate-templates/admin-certificate-templates')
+        .then(m => m.AdminCertificateTemplates)
+  },
+  {
+    // El curso tal como lo vera quien lo curse, sin matricula: el reproductor en modo vista
+    // previa. Antes de 'catalogo/:courseId' para que no se lo trague.
+    path: 'catalogo/:courseId/vista-previa/:versionId',
+    loadComponent: () => import('./pages/course-player/course-player').then(m => m.CoursePlayer)
+  },
+  {
     path: 'catalogo/:courseId',
     loadComponent: () =>
       import('./pages/admin-course-detail/admin-course-detail').then(m => m.AdminCourseDetail)

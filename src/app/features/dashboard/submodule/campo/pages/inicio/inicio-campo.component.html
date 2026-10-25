@@ -1,0 +1,240 @@
+<div class="pagina inicio">
+  <header class="saludo">
+    <div>
+      <p class="fecha">{{ fecha() }}</p>
+      <h1>{{ saludo() }}</h1>
+      @if (campo.paquete()?.jefe_nombre) { <p class="jefe">Tu supervisor: {{ campo.paquete()!.jefe_nombre }}</p> }
+    </div>
+    <button type="button" class="estado-red" [class.con]="campo.enLinea()" [class.sin]="!campo.enLinea()" (click)="actualizar()"
+            [attr.aria-label]="'Estado de conexión. Tocar para sincronizar'">
+      <mat-icon [class.gira]="campo.sincronizando() || campo.cargando()">{{ campo.enLinea() ? (campo.sincronizando() ? 'sync' : 'cloud_done') : 'cloud_off' }}</mat-icon>
+      <span>{{ campo.enLinea() ? 'Con señal' : 'Sin señal' }}</span>
+      @if (pendientesCola()) { <b class="globo">{{ pendientesCola() }}</b> }
+    </button>
+  </header>
+
+  @if (campo.error() && !campo.paquete()) {
+    <div class="tarjeta vacio"><mat-icon>cloud_off</mat-icon><span>{{ campo.error() }}</span>
+      <button type="button" class="boton" (click)="actualizar()">Reintentar</button></div>
+  }
+
+  @if (campo.consentimientoUbicacion() === null) { <app-aviso-ubicacion /> }
+
+  <!-- La acción principal: llegar o salir -->
+  <section class="accion" [class.dentro]="!!abierta()">
+    @if (abierta(); as a) {
+      <div class="accion__texto">
+        <span class="etiqueta"><span class="punto EN_LINEA"></span> En visita</span>
+        <strong>{{ fincaAbierta() }}</strong>
+        <small>Desde las {{ horaCorta(a.capturado_ms) }}</small>
+      </div>
+      <a class="boton grande oscuro" routerLink="/dashboard/campo/marcar" [queryParams]="{ tipo: 'SALIDA' }">
+        <mat-icon>logout</mat-icon> Registrar salida
+      </a>
+    } @else {
+      <div class="accion__texto">
+        <span class="etiqueta">¿Llegaste a una finca?</span>
+        <strong>Escanea el QR de la entrada</strong>
+        <small>Toma tu ubicación y una selfie. Funciona sin señal.</small>
+      </div>
+      <a class="boton grande primario" routerLink="/dashboard/campo/marcar">
+        <mat-icon>qr_code_scanner</mat-icon> Registrar llegada
+      </a>
+    }
+  </section>
+
+  @if (conError()) {
+    <div class="tarjeta aviso-cola">
+      <mat-icon>error</mat-icon>
+      <span>{{ conError() }} registro(s) fueron rechazados por el servidor. Revísalos abajo.</span>
+    </div>
+  }
+
+  <!-- Supervisión en vivo -->
+  @if (campo.supervisa()) {
+    @if (tablero(); as t) {
+      <section class="kpis">
+        <a class="kpi" routerLink="/dashboard/campo/mapa"><b>{{ t.resumen.en_linea }}<small>/{{ t.resumen.personas }}</small></b><span>En línea</span></a>
+        <a class="kpi" routerLink="/dashboard/campo/mapa"><b class="rojo">{{ t.resumen.sin_senal }}</b><span>Sin señal</span></a>
+        <a class="kpi" routerLink="/dashboard/campo/mapa"><b>{{ t.resumen.en_finca }}</b><span>En una finca ahora</span></a>
+        <a class="kpi" routerLink="/dashboard/campo/agenda"><b>{{ t.resumen.visitas_cumplidas }}<small>/{{ t.resumen.visitas_hoy }}</small></b><span>Visitas cumplidas hoy</span></a>
+      </section>
+      <div class="rejilla lateral">
+        <section class="tarjeta mapa-mini">
+          <h2><mat-icon>map</mat-icon> Tu equipo ahora <a class="boton chico mas" routerLink="/dashboard/campo/mapa">Abrir mapa</a></h2>
+          <div class="mapa-caja">
+            <app-mapa-campo [tilesUrl]="campo.paquete()?.config?.tiles_url || 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'"
+                            [atribucion]="campo.paquete()?.config?.tiles_atribucion || '© OpenStreetMap'"
+                            [marcadores]="marcadoresEquipo()" [encuadrar]="encuadreEquipo()" />
+          </div>
+        </section>
+        <section class="tarjeta">
+          <h2><mat-icon>how_to_reg</mat-icon> Llegadas de hoy</h2>
+          <ul class="lista">
+            @for (p of llegadasHoy(); track p.usuario_id) {
+              <li class="fila">
+                <span class="avatar">{{ iniciales(p.nombre) }}</span>
+                <span class="cuerpo">
+                  <strong>{{ p.nombre }}</strong>
+                  <small>{{ p.ultima_marcacion!.tipo === 'ENTRADA' ? 'Llegó a' : 'Salió de' }} {{ p.ultima_marcacion!.finca_nombre || 'finca sin identificar' }} · {{ horaCorta(p.ultima_marcacion!.capturado_ms) }}</small>
+                </span>
+                @if (p.ultima_marcacion!.alertas.length) { <span class="chip mal">{{ p.ultima_marcacion!.alertas.length }}</span> }
+                @else { <span class="chip ok"><mat-icon>check</mat-icon></span> }
+              </li>
+            } @empty {
+              <li class="vacio"><mat-icon>schedule</mat-icon> Nadie ha marcado todavía hoy</li>
+            }
+          </ul>
+          @if (t.resumen.alertas_rostro || t.resumen.fincas_sin_ubicar) {
+            <div class="barra pie">
+              @if (t.resumen.alertas_rostro) { <a class="chip mal" routerLink="/dashboard/campo/revision">{{ t.resumen.alertas_rostro }} rostro(s) por revisar</a> }
+              @if (t.resumen.fincas_sin_ubicar) { <a class="chip aviso" routerLink="/dashboard/campo/fincas">{{ t.resumen.fincas_sin_ubicar }} fincas sin ubicar</a> }
+            </div>
+          }
+        </section>
+      </div>
+    }
+  }
+
+  <div class="rejilla dos">
+    <!-- Agenda de hoy -->
+    <section class="tarjeta">
+      <h2><mat-icon>today</mat-icon> Tu agenda de hoy <a class="boton chico mas" routerLink="/dashboard/campo/agenda">Ver todo</a></h2>
+      <ul class="lista">
+        @for (v of visitasHoy(); track v.id) {
+          <li class="visita" [class]="'visita ' + v.estado">
+            <div class="hora">{{ v.hora_inicio ? v.hora_inicio.slice(0, 5) : '—' }}</div>
+            <div class="cuerpo">
+              <strong>{{ v.finca_nombre }}</strong>
+              <small>{{ v.objetivo || 'Visita' }}{{ v.distanciaKm != null ? ' · a ' + (v.distanciaKm < 1 ? (v.distanciaKm * 1000 | number:'1.0-0') + ' m' : (v.distanciaKm | number:'1.0-1') + ' km') : '' }}</small>
+              <span class="chip" [class.ok]="v.estado === 'CUMPLIDA'" [class.info]="v.estado === 'EN_CURSO'" [class.mal]="v.estado === 'INCUMPLIDA'">{{ etiquetaVisita[v.estado] }}</span>
+            </div>
+            <div class="botones">
+              @if (v.finca_lat != null) {
+                <button type="button" class="boton chico" (click)="comoLlegar(v)" aria-label="Cómo llegar"><mat-icon>directions</mat-icon></button>
+              }
+              @if (v.estado === 'PROGRAMADA' || v.estado === 'INCUMPLIDA') {
+                <a class="boton chico primario" routerLink="/dashboard/campo/marcar" [queryParams]="{ finca: v.finca_id }">Llegué</a>
+              }
+            </div>
+          </li>
+        } @empty {
+          <li class="vacio"><mat-icon>event_available</mat-icon> No tienes visitas programadas hoy
+            @if (campo.paquete()?.config?.agenda_propia) { <a class="boton chico" routerLink="/dashboard/campo/agenda">Programar una</a> }
+          </li>
+        }
+      </ul>
+      @if (campo.proximas().length) {
+        <p class="proximas">Próximas: @for (v of campo.proximas().slice(0, 3); track v.id) { <span>{{ v.fecha.slice(5) }} {{ v.finca_nombre }}</span> }</p>
+      }
+    </section>
+
+    <!-- Tareas -->
+    <section class="tarjeta">
+      <h2><mat-icon>task_alt</mat-icon> Tareas pendientes <a class="boton chico mas" routerLink="/dashboard/campo/tareas">Ver todo</a></h2>
+      <ul class="lista">
+        @for (t of campo.tareasPendientes().slice(0, 6); track t.id) {
+          <li class="fila">
+            <button type="button" class="check" (click)="hecha(t)" [attr.aria-label]="'Marcar hecha: ' + t.titulo"><mat-icon>radio_button_unchecked</mat-icon></button>
+            <span class="cuerpo">
+              <strong>{{ t.titulo }}</strong>
+              <small>{{ t.finca_nombre || 'General' }}{{ t.vence ? ' · vence ' + t.vence.slice(5) : '' }}</small>
+            </span>
+            @if (t.prioridad === 'ALTA') { <span class="chip mal">Alta</span> }
+            @if (t.vencida) { <span class="chip aviso">Vencida</span> }
+          </li>
+        } @empty {
+          <li class="vacio"><mat-icon>done_all</mat-icon> Sin tareas pendientes</li>
+        }
+      </ul>
+    </section>
+  </div>
+
+  <!-- Accesos -->
+  <nav class="accesos" aria-label="Pantallas del módulo">
+    @for (a of accesos(); track a.ruta) {
+      <a class="acceso" [routerLink]="a.ruta">
+        <mat-icon>{{ a.icono }}</mat-icon>
+        <span><strong>{{ a.nombre }}</strong><small>{{ a.detalle }}</small></span>
+      </a>
+    }
+  </nav>
+
+  <!-- Listo para trabajar sin señal -->
+  <section class="tarjeta sin-senal">
+    <h2><mat-icon>offline_pin</mat-icon> Listo para trabajar sin señal</h2>
+    <ul class="checks">
+      <li [class.ok]="!!campo.paquete()"><mat-icon>{{ campo.paquete() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        Fincas, agenda y tareas guardadas {{ campo.paquete() ? '(' + paqueteHace() + ')' : '' }}</li>
+      <li [class.ok]="!!personal.datos()"><mat-icon>{{ personal.datos() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        Tu personal {{ personal.datos() ? '(' + personal.datos()!.total + ' personas, ' + hace(personal.datos()!.generado_ms) + ')' : 'sin descargar' }}</li>
+      <li [class.ok]="formulariosGuardados() > 0"><mat-icon>{{ formulariosGuardados() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        Formularios para llenar sin señal {{ formulariosGuardados() ? '(' + formulariosGuardados() + ')' : '' }}</li>
+      @if (formsOffline.pendientes().length) {
+        <li><mat-icon>schedule_send</mat-icon> {{ formsOffline.pendientes().length }} formulario(s) esperando señal
+          {{ formsOffline.conError().length ? '· ' + formsOffline.conError().length + ' rechazado(s)' : '' }}</li>
+      }
+      <li [class.ok]="mapaListo()"><mat-icon>{{ mapaListo() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+        Mapa de tus fincas descargado {{ mosaicos() ? '(' + mosaicos() + ' partes)' : '' }}</li>
+      @if (campo.consentimientoUbicacion() === false) {
+        <li><mat-icon>location_disabled</mat-icon> No compartes tu ubicación
+          <button type="button" class="boton chico" (click)="campo.responderUbicacion(true)">Compartir</button></li>
+      } @else {
+        <li [class.ok]="!campo.errorUbicacion()"><mat-icon>{{ campo.errorUbicacion() ? 'location_disabled' : 'check_circle' }}</mat-icon>
+          {{ campo.errorUbicacion() || 'GPS disponible' }}</li>
+      }
+      <li [class.ok]="!pendientesCola()"><mat-icon>{{ pendientesCola() ? 'schedule_send' : 'check_circle' }}</mat-icon>
+        {{ pendientesCola() ? pendientesCola() + ' registro(s) esperando señal' : 'Nada pendiente por enviar' }}
+        @if (campo.puntosPendientes()) { · {{ campo.puntosPendientes() }} posiciones guardadas }</li>
+    </ul>
+    @if (descargando(); as d) {
+      <div class="progreso"><span [style.width.%]="d.total ? d.hechos * 100 / d.total : 0"></span></div>
+      <small>Descargando mapa… {{ d.hechos }}/{{ d.total }}</small>
+    }
+    @if (avisoDescarga()) { <p class="ayuda">{{ avisoDescarga() }}</p> }
+    <button type="button" class="boton primario bloque" (click)="prepararSinSenal()" [disabled]="!!preparando() || !campo.enLinea()">
+      <mat-icon>{{ preparando() ? 'sync' : 'offline_bolt' }}</mat-icon> {{ preparando() || 'Descargar todo para trabajar sin señal' }}
+    </button>
+    <div class="barra">
+      <button type="button" class="boton" (click)="descargarMapa()" [disabled]="!!descargando() || !campo.enLinea()">
+        <mat-icon>download_for_offline</mat-icon> {{ mapaListo() ? 'Actualizar mapa sin señal' : 'Descargar mapa de mis fincas' }}
+      </button>
+      @if (pendientesCola() && campo.enLinea()) {
+        <button type="button" class="boton" (click)="actualizar()" [disabled]="campo.sincronizando()"><mat-icon>sync</mat-icon> Enviar ahora</button>
+      }
+    </div>
+
+    @if (campo.cola().length) {
+      <ul class="lista cola">
+        @for (e of campo.cola(); track e.id) {
+          <li class="fila">
+            <mat-icon>{{ e.tipo === 'marcacion' ? 'pin_drop' : e.tipo === 'radio' ? 'mic' : 'task' }}</mat-icon>
+            <span class="cuerpo">
+              <strong>
+                @switch (e.tipo) {
+                  @case ('marcacion') { {{ e.datos.tipo === 'ENTRADA' ? 'Llegada' : 'Salida' }} · {{ e.datos.finca_nombre || 'Finca del QR' }} }
+                  @case ('radio') { Transmisión de radio }
+                  @default { Cierre de tarea }
+                }
+              </strong>
+              <small>{{ horaCorta(e.creado_ms) }}{{ e.error ? ' · ' + e.error : ' · esperando señal' }}</small>
+            </span>
+            @if (e.error) { <button type="button" class="boton chico peligro" (click)="campo.descartar(e.id)">Descartar</button> }
+          </li>
+        }
+      </ul>
+    }
+
+    @if (campo.recientes().length) {
+      <h3>Enviadas hoy</h3>
+      <ul class="lista">
+        @for (m of campo.recientes().slice(0, 5); track m.id) {
+          <li class="fila">
+            <mat-icon>{{ m.tipo === 'ENTRADA' ? 'login' : 'logout' }}</mat-icon>
+            <span class="cuerpo"><strong>{{ m.finca_nombre || 'Finca' }}</strong><small>{{ horaCorta(m.capturado_ms) }} · {{ etiquetaRostro[m.rostro_estado] }}</small></span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+</div>

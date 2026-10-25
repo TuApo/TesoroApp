@@ -1,0 +1,171 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>local_shipping</mat-icon> Compras y proveedores</h1>
+      <p class="tienda-subtitulo">Suba la factura como llega (XML o ZIP de la DIAN, PDF o foto): la leemos, emparejamos cada producto con el catálogo y, al recibir, entra al inventario con su costo.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>auto_awesome</mat-icon> {{ aviso() }}</div> }
+
+  <div class="pestanas">
+    <button type="button" [class.activa]="pestana() === 'compras'" (click)="pestana.set('compras')">Compras</button>
+    <button type="button" [class.activa]="pestana() === 'proveedores'" (click)="pestana.set('proveedores')">Proveedores ({{ proveedores().length }})</button>
+  </div>
+
+  @if (pestana() === 'compras') {
+    <div class="acciones">
+      <label class="boton" [class.deshabilitado]="ocupado()">
+        <mat-icon>{{ ocupado() === 'importar' ? 'hourglass_top' : 'upload_file' }}</mat-icon> {{ ocupado() === 'importar' ? 'Leyendo la factura…' : 'Importar factura' }}
+        <input type="file" accept=".xml,.zip,.pdf,image/*" (change)="importar($event)" [disabled]="!!ocupado()" hidden />
+      </label>
+      <label class="boton secundario" [class.deshabilitado]="ocupado()"><mat-icon>table_view</mat-icon> Desde Excel
+        <input type="file" accept=".xlsx,.xls,.csv" (change)="desdeExcel($event)" hidden /></label>
+      <button type="button" class="boton secundario" (click)="nueva()"><mat-icon>add</mat-icon> Compra a mano</button>
+      <button type="button" class="enlace" (click)="plantilla()">Plantilla Excel</button>
+      <span class="esp"></span>
+      <div class="segmentos">
+        @for (e of [['BORRADOR','Borradores'],['RECIBIDA','Recibidas'],['ANULADA','Anuladas']]; track e[0]) {
+          <button type="button" [class.activo]="estado() === e[0]" (click)="estado.set(e[0])">{{ e[1] }}</button>
+        }
+      </div>
+    </div>
+
+    <div class="rejilla" [class.con-detalle]="sel()">
+      <ul class="lista">
+        @for (c of lista(); track c.id) {
+          <li [class.activa]="sel()?.id === c.id" (click)="abrir(c.id)">
+            <div class="fila"><b>{{ c.proveedor || 'Sin proveedor' }}</b><span>{{ pesos(c.total) }}</span></div>
+            <small>{{ c.numero }}@if (c.factura_numero) { · Fact. {{ c.factura_numero }} } · {{ c.origen }} · {{ c.creado_en | date:'shortDate' }}</small>
+            @if (+c.sin_emparejar) { <small class="warn">{{ c.sin_emparejar }} de {{ c.lineas }} por emparejar</small> }
+          </li>
+        } @empty { <li class="vacio">No hay compras en esta bandeja.</li> }
+      </ul>
+
+      @if (sel(); as s) {
+        <section class="tienda-tarjeta detalle">
+          <div class="d-cab">
+            <button type="button" class="atras-movil" (click)="sel.set(null)"><mat-icon>arrow_back</mat-icon></button>
+            <div class="d-tit">
+              <h2>{{ s.numero }} <span class="est" [attr.data-e]="s.estado">{{ s.estado }}</span></h2>
+              <small>{{ s.tienda }} · origen {{ s.origen }}@if (s.documento_doc_id) { · <button type="button" class="enlace" (click)="verDocumento()">ver factura original</button> }</small>
+            </div>
+          </div>
+
+          <div class="encabezado">
+            <label>Proveedor
+              <select class="campo-texto" [ngModel]="s.proveedor_id" (ngModelChange)="encabezado({ proveedor_id: $event })" [disabled]="s.estado !== 'BORRADOR'">
+                <option [ngValue]="null">— Sin proveedor —</option>
+                @for (p of proveedores(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }}{{ p.nit ? ' · ' + p.nit : '' }}</option> }
+              </select>
+              @if (s.proveedor_leido && !s.proveedor_id) { <small class="muted">En la factura: {{ s.proveedor_leido }} {{ s.nit_leido }}</small> }
+            </label>
+            <label>Factura N.º<input class="campo-texto" [ngModel]="s.factura_numero" (change)="encabezado({ factura_numero: $any($event.target).value })" [disabled]="s.estado !== 'BORRADOR'" /></label>
+            <label>Fecha<input class="campo-texto" type="date" [ngModel]="s.fecha_factura" (change)="encabezado({ fecha_factura: $any($event.target).value || null })" [disabled]="s.estado !== 'BORRADOR'" /></label>
+          </div>
+
+          @if (s.texto_leido) { <details class="texto-leido"><summary>Texto leído del documento</summary><pre>{{ s.texto_leido }}</pre></details> }
+
+          <ul class="lineas">
+            @for (i of s.items; track i.id) {
+              <li [class.sin]="!i.producto_id">
+                <div class="l-fuente">
+                  <small>{{ i.codigo_proveedor ? i.codigo_proveedor + ' · ' : '' }}{{ i.descripcion_proveedor || '(línea a mano)' }}</small>
+                  @if (i.producto_id) {
+                    <div class="l-match">
+                      <mat-icon class="ok">link</mat-icon>
+                      <b>{{ i.producto }}@if (i.variante) { <span class="var"> · {{ i.variante }}</span> }</b>
+                      @if (i.metodo_emparejado) { <span class="chip-m" [attr.data-m]="i.metodo_emparejado">{{ METODO[i.metodo_emparejado] }}{{ i.coincidencia != null && i.metodo_emparejado !== 'MANUAL' && i.metodo_emparejado !== 'APRENDIDO' ? ' ' + (+i.coincidencia) + '%' : '' }}</span> }
+                      <button type="button" class="enlace" (click)="verHistorial(i)">precios</button>
+                      @if (s.estado === 'BORRADOR') { <button type="button" class="enlace" (click)="desemparejar(i)">cambiar</button> }
+                    </div>
+                  } @else if (s.estado === 'BORRADOR') {
+                    <div class="l-elegir">
+                      @for (c of i.candidatos; track $index) { <button type="button" class="cand" (click)="elegir(i, c)">{{ c.nombre }} <small>{{ c.score }}%</small></button> }
+                      <input class="campo-texto buscar" placeholder="Buscar en el catálogo…" [ngModel]="buscandoEn() === i.id ? busqueda() : ''" (ngModelChange)="buscar(i, $event)" />
+                      @if (buscandoEn() === i.id && resultados().length) {
+                        <ul class="res">@for (r of resultados(); track $index) { <li><button type="button" (click)="elegir(i, r)">{{ r.nombre }} <small>{{ r.sku }}{{ r.activo === false ? ' · inactivo' : '' }}</small></button></li> }</ul>
+                      }
+                    </div>
+                  }
+                </div>
+                <div class="l-num">
+                  <label>Cant.<input class="campo-texto" type="number" min="0" step="1" [ngModel]="i.cantidad" (change)="linea(i, { cantidad: +$any($event.target).value })" [disabled]="s.estado !== 'BORRADOR'" /></label>
+                  <label>Costo unit.<input class="campo-texto" type="number" min="0" step="100" [ngModel]="i.costo_unitario" (change)="linea(i, { costo_unitario: +$any($event.target).value })" [disabled]="s.estado !== 'BORRADOR'" /></label>
+                  <label>IVA %<input class="campo-texto" type="number" min="0" max="100" [ngModel]="i.impuesto_pct" (change)="linea(i, { iva_pct: +$any($event.target).value })" [disabled]="s.estado !== 'BORRADOR'" /></label>
+                  <span class="l-total">{{ pesos(i.total) }}</span>
+                  @if (s.estado === 'BORRADOR') { <button type="button" class="icono" (click)="quitar(i)" aria-label="Quitar"><mat-icon>delete</mat-icon></button> }
+                </div>
+                @if (i.variacion_pct != null && (+i.variacion_pct >= 5 || +i.variacion_pct <= -5)) {
+                  <small class="variacion" [class.sube]="+i.variacion_pct > 0">{{ +i.variacion_pct > 0 ? '▲' : '▼' }} {{ i.variacion_pct }}% frente a la última compra ({{ pesos(i.ultimo_costo) }})</small>
+                }
+              </li>
+            }
+          </ul>
+          @if (s.estado === 'BORRADOR') { <button type="button" class="boton secundario" (click)="agregarLinea()"><mat-icon>add</mat-icon> Agregar línea</button> }
+
+          <div class="totales">
+            <div><span>Subtotal</span><b>{{ pesos(s.subtotal) }}</b></div>
+            <div><span>IVA</span><b>{{ pesos(s.impuesto_total) }}</b></div>
+            <div class="grande"><span>Total</span><b>{{ pesos(s.total) }}</b></div>
+            @if (s.total_documento) {
+              <div [class.descuadre]="diferencia() && (diferencia()! > 100 || diferencia()! < -100)"><span>Total en la factura</span><b>{{ pesos(s.total_documento) }}
+                @if (diferencia() && (diferencia()! > 100 || diferencia()! < -100)) { · diferencia {{ pesos(diferencia()) }} } @else { ✓ }</b></div>
+            }
+          </div>
+
+          @if (s.estado === 'BORRADOR') {
+            <div class="pie">
+              <button type="button" class="boton peligro-suave" (click)="anular()">Anular</button>
+              <button type="button" class="boton" [disabled]="sinEmparejar() > 0 || !s.items.length || ocupado() === 'recibir'" (click)="recibir()">
+                <mat-icon>inventory</mat-icon> {{ sinEmparejar() ? 'Faltan ' + sinEmparejar() + ' por emparejar' : 'Recibir mercancía' }}</button>
+            </div>
+          }
+        </section>
+      }
+    </div>
+  } @else {
+    <div class="acciones"><button type="button" class="boton" (click)="editarProv(null)"><mat-icon>add</mat-icon> Nuevo proveedor</button></div>
+    @if (editandoProv()) {
+      <section class="tienda-tarjeta prov-form">
+        <div class="encabezado">
+          <label>Nombre *<input class="campo-texto" [(ngModel)]="provNuevo.nombre" /></label>
+          <label>NIT<input class="campo-texto" [(ngModel)]="provNuevo.nit" /></label>
+          <label>Contacto<input class="campo-texto" [(ngModel)]="provNuevo.contacto" /></label>
+          <label>Teléfono<input class="campo-texto" [(ngModel)]="provNuevo.telefono" /></label>
+          <label>Correo<input class="campo-texto" [(ngModel)]="provNuevo.correo" /></label>
+          <label>Días de crédito<input class="campo-texto" type="number" min="0" [(ngModel)]="provNuevo.dias_credito" /></label>
+        </div>
+        <div class="pie"><button type="button" class="boton secundario" (click)="editandoProv.set(null)">Cancelar</button><button type="button" class="boton" [disabled]="!provNuevo.nombre" (click)="guardarProv()">Guardar</button></div>
+      </section>
+    }
+    <ul class="lista provs">
+      @for (p of proveedores(); track p.id) {
+        <li (click)="editarProv(p)">
+          <div class="fila"><b>{{ p.nombre }}</b><small>{{ p.nit || 'sin NIT' }}</small></div>
+          <small>{{ p.compras || 0 }} compras@if (p.ultima_compra) { · última {{ p.ultima_compra | date:'mediumDate' }} }@if (p.dias_credito) { · {{ p.dias_credito }} días de crédito }</small>
+        </li>
+      } @empty { <li class="vacio">Sin proveedores. Se crean solos al importar una factura con NIT.</li> }
+    </ul>
+  }
+
+  @if (historial(); as hs) {
+    <div class="velo" (click)="historial.set(null)"></div>
+    <section class="hoja-historial tienda-tarjeta">
+      <div class="fila"><h3>Precios de {{ hs.nombre }}</h3><button type="button" class="icono" (click)="historial.set(null)"><mat-icon>close</mat-icon></button></div>
+      @if (hs.h.proveedores.length) {
+        <h4>Por proveedor</h4>
+        <table><tr><th>Proveedor</th><th>Compras</th><th>Mín.</th><th>Máx.</th><th>Último</th></tr>
+          @for (p of hs.h.proveedores; track p.proveedor) { <tr><td>{{ p.proveedor }}</td><td>{{ p.compras }}</td><td>{{ pesos(p.minimo) }}</td><td>{{ pesos(p.maximo) }}</td><td>{{ pesos(+p.ultimo) }}</td></tr> }</table>
+      }
+      <h4>Compras</h4>
+      <table><tr><th>Fecha</th><th>Proveedor</th><th>Cant.</th><th>Costo</th></tr>
+        @for (c of hs.h.compras; track $index) { <tr><td>{{ c.fecha | date:'shortDate' }}</td><td>{{ c.proveedor }}</td><td>{{ +c.cantidad }}</td><td>{{ pesos(c.costo_unitario) }}</td></tr> }
+        @empty { <tr><td colspan="4">Sin compras recibidas</td></tr> }</table>
+      <h4>Precio de venta</h4>
+      <table><tr><th>Desde</th><th>Hasta</th><th>Tienda</th><th>Precio</th></tr>
+        @for (v of hs.h.ventas; track $index) { <tr><td>{{ v.vigente_desde | date:'shortDate' }}</td><td>{{ v.vigente_hasta ? (v.vigente_hasta | date:'shortDate') : 'vigente' }}</td><td>{{ v.tienda || 'Todas' }}</td><td>{{ pesos(v.precio) }}</td></tr> }</table>
+    </section>
+  }
+</div>

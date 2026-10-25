@@ -1,0 +1,187 @@
+<div class="pagina">
+  <header class="cabecera">
+    <div class="titulo">
+      <h1>Tareas de campo</h1>
+      <p>{{ supervisa() ? 'Lo que tu equipo tiene por hacer en las fincas.' : 'Lo que tienes por hacer en las fincas.' }}</p>
+    </div>
+    @if (supervisa()) {
+      <button type="button" class="boton primario" (click)="nueva()" [disabled]="!campo.enLinea()"><mat-icon>add_task</mat-icon> Nueva tarea</button>
+    }
+  </header>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.mal]="a.tipo === 'mal'" role="status">
+      <mat-icon>{{ a.tipo === 'ok' ? 'check_circle' : 'error' }}</mat-icon>
+      <span>{{ a.texto }}</span>
+      <button type="button" class="cerrar" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @if (desdePaquete()) {
+    <div class="estado-red sin"><mat-icon>signal_wifi_off</mat-icon> Sin señal: ves tus tareas guardadas en el teléfono.</div>
+  }
+  @if (pendientesEnCola()) {
+    <div class="estado-red sin"><mat-icon>schedule_send</mat-icon> {{ pendientesEnCola() }} cambio(s) esperando señal para enviarse.</div>
+  }
+
+  <div class="barra">
+    <nav class="pestanas" aria-label="Estado">
+      <button type="button" [class.activa]="pestana() === 'PENDIENTE'" (click)="verPestana('PENDIENTE')">Pendientes</button>
+      <button type="button" [class.activa]="pestana() === 'HECHA'" (click)="verPestana('HECHA')">Hechas</button>
+      <button type="button" [class.activa]="pestana() === 'TODAS'" (click)="verPestana('TODAS')">Todas</button>
+    </nav>
+    @if (supervisa()) {
+      <select class="selector" [ngModel]="persona()" (ngModelChange)="filtrar($event)" aria-label="Filtrar por persona">
+        <option value="">Todo el equipo</option>
+        @for (m of equipo(); track m.usuario_id) { <option [value]="m.usuario_id">{{ m.nombre }}</option> }
+      </select>
+    }
+    @if (cargando()) { <span class="chip info">Actualizando…</span> }
+  </div>
+
+  @if (error(); as e) {
+    <div class="tarjeta vacio">
+      <mat-icon>cloud_off</mat-icon>
+      <span>{{ e }}</span>
+      <button type="button" class="boton" (click)="cargar()"><mat-icon>refresh</mat-icon> Reintentar</button>
+    </div>
+  } @else if (cargando() && !tareas().length) {
+    <div class="tarjeta vacio"><mat-icon>hourglass_empty</mat-icon> Cargando tareas…</div>
+  } @else if (!visibles().length) {
+    <div class="tarjeta vacio">
+      <mat-icon>{{ pestana() === 'PENDIENTE' ? 'task_alt' : 'inbox' }}</mat-icon>
+      @switch (pestana()) {
+        @case ('PENDIENTE') { ¡Al día! No hay tareas pendientes. }
+        @case ('HECHA') { Todavía no hay tareas hechas. }
+        @default { No hay tareas. }
+      }
+    </div>
+  } @else {
+    <ul class="lista tareas">
+      @for (t of visibles(); track t.id) {
+        <li class="tarea" [class.hecha]="t.estado !== 'PENDIENTE'" [class.alta]="t.prioridad === 'ALTA' && t.estado === 'PENDIENTE'">
+          <div class="cuerpo">
+            <div class="linea">
+              <strong>{{ t.titulo }}</strong>
+              @if (t.prioridad === 'ALTA') { <span class="chip mal">Prioridad alta</span> }
+              @else if (t.prioridad === 'BAJA') { <span class="chip">Baja</span> }
+              @if (t.estado === 'CANCELADA') { <span class="chip">Cancelada</span> }
+              @if (enEspera(t)) { <span class="chip aviso"><mat-icon>schedule_send</mat-icon> Por enviar</span> }
+            </div>
+            @if (t.detalle) { <p class="detalle">{{ t.detalle }}</p> }
+            <div class="meta">
+              @if (t.vence && t.estado === 'PENDIENTE') {
+                <span [class.vencida]="vencida(t)"><mat-icon>event</mat-icon> {{ venceTexto(t) }}</span>
+              }
+              @if (t.finca_nombre) { <span><mat-icon>agriculture</mat-icon> {{ t.finca_nombre }}</span> }
+              @if (supervisa() && !esMia(t)) { <span><mat-icon>person</mat-icon> {{ t.asignado_nombre }}</span> }
+              <span><mat-icon>assignment_ind</mat-icon> Asignada por {{ t.creado_por === yo() ? 'ti' : t.creado_por_nombre }}</span>
+              @if (t.estado === 'HECHA' && t.hecha_ms) { <span><mat-icon>check</mat-icon> Hecha {{ haceCuanto(t.hecha_ms) }}</span> }
+            </div>
+            @if (t.estado === 'HECHA' && t.nota_cierre) { <p class="nota"><mat-icon>notes</mat-icon> {{ t.nota_cierre }}</p> }
+          </div>
+          <div class="acciones-tarea">
+            @if (esMia(t) && t.estado === 'PENDIENTE') {
+              <button type="button" class="boton primario" (click)="abrirCierre(t)" [disabled]="trabajando()"><mat-icon>check</mat-icon> Hecha</button>
+            }
+            @if (esMia(t) && t.estado === 'HECHA') {
+              <button type="button" class="boton chico" (click)="reabrir(t)" [disabled]="trabajando()"><mat-icon>undo</mat-icon> Reabrir</button>
+            }
+            @if (laCree(t) && campo.enLinea()) {
+              <button type="button" class="boton chico" (click)="editar(t)" aria-label="Editar tarea"><mat-icon>edit</mat-icon> Editar</button>
+            }
+          </div>
+        </li>
+      }
+    </ul>
+  }
+</div>
+
+<!-- ─── Hoja: marcar hecha ──────────────────────────────────────────────── -->
+@if (cierre(); as c) {
+  <div class="panel-flotante" (click)="cierre.set(null)">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" aria-label="Marcar tarea como hecha">
+      <h3>Marcar como hecha</h3>
+      <p><strong>{{ c.tarea.titulo }}</strong></p>
+      <div class="campo">
+        <label for="c-nota">Nota (opcional)</label>
+        <textarea id="c-nota" placeholder="¿Qué se hizo? ¿Algo que deba saber tu jefe?"
+                  [ngModel]="c.nota" (ngModelChange)="cierre.set({ tarea: c.tarea, nota: $event })"></textarea>
+      </div>
+      @if (!campo.enLinea()) { <p class="tenue">Sin señal: queda guardada en el teléfono y se envía al volver la señal.</p> }
+      <div class="acciones">
+        <button type="button" class="boton" (click)="cierre.set(null)">Cancelar</button>
+        <button type="button" class="boton primario" (click)="confirmarCierre()" [disabled]="trabajando()"><mat-icon>check</mat-icon> Marcar hecha</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Hoja: crear / editar ────────────────────────────────────────────── -->
+@if (form(); as f) {
+  <div class="panel-flotante" (click)="form.set(null)">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" aria-label="Tarea">
+      <h3>{{ f.id == null ? 'Nueva tarea' : 'Editar tarea' }}</h3>
+      <div class="formulario dos">
+        <div class="campo ancho">
+          <label for="t-asig">Asignada a</label>
+          <select id="t-asig" [ngModel]="f.asignado_a" (ngModelChange)="poner('asignado_a', $event)">
+            <option value="" disabled>Elige una persona</option>
+            @if (f.asignado_a && !nombreDe(f.asignado_a)) { <option [value]="f.asignado_a">(asignado actual)</option> }
+            @for (m of equipo(); track m.usuario_id) { <option [value]="m.usuario_id">{{ m.nombre }}</option> }
+          </select>
+        </div>
+        <div class="campo ancho">
+          <label for="t-titulo">Título</label>
+          <input id="t-titulo" [ngModel]="f.titulo" (ngModelChange)="poner('titulo', $event)" maxlength="200"
+                 placeholder="Ej.: recoger incapacidades de la semana" />
+        </div>
+        <div class="campo ancho">
+          <label for="t-detalle">Detalle</label>
+          <textarea id="t-detalle" [ngModel]="f.detalle" (ngModelChange)="poner('detalle', $event)"></textarea>
+        </div>
+        <div class="campo ancho">
+          <label for="t-finca">Finca (opcional)</label>
+          @if (f.finca_id != null) {
+            <div class="elegida">
+              <mat-icon>agriculture</mat-icon> <strong>{{ f.finca_nombre }}</strong>
+              <button type="button" class="boton chico" (click)="quitarFinca()">Quitar</button>
+            </div>
+          } @else {
+            <input id="t-finca" class="buscador" type="search" placeholder="Busca la finca por nombre"
+                   [ngModel]="fincaQ()" (ngModelChange)="fincaQ.set($event)" />
+            @if (fincaQ().trim()) {
+              <ul class="lista sugerencias">
+                @for (x of fincasSugeridas(); track x.id) {
+                  <li class="fila clic" (click)="elegirFinca(x)" (keydown.enter)="elegirFinca(x)" tabindex="0">
+                    <mat-icon>location_on</mat-icon>
+                    <div class="cuerpo"><strong>{{ x.nombre }}</strong><small>{{ x.zona_nombre || 'Sin zona' }}</small></div>
+                  </li>
+                } @empty { <li class="tenue">Ninguna finca coincide</li> }
+              </ul>
+            }
+          }
+        </div>
+        <div class="campo">
+          <label for="t-vence">Vence</label>
+          <input id="t-vence" type="date" [ngModel]="f.vence" (ngModelChange)="poner('vence', $event)" />
+        </div>
+        <div class="campo">
+          <label for="t-prio">Prioridad</label>
+          <select id="t-prio" [ngModel]="f.prioridad" (ngModelChange)="poner('prioridad', $event)">
+            <option value="ALTA">Alta</option>
+            <option value="MEDIA">Media</option>
+            <option value="BAJA">Baja</option>
+          </select>
+        </div>
+      </div>
+      <div class="acciones">
+        @if (f.id != null) {
+          <button type="button" class="boton peligro" (click)="borrar()" [disabled]="trabajando()"><mat-icon>delete</mat-icon> Borrar</button>
+        }
+        <button type="button" class="boton" (click)="form.set(null)">Cancelar</button>
+        <button type="button" class="boton primario" (click)="guardar()" [disabled]="trabajando()"><mat-icon>save</mat-icon> Guardar</button>
+      </div>
+    </div>
+  </div>
+}

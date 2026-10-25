@@ -1,0 +1,84 @@
+.pagina.explorar { gap: 12px; }
+.cabeza { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.cabeza-texto { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.cabeza h1 { font-size: clamp(20px, 3vw, 28px); font-weight: 800; }
+.cabeza .muted { font-size: 13px; }
+.migas { display: flex; align-items: center; flex-wrap: wrap; gap: 2px; font-size: 12.5px; color: var(--muted); }
+.migas .enlace, .volver-todas { min-height: 0 !important; padding: 0; font-size: 12.5px; display: inline-flex; align-items: center; gap: 2px; }
+.migas mat-icon, .volver-todas mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.orden { flex: none; display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 0 10px; border-radius: 12px; border: 1px solid var(--border); background: var(--surface); color: var(--text-2); }
+.orden select { border: 0; background: transparent; font: inherit; font-weight: 700; color: var(--text); outline: 0; cursor: pointer; max-width: 150px; }
+.mas { align-self: center; min-width: 220px; }
+
+.activos { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.chip-activo {
+  display: inline-flex; align-items: center; gap: 4px; min-height: 32px !important; padding: 0 6px 0 12px; border-radius: 999px;
+  border: 1px solid var(--eco); background: var(--eco-soft); color: var(--eco-ink); font: inherit; font-size: 13px; font-weight: 700; cursor: pointer;
+}
+.chip-activo mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.disposicion { display: grid; grid-template-columns: 250px minmax(0, 1fr); gap: 20px; align-items: start; }
+.resultados { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.panel-filtros {
+  position: sticky; top: 84px; max-height: calc(100dvh - 100px); overflow-y: auto; display: flex; flex-direction: column; gap: 4px;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 12px; scrollbar-width: thin;
+}
+.grupo { display: flex; flex-direction: column; gap: 2px; padding: 8px 0; border-bottom: 1px solid var(--border); }
+.grupo:last-of-type { border-bottom: 0; }
+.grupo h3 { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); margin: 0 0 4px; display: flex; justify-content: space-between; align-items: center; }
+.grupo h3 .enlace { font-size: 12px; text-transform: none; letter-spacing: 0; min-height: 0 !important; padding: 0; }
+.opcion-filtro { display: flex; align-items: center; gap: 8px; min-height: 34px; padding: 2px 6px; border-radius: 8px; font-size: 14px; color: var(--text); cursor: pointer; }
+.opcion-filtro:hover { background: var(--surface-2); }
+.opcion-filtro input { accent-color: var(--eco); width: 16px; height: 16px; flex: none; }
+.opcion-filtro span { flex: 1; min-width: 0; }
+.opcion-filtro small { color: var(--muted); font-size: 12px; }
+.opcion-filtro mat-icon { font-size: 18px; width: 18px; height: 18px; color: var(--muted); }
+.opcion-cat { display: flex; align-items: center; gap: 8px; text-align: left; min-height: 34px !important; padding: 4px 8px; border: 0; border-radius: 8px; background: transparent; color: var(--text); font: inherit; font-size: 14px; cursor: pointer; }
+.opcion-cat:hover { background: var(--surface-2); }
+.opcion-cat.activa { background: var(--eco-soft); color: var(--eco-ink); font-weight: 800; }
+.opcion-cat.otra { color: var(--muted); }
+.opcion-cat mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.mas-valores { align-self: flex-start; font-size: 13px; min-height: 0 !important; padding: 4px 6px; }
+
+.solo-movil { display: none !important; }
+.barra-filtros { gap: 8px; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; }
+.barra-filtros::-webkit-scrollbar { display: none; }
+.barra-filtros .eco-filtro { flex: none; }
+.filtros-btn .n { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 999px; background: var(--eco); color: var(--eco-fg); font-size: 11px; font-weight: 800; display: inline-grid; place-items: center; }
+.filtros-btn.activo .n { background: var(--eco-fg); color: var(--eco-ink); }
+
+@media (max-width: 900px) {
+  .solo-movil { display: flex !important; }
+  .disposicion { grid-template-columns: minmax(0, 1fr); }
+  .cabeza { align-items: center; }
+  .orden { min-height: 36px; padding: 0 8px; }
+  .orden select { max-width: 110px; font-size: 13px; }
+  .panel-filtros {
+    position: fixed; left: 0; right: 0; bottom: 0; top: auto; z-index: 80; max-height: 82dvh; border-radius: 22px 22px 0 0;
+    transform: translateY(105%); transition: transform .22s ease; padding: 0 16px; box-shadow: 0 -12px 40px rgba(15,23,42,.25);
+  }
+  .panel-filtros.abierta { transform: none; }
+  .hoja-cabeza { position: sticky; top: 0; background: var(--surface); z-index: 1; align-items: center; justify-content: space-between; padding: 14px 0 8px; }
+  .hoja-cabeza b { font-size: 17px; }
+  .hoja-pie { position: sticky; bottom: 0; background: var(--surface); gap: 8px; padding: 12px 0 calc(12px + env(safe-area-inset-bottom)); }
+  .hoja-pie .eco-btn { flex: 1; }
+  .velo { position: fixed; inset: 0; background: rgba(15,23,42,.4); z-index: 75; }
+  .opcion-filtro, .opcion-cat { min-height: 42px !important; }
+}
+
+/* Acceso a la vitrina especial de la familia (Tecnología, Importados…) */
+.a-vitrina {
+  position: relative; display: flex; align-items: center; gap: 12px; min-height: 76px; padding: 12px 16px; border-radius: 18px;
+  overflow: hidden; isolation: isolate; text-decoration: none; color: #fff; background: var(--vf);
+}
+.a-vitrina img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: right center; z-index: -2; }
+.a-vitrina::before { content: ''; position: absolute; inset: 0; z-index: -1; background: linear-gradient(90deg, color-mix(in srgb, var(--vf) 95%, transparent) 30%, transparent); }
+.a-vitrina span { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.a-vitrina b { font-size: 16px; font-weight: 800; }
+.a-vitrina small { font-size: 12.5px; opacity: .88; }
+.a-vitrina i { flex: none; font-style: normal; display: inline-flex; align-items: center; gap: 4px; padding: 7px 12px; border-radius: 999px; background: var(--va); color: var(--vt); font-weight: 800; font-size: 13px; }
+.a-vitrina i mat-icon { font-size: 17px; width: 17px; height: 17px; }
+
+/* Leyenda legal de la vitrina (licores, medicamentos) */
+.a-aviso { display: flex; align-items: flex-start; gap: 6px; margin: -4px 0 10px; font-size: 12px; font-weight: 600; line-height: 1.35; color: var(--muted); }
+.a-aviso mat-icon { flex: none; font-size: 16px; width: 16px; height: 16px; }

@@ -1,87 +1,61 @@
-<aside class="ficha" aria-label="Datos del candidato">
+<aside class="ficha ficha-barra" aria-label="Datos del candidato">
 
-  <header class="ficha-head">
-    <div class="ficha-head-text">
-      <span class="ficha-head-title">Datos del candidato</span>
-      <span class="ficha-head-hint">
-        @if (pctTotal(); as p) {
-          {{ fichaCompleta() ? 'Datos completos' : 'Faltan datos por llenar' }}
-        } @else {
-          Siempre a la vista
-        }
-      </span>
-    </div>
-
-    <!-- El total, con las mismas reglas que el formulario: si está al 100%, la
-         entrevista se puede guardar sin que salte nada en rojo. -->
-    @if (pctTotal(); as p) {
-      <span class="ficha-head-anillo"
-            [class.anillo-lleno]="fichaCompleta()"
-            [style.background]="fondoAnillo(p)"
-            [matTooltip]="fichaCompleta()
-              ? 'Todos los datos obligatorios están llenos'
-              : 'Faltan ' + (avanceTotal().total - avanceTotal().hechos) + ' de ' + avanceTotal().total">
-        <span class="ficha-head-anillo-centro">{{ p }}<small>%</small></span>
-      </span>
-    }
-    <button type="button" class="ficha-head-editar"
-            [disabled]="!candidato() || !tieneCorreo()"
-            [matTooltip]="tieneCorreo()
-              ? 'Enviarle un código a su correo para que entre a actualizar sus datos'
-              : 'Sin correo registrado no hay a dónde enviar el código'"
-            (click)="reenviarAcceso.emit()">
-      <mat-icon>key</mat-icon>
-    </button>
-    <button type="button" class="ficha-head-editar"
-            [disabled]="!candidato()"
-            matTooltip="Editar todos los datos" (click)="editar.emit('todos')">
-      <mat-icon>edit</mat-icon>
-    </button>
-  </header>
-
-  <!-- Identidad -->
+  <!-- Identidad, en una sola fila: foto · nombre y documento · estado. -->
   <div class="ficha-id">
-    <div class="ficha-id-foto">
-      <button type="button" class="ficha-foto"
-              [class.ficha-foto-vacia]="!fotoUrl()"
-              [disabled]="!candidato()"
-              matTooltip="Tomar o actualizar la foto" matTooltipPosition="right"
-              (click)="fotoSolicitada.emit()">
-        @if (fotoUrl()) {
-          <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato"
-               referrerpolicy="no-referrer" (error)="fotoFallida.emit($event)" />
-        } @else {
-          <span class="ficha-foto-iniciales">{{ iniciales() }}</span>
-        }
-        @if (candidato()) {
-          <span class="ficha-foto-badge" aria-hidden="true"><mat-icon>photo_camera</mat-icon></span>
-        }
-      </button>
+    <button type="button" class="ficha-foto"
+            [class.ficha-foto-vacia]="!fotoUrl()"
+            [disabled]="!candidato()"
+            matTooltip="Tomar o actualizar la foto" matTooltipPosition="below"
+            (click)="fotoSolicitada.emit()">
+      @if (fotoUrl()) {
+        <img class="ficha-foto-img" [src]="fotoUrl()" alt="Foto del candidato"
+             referrerpolicy="no-referrer" (error)="fotoFallida.emit($event)" />
+      } @else {
+        <span class="ficha-foto-iniciales">{{ iniciales() }}</span>
+      }
+      @if (candidato()) {
+        <span class="ficha-foto-badge" aria-hidden="true"><mat-icon>photo_camera</mat-icon></span>
+      }
+    </button>
 
-      <!-- El documento, DEBAJO de la foto: es la llave con la que se entra y
+    <div class="ficha-id-text">
+      <div class="ficha-nombre-linea">
+        <!-- Con documento pero sin nombre NO es "sin candidato": es un registro
+             al que le falta el nombre, y decirlo así evita creer que no se
+             encontró a nadie. -->
+        <h2 class="ficha-nombre">
+          {{ nombre() || (candidato() ? 'Sin nombre registrado' : 'Sin candidato') }}
+        </h2>
+        <!-- Turnos sabe si la persona fue atendida por videollamada desde otra oficina y por quién. -->
+        <app-etiqueta-atencion-remota [documento]="documento()" />
+      </div>
+
+      <!-- El documento, pegado al nombre: es la llave con la que se entra y
            con la que se contrasta lo que está en base. La lupa abre el diálogo
            de búsqueda, que es la única puerta para traer a otra persona. -->
       <div class="ficha-doc-linea">
         <span class="ficha-chip ficha-chip-doc">
           <mat-icon>badge</mat-icon>{{ tipoDoc() }} {{ documento() || documentoBuscado() || '—' }}
         </span>
+        <!-- Sin nadie en pantalla es lo único que hay por hacer: se vuelve el
+             botón principal y late hasta que se trae a alguien. -->
         <button type="button" class="ficha-corregir"
-                matTooltip="Buscar otra persona o corregir el documento"
+                [class.ficha-llamado]="!candidato()"
+                [matTooltip]="candidato()
+                  ? 'Buscar otra persona o corregir el documento'
+                  : 'Buscar a la persona por su documento'"
                 (click)="corregirDocumento.emit()">
           <mat-icon>manage_search</mat-icon>
+          @if (!candidato()) { <span class="ficha-llamado-texto">Buscar persona</span> }
         </button>
+        <!-- Selección también toma la cédula con la cámara: frente y reverso, y
+             el servidor arma la hoja carta al 150 %. -->
+        @if (candidato() && tipoDoc() !== 'PA') {
+          <app-cedula-camara variante="compacto" [avisarExito]="true"
+              [cedula]="documento() || documentoBuscado() || null"
+              nombreDocumento="Documento de identidad" />
+        }
       </div>
-    </div>
-
-    <div class="ficha-id-text">
-      <!-- Con documento pero sin nombre NO es "sin candidato": es un registro
-           al que le falta el nombre, y decirlo así evita creer que no se
-           encontró a nadie. -->
-      <h2 class="ficha-nombre">
-        {{ nombre() || (candidato() ? 'Sin nombre registrado' : 'Sin candidato') }}
-      </h2>
-      <!-- Turnos sabe si la persona fue atendida por videollamada desde otra oficina y por quién. -->
-      <app-etiqueta-atencion-remota [documento]="documento()" />
 
       @if (documentoDifiere()) {
         <div class="ficha-aviso-doc">
@@ -90,115 +64,24 @@
           <strong>{{ documento() }}</strong>.
         </div>
       }
+    </div>
 
+    <div class="ficha-id-estado">
       <!-- Estado de la persona (prueba, examen, contrato, formulario). Lo pinta
-           el pipeline, que es quien tiene las acciones; aquí solo se le da
-           sitio, pegado a su cara y no en una barra aparte. -->
+           el pipeline, que es quien tiene las acciones; aquí solo se le da sitio. -->
       <ng-content select="[fichaEstado]"></ng-content>
+
+      <!-- Línea de tiempo: todo lo que ha pasado con la persona, en orden.
+           Solo lectura; la abre la ficha sin pasar por el pipeline. -->
+      @if (candidato()) {
+        <button type="button" class="ficha-linea-tiempo"
+                matTooltip="Procesos, pruebas, exámenes, contratos, retiros, vetos, incapacidades y cambios de datos, del más reciente al más viejo"
+                (click)="abrirLineaTiempo()">
+          <mat-icon>timeline</mat-icon>
+          <span>Línea de tiempo</span>
+        </button>
+      }
     </div>
   </div>
 
-  @if (!candidato()) {
-    <p class="ficha-sin">Busca una persona por documento para ver su información.</p>
-  } @else {
-
-    <!-- ── Vacante a la que se remite ──
-         Es lo que decide todo lo demás —qué documentos le tocan, qué empresa
-         firma, qué salario— y estaba enterrada dentro de Selección → Remisión.
-         Aquí se ve siempre, con la persona al frente, y se cambia de un click. -->
-    <section class="fblock fvacante">
-      <button type="button" class="fvacante-btn" (click)="asignarVacante.emit()"
-              [matTooltip]="vacante() ? 'Cambiar la vacante' : 'Elegir la vacante'">
-        <span class="fvacante-icono">
-          <mat-icon>{{ vacante() ? 'work' : 'work_outline' }}</mat-icon>
-        </span>
-        <span class="fvacante-cuerpo">
-          <span class="fvacante-rotulo">Vacante</span>
-          @if (vacante(); as v) {
-            <span class="fvacante-cargo">{{ v.cargo || 'Sin cargo' }}</span>
-            <span class="fvacante-donde">{{ v.empresa }} · {{ v.finca }}</span>
-            @if (v.codigo) { <span class="fvacante-cod">Cód. {{ v.codigo }}</span> }
-          } @else {
-            <span class="fvacante-vacia">Sin asignar · toca para elegir</span>
-          }
-        </span>
-        <mat-icon class="fvacante-chevron">chevron_right</mat-icon>
-      </button>
-    </section>
-
-
-    <!-- Bloques -->
-    @for (b of [
-      { id: 'identificacion', titulo: 'Identificación y documento', dot: 'blue',   filas: identificacion() },
-      { id: 'personales',     titulo: 'Datos personales',           dot: 'indigo', filas: personales() },
-      { id: 'contacto',       titulo: 'Contacto y domicilio',       dot: 'cyan',   filas: contacto() },
-      { id: 'pareja',         titulo: 'Estado civil y pareja',      dot: 'purple', filas: pareja() },
-      { id: 'padres',         titulo: 'Datos de sus padres',        dot: 'indigo', filas: padres() },
-      { id: 'hijos',          titulo: 'Hijos',                      dot: 'amber',  filas: hijos() },
-      { id: 'referencias',    titulo: 'Referencias',                dot: 'purple', filas: referencias() },
-      { id: 'emergencia',     titulo: 'Contacto de emergencia',     dot: 'cyan',   filas: emergencia() },
-      { id: 'dotacion',       titulo: 'Tallas de dotación',         dot: 'blue',   filas: dotacion() }
-    ]; track b.id) {
-      <section class="fblock">
-        <button type="button" class="fblock-head" (click)="alternar(b.id)"
-                [attr.aria-expanded]="!plegado(b.id)">
-          <span class="fblock-dot" [class]="'fblock-dot fblock-dot-' + b.dot"></span>
-          <span class="fblock-title">{{ b.titulo }}</span>
-          @let pb = pct(b.id);
-          @if (pb !== null) {
-            <span class="fblock-pct" [class.fblock-pct-ok]="pb === 100"
-                  [matTooltip]="detalle(b.id, b.titulo)">
-              @if (pb === 100) { <mat-icon>check_circle</mat-icon> }
-              {{ pb }}%
-            </span>
-          }
-          <span class="fblock-lapiz" matTooltip="Editar este bloque"
-                (click)="$event.stopPropagation(); editar.emit(b.id)">
-            <mat-icon>edit</mat-icon>
-          </span>
-          <mat-icon class="fblock-chevron">{{ plegado(b.id) ? 'expand_more' : 'expand_less' }}</mat-icon>
-        </button>
-
-        @if (!plegado(b.id)) {
-          <div class="fblock-body">
-            @for (f of b.filas; track f.label) {
-              <div class="frow frow-plana">
-                <span class="frow-label">{{ f.label }}</span>
-                <span class="frow-value" [class.frow-vacio]="!f.value"
-                      [class.frow-value-break]="f.break">{{ f.value || '—' }}</span>
-              </div>
-            }
-
-            <!-- Comprobación de contacto: se hace donde está el dato, no en otra
-                 pantalla, porque es lo que se verifica con la persona delante. -->
-            @if (b.id === 'contacto') {
-              <!-- Botones, no etiquetas: decían "sin comprobar" y no había forma
-                   de comprobarlo desde ahí, había que irse a los accesos
-                   rápidos. Se comprueba donde está el dato. -->
-              <div class="fverif">
-                <button type="button" class="fverif-item"
-                        [class.fverif-ok]="correoConfirmado()"
-                        [matTooltip]="correoConfirmado()
-                          ? 'Ya se comprobó. Toca para volver a enviarlo.'
-                          : 'Enviar el correo de bienvenida y marcarlo como comprobado'"
-                        (click)="comprobarCorreo.emit()">
-                  <mat-icon>{{ correoConfirmado() ? 'mark_email_read' : 'mail' }}</mat-icon>
-                  {{ correoConfirmado() ? 'Correo comprobado' : 'Comprobar correo' }}
-                </button>
-                <button type="button" class="fverif-item"
-                        [class.fverif-ok]="whatsappConfirmado()"
-                        [matTooltip]="whatsappConfirmado()
-                          ? 'Ya se comprobó. Toca para volver a enviarlo.'
-                          : 'Enviar el WhatsApp de bienvenida y marcarlo como comprobado'"
-                        (click)="comprobarWhatsapp.emit()">
-                  <mat-icon>{{ whatsappConfirmado() ? 'verified' : 'chat' }}</mat-icon>
-                  {{ whatsappConfirmado() ? 'WhatsApp comprobado' : 'Comprobar WhatsApp' }}
-                </button>
-              </div>
-            }
-          </div>
-        }
-      </section>
-    }
-  }
 </aside>

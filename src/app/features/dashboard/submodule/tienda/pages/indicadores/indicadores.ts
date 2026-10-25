@@ -55,8 +55,11 @@ export class Indicadores implements OnInit {
   hasta = '';
 
   /** «Qué deja dinero»: pesos como número (ordena y suma bien); el formato es solo lo visible. */
+  readonly fotos = signal<Record<string, string>>({});
+
   readonly columnasRentabilidad: ColumnaTabla<Record<string, unknown>>[] = [
-    { id: 'producto', header: 'Producto', valor: (p) => p['nombre'] as string, tarjeta: 'titulo' },
+    { id: 'producto', header: 'Producto', valor: (p) => p['nombre'] as string, tarjeta: 'titulo',
+      imagen: (p) => this.fotos()[p['producto_id'] as string] },
     { id: 'vendido', header: 'Vendido', align: 'right', tarjeta: 'meta',
       valor: (p) => p['vendido'] as number,
       formato: (p) => this.pesos(p['vendido']), copiaTexto: (p) => String(p['vendido'] ?? '') },
@@ -131,7 +134,11 @@ export class Indicadores implements OnInit {
     });
     this.api.serieKpi(rango).subscribe({ next: s => this.serie.set(s), error: () => this.serie.set([]) });
     this.api.rentabilidad(rango).subscribe({
-      next: r => this.rentabilidad.set(r), error: () => this.rentabilidad.set([]),
+      next: r => {
+        this.rentabilidad.set(r);
+        this.api.imagenesPrincipales(r.map(x => x['producto_id'] as string)).subscribe({ next: m => this.fotos.update(f => ({ ...f, ...m })), error: () => {} });
+      },
+      error: () => this.rentabilidad.set([]),
     });
     // Lo de Logis va con el rango explícito: sin fechas, Indicadores mira los últimos 30 días.
     const hoy = new Date();

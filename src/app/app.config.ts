@@ -1,4 +1,4 @@
-import { APP_INITIALIZER, ApplicationConfig, provideZonelessChangeDetection } from '@angular/core';
+import { APP_INITIALIZER, ApplicationConfig, DEFAULT_CURRENCY_CODE, LOCALE_ID, provideZonelessChangeDetection } from '@angular/core';
 import { provideRouter, withHashLocation, withComponentInputBinding } from '@angular/router';
 import { routes } from './app.routes';
 import { provideClientHydration, withEventReplay } from '@angular/platform-browser';
@@ -6,6 +6,7 @@ import { provideAnimations } from '@angular/platform-browser/animations';
 import { provideHttpClient, withFetch, withInterceptors } from '@angular/common/http';
 import { interceptor } from './core/interceptors/auth.interceptor';
 import { offlineInterceptor } from './core/interceptors/offline.interceptor';
+import { actividadInterceptor } from './core/actividad/actividad.interceptor';
 import { OfflineSyncService } from './core/services/offline-sync.service';
 import { PipelinePreloadService } from './core/services/pipeline-preload.service';
 import { provideServiceWorker } from '@angular/service-worker';
@@ -22,11 +23,15 @@ import { environment } from '@/environments/environment';
 export const appConfig: ApplicationConfig = {
   providers: [
     provideZonelessChangeDetection(),
+    // Pesos colombianos en toda la app: $ 1.234.567 (punto de miles), fechas y números en
+    // español de Colombia. main.ts ya registra los datos del locale.
+    { provide: LOCALE_ID, useValue: 'es-CO' },
+    { provide: DEFAULT_CURRENCY_CODE, useValue: 'COP' },
     provideRouter(routes, withHashLocation(), withComponentInputBinding()),
     provideClientHydration(withEventReplay()),
     provideHttpClient(
       withFetch(),
-      withInterceptors([interceptor, offlineInterceptor])
+      withInterceptors([interceptor, offlineInterceptor, actividadInterceptor])
     ),
     provideAnimations(),
     // App instalable: el service worker sirve el caparazón desde la caché, así

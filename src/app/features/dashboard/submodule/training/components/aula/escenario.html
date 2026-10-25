@@ -1,0 +1,77 @@
+<ng-template #tarjeta let-m>
+  <div class="esc-mosaico" [class.habla]="m.hablando" [class.local]="m.local" (dblclick)="alternarFijado(m)">
+    @if (m.camara) {
+      <video [lkPista]="m.camara" [class.espejo]="m.local"></video>
+    } @else {
+      <div class="esc-avatar"><span>{{ iniciales(m.nombre) }}</span></div>
+    }
+    <div class="esc-nombre">
+      @if (!m.micActivo) { <mat-icon class="esc-mic-off">mic_off</mat-icon> }
+      <span>{{ m.nombre }}{{ m.local ? ' (tú)' : '' }}</span>
+      @if (m.rol === 'ANFITRION' || m.rol === 'COPRESENTADOR') { <em>dirige</em> }
+    </div>
+    @if (m.mano) { <span class="esc-mano" title="Levantó la mano">✋</span> }
+    <button type="button" class="esc-fijar" (click)="alternarFijado(m)" [attr.aria-label]="fijadoLocal() === m.identidad ? 'Soltar' : 'Fijar'">
+      <mat-icon>{{ fijadoLocal() === m.identidad ? 'push_pin' : 'keep' }}</mat-icon>
+    </button>
+  </div>
+</ng-template>
+
+@switch (modo()) {
+  @case ('foco') {
+    <div class="esc esc--foco">
+      @if (enFoco(); as f) {
+        <div class="esc-grande"><ng-container [ngTemplateOutlet]="tarjeta" [ngTemplateOutletContext]="{ $implicit: f }" /></div>
+      }
+      <div class="esc-tira">
+        @for (m of visibles(); track m.identidad) {
+          @if (m.identidad !== enFoco()?.identidad) { <ng-container [ngTemplateOutlet]="tarjeta" [ngTemplateOutletContext]="{ $implicit: m }" /> }
+        }
+      </div>
+    </div>
+  }
+  @case ('presentacion') {
+    <div class="esc esc--presentacion">
+      <div class="esc-grande">
+        @if (principal(); as p) {
+          <div class="esc-pantalla">
+            <video [lkPista]="p.track"></video>
+            <span class="esc-etiqueta"><mat-icon>present_to_all</mat-icon> {{ p.local ? 'Tu pantalla' : 'Pantalla de ' + p.nombre }}</span>
+          </div>
+        }
+      </div>
+      <div class="esc-tira">
+        @for (p of pantallasL(); track p.clave) {
+          @if (p.clave !== principal()?.clave) {
+            <button type="button" class="esc-mini-pantalla" (click)="pantallaGrande.set(p.clave)" [title]="'Ver la pantalla de ' + p.nombre">
+              <video [lkPista]="p.track"></video><span>{{ p.nombre }}</span>
+            </button>
+          }
+        }
+        @for (m of visibles(); track m.identidad) { <ng-container [ngTemplateOutlet]="tarjeta" [ngTemplateOutletContext]="{ $implicit: m }" /> }
+      </div>
+    </div>
+  }
+  @case ('multipantalla') {
+    <div class="esc esc--multi">
+      <div class="esc-rejilla" [style.--cols]="columnas()">
+        @for (p of pantallasL(); track p.clave) {
+          <div class="esc-pantalla" (dblclick)="pantallaGrande.set(p.clave)">
+            <video [lkPista]="p.track"></video>
+            <span class="esc-etiqueta"><mat-icon>present_to_all</mat-icon> {{ p.local ? 'Tu pantalla · ' + p.titulo : p.nombre + ' · ' + p.titulo }}</span>
+          </div>
+        }
+      </div>
+      <div class="esc-tira esc-tira--abajo">
+        @for (m of visibles(); track m.identidad) { <ng-container [ngTemplateOutlet]="tarjeta" [ngTemplateOutletContext]="{ $implicit: m }" /> }
+      </div>
+    </div>
+  }
+  @default {
+    <div class="esc esc--galeria">
+      <div class="esc-rejilla" [style.--cols]="columnas()">
+        @for (m of visibles(); track m.identidad) { <ng-container [ngTemplateOutlet]="tarjeta" [ngTemplateOutletContext]="{ $implicit: m }" /> }
+      </div>
+    </div>
+  }
+}

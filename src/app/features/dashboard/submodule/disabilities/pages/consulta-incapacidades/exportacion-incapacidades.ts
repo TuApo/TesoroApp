@@ -17,6 +17,7 @@
 import { EstadoDocumento, EstadoIncapacidad, ResponsablePago, TipoIncapacidad } from '../../models/incapacidad-v2.model';
 import { parsearFechaFlexible } from '../../utils/fechas';
 import { codigoSinGuion } from '../../utils/codigos';
+import { entidadDeCobro } from '../../utils/entidad-cobro';
 import { IncapacidadResumenExtendido, humanizarCodigo } from './consulta-incapacidades.model';
 
 /** Resolutores de etiqueta (vienen del catalogo del backend). */
@@ -287,7 +288,7 @@ export const COLUMNAS_EXPORTABLES: readonly ColumnaExportable[] = [
     etiqueta: 'EPS',
     enTabla: true,
     enConsolidado: true,
-    obtener: (f) => texto(f.eps),
+    obtener: (f) => texto(entidadDeCobro(f.tipoIncapacidad, f.eps)),
   },
   {
     clave: 'estadoDocumento',

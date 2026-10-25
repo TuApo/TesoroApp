@@ -1,0 +1,50 @@
+:host { display: flex; flex-direction: column; gap: 14px; padding-bottom: 40px; min-width: 0; }
+
+.pestanas-cfg { display: flex; gap: 6px; overflow-x: auto; max-width: 100%; padding-bottom: 4px; scrollbar-width: thin; }
+.pestana-cfg { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; min-height: 38px !important; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 700;
+  cursor: pointer; white-space: nowrap; }
+.pestana-cfg mat-icon { font-size: 17px; width: 17px; height: 17px; }
+.pestana-cfg:hover { background: var(--surface-2); }
+.pestana-cfg:focus-visible { outline: none; box-shadow: var(--ring); }
+.pestana-cfg.activa { background: var(--navy); border-color: var(--navy); color: #fff; }
+:host-context(html[data-theme='dark']) .pestana-cfg.activa { background: var(--brand-blue); border-color: var(--brand-blue); }
+@media (max-width: 600px) { .pestana-cfg span { display: none; } .pestana-cfg.activa span { display: inline; } }
+
+.filtros-cfg { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.filtros-cfg select, .filtros-cfg input { min-width: min(200px, 100%); }
+.filtros-cfg .camara select { min-width: min(320px, 100%); max-width: 100%; }
+
+/* Zonas */
+.zonas-disp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 320px); gap: 14px; align-items: start; }
+@media (max-width: 900px) { .zonas-disp { grid-template-columns: minmax(0, 1fr); } }
+.lienzo-zonas { min-width: 0; }
+.props { display: flex; flex-direction: column; gap: 10px; }
+.lista-zonas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.lista-zonas .nombre { width: 100%; display: grid; grid-template-columns: 14px minmax(0, 1fr); gap: 2px 8px; align-items: center; text-align: left;
+  padding: 6px 8px; min-height: 40px !important; border-radius: 8px; border: 1px solid transparent; background: transparent; font: inherit; color: var(--text); cursor: pointer; }
+.lista-zonas .nombre small { grid-column: 2; font-size: 11px; color: var(--muted); }
+.lista-zonas li.elegida .nombre { border-color: var(--brand-blue); background: var(--surface-2); }
+.lista-zonas .color { width: 14px; height: 14px; border-radius: 4px; }
+.sin-guardar { color: var(--warn-fg); }
+.form-zona { display: flex; flex-direction: column; gap: 8px; border-top: 1px solid var(--border); padding-top: 10px; }
+
+/* Reglas */
+.editor-regla { display: flex; flex-direction: column; gap: 12px; }
+.editor-regla .sub { margin: 4px 0 0; display: flex; align-items: center; gap: 6px; font-size: 13.5px; font-weight: 800; color: var(--text); }
+.editor-regla .sub mat-icon { color: var(--brand-blue); font-size: 19px; width: 19px; height: 19px; }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { min-height: 34px !important; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--border-strong); background: var(--surface);
+  color: var(--text-2); font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer; }
+.chip[aria-pressed='true'] { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: var(--text-2); }
+.check input { width: 18px; height: 18px; accent-color: var(--brand-blue); }
+
+/* Ajustes */
+.tarjetas-ajustes { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(min(280px, 100%), 1fr)); }
+.bloque { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+.bloque.ancho { grid-column: 1 / -1; }
+.bloque h3 { width: 100%; }
+.bloque small { font-size: 12px; color: var(--text-2); overflow-wrap: anywhere; }
+.bloque .sg-boton { margin-top: 4px; }
+.pre { white-space: pre-line; }

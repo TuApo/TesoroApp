@@ -55,6 +55,26 @@
           @if (form.get('mpio_expedicion')?.hasError('required')) { <mat-error>Requerido.</mat-error> }
         </mat-form-field>
       </div>
+
+      <!-- Salud según ADRES (pedido #6). No bloquea: avisa a quien entrevista y contrata. -->
+      @if (saludAdres?.excepcion; as rx) {
+        <div class="fc-adres fc-adres--excepcion" role="note">
+          <mat-icon>health_and_safety</mat-icon>
+          <div class="fc-adres-txt">
+            <span class="fc-adres-chip">Régimen especial/excepción</span>
+            @if (detalleExcepcion(rx); as det) { <span class="fc-adres-det">{{ det }}</span> }
+            <span class="fc-adres-det">Revise la afiliación a salud antes de contratar.</span>
+          </div>
+        </div>
+      } @else if (saludAdres?.sinRegistro) {
+        <div class="fc-adres fc-adres--verificar" role="note">
+          <mat-icon>info</mat-icon>
+          <div class="fc-adres-txt">
+            <strong>Verificar afiliación: ADRES sin registro.</strong>
+            <span class="fc-adres-det">Puede ser de un régimen especial o de excepción, que no reporta a ADRES.</span>
+          </div>
+        </div>
+      }
     </section>
   }
 
@@ -372,9 +392,9 @@
         <h3>Familia e hijos</h3>
       </header>
       <p class="fe-nota">
-        De los hijos se registran la cantidad y quién los cuida. El nombre y la
-        edad salen del registro; los demás datos de cada hijo como beneficiario
-        se recogen en el formulario de la vacante y se conservan.
+        Los datos de cada hijo son los mismos del formulario de la vacante: se
+        traen de lo que la persona registró y aquí se pueden corregir o agregar
+        hijos. Un hijo se guarda cuando tiene documento y fecha de nacimiento.
       </p>
 
       <div class="fe-grid">
@@ -403,20 +423,189 @@
         </mat-form-field>
       </div>
 
-      <!-- Uno, dos o los que sean: nombre y edad de cada hijo. La edad se dice
-           en meses por debajo del año, que es la que decide si hace falta quién
-           lo cuide. Es lectura: el detalle de cada hijo se diligencia en el
-           formulario de la vacante. -->
-      @if (hijos.length) {
-        <ul class="fe-hijos">
-          @for (h of hijos; track $index) {
-            <li class="fe-hijo-fila">
-              <mat-icon>child_care</mat-icon>
-              <span class="fe-hijo-nombre">{{ h.nombre }}</span>
-              <span class="fe-hijo-edad">{{ h.edad }}</span>
-            </li>
+      <!-- Una tarjeta por hijo con los campos de CAMPOS_HIJO (form-vacancies-v2). -->
+      @if (hijosFA; as fa) {
+        <div formArrayName="hijos">
+          @for (g of fa.controls; track g; let i = $index) {
+            @let abierto = hijoAbierto(g);
+            <div class="fe-hijo" [class.fe-hijo-cerrado]="!abierto" [formGroupName]="i">
+              <div class="fe-hijo-head">
+                <button type="button" class="fe-hijo-toggle" [attr.aria-expanded]="abierto"
+                        (click)="alternarHijo(g)">
+                  <mat-icon class="fe-hijo-chevron">{{ abierto ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  <mat-icon>child_care</mat-icon>
+                  <span class="fe-hijo-nombre">{{ tituloHijo(i) }}</span>
+                  <span class="fe-hijo-edad">{{ edadHijo(i) }}</span>
+                  @if (!abierto) {
+                    <span class="fe-hijo-resumen">{{ resumenHijo(i) }}</span>
+                  }
+                </button>
+                <button mat-icon-button type="button" class="fe-hijo-quitar"
+                        matTooltip="Quitar este hijo" aria-label="Quitar este hijo"
+                        (click)="quitarHijo.emit(i)">
+                  <mat-icon>delete_outline</mat-icon>
+                </button>
+              </div>
+
+              @if (abierto) {
+              <div class="fe-grid">
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Primer nombre</mat-label>
+                  <input matInput formControlName="primer_nombre" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Segundo nombre</mat-label>
+                  <input matInput formControlName="segundo_nombre" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Primer apellido</mat-label>
+                  <input matInput formControlName="primer_apellido" />
+                </mat-form-field>
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Segundo apellido</mat-label>
+                  <input matInput formControlName="segundo_apellido" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Sexo</mat-label>
+                  <mat-select formControlName="sexo">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    @for (op of (sexo$ | async) ?? []; track $index) {
+                      <mat-option [value]="op['codigo']">{{ op['etiqueta'] || op['descripcion'] || op['codigo'] }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Fecha de nacimiento</mat-label>
+                  <input matInput [matDatepicker]="pHijo" formControlName="fecha_nac" />
+                  <mat-datepicker-toggle matSuffix [for]="pHijo"></mat-datepicker-toggle>
+                  <mat-datepicker #pHijo></mat-datepicker>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Tipo de documento</mat-label>
+                  <mat-select formControlName="tipo_documento">
+                    @for (op of (tipoDocHijo$ | async) ?? []; track $index) {
+                      <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Número de documento</mat-label>
+                  <input matInput inputmode="numeric" maxlength="15" formControlName="numero_de_documento" />
+                  @if (g.get('numero_de_documento')?.invalid) { <mat-error>Solo números, de 6 a 15 dígitos.</mat-error> }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Estudia o trabaja?</mat-label>
+                  <mat-select formControlName="ocupacion">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    @for (op of ocupacionesHijo((ocupaciones$ | async), i); track $index) {
+                      <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Curso</mat-label>
+                  <input matInput formControlName="curso" />
+                </mat-form-field>
+
+                <!-- Ficha técnica, req. 13 (2026-10-22). -->
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Nivel educativo</mat-label>
+                  <mat-select formControlName="nivel_educativo">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    @for (n of nivelesEducativosHijo; track n) {
+                      <mat-option [value]="n">{{ n }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Estudia en la Fundación Fernando Borrero Caicedo?</mat-label>
+                  <mat-select formControlName="estudia_fundacion">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    <mat-option value="SI">Sí</mat-option>
+                    <mat-option value="NO">No</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Vive con usted?</mat-label>
+                  <mat-select formControlName="vive_con_trabajador">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    <mat-option value="SI">Sí</mat-option>
+                    <mat-option value="NO">No</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Tiene alguna discapacidad?</mat-label>
+                  <mat-select formControlName="tiene_discapacidad">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    <mat-option value="SI">Sí</mat-option>
+                    <mat-option value="NO">No</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                @if (g.get('tiene_discapacidad')?.value === 'SI') {
+                  <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                    <mat-label>¿Cuál discapacidad?</mat-label>
+                    <input matInput formControlName="cual_discapacidad" />
+                  </mat-form-field>
+                }
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Es hijastro(a)?</mat-label>
+                  <mat-select formControlName="es_hijastro">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    <mat-option value="SI">Sí</mat-option>
+                    <mat-option value="NO">No</mat-option>
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿Quién tiene la custodia?</mat-label>
+                  <mat-select formControlName="custodia_legal">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    @for (op of (custodiaHijo$ | async) ?? []; track $index) {
+                      <mat-option [value]="op['codigo']">{{ op['descripcion'] || op['codigo'] }}</mat-option>
+                    }
+                  </mat-select>
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic" class="fe-ancho">
+                  <mat-label>Nombre del otro padre o madre</mat-label>
+                  <input matInput formControlName="otro_padre_nombre" />
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>Documento del otro padre o madre</mat-label>
+                  <input matInput inputmode="numeric" maxlength="15" formControlName="otro_padre_documento" />
+                  @if (g.get('otro_padre_documento')?.invalid) { <mat-error>Solo números.</mat-error> }
+                </mat-form-field>
+
+                <mat-form-field appearance="outline" subscriptSizing="dynamic">
+                  <mat-label>¿El otro padre o madre trabaja en la compañía?</mat-label>
+                  <mat-select formControlName="otro_padre_en_compania">
+                    <mat-option [value]="''">— Sin dato —</mat-option>
+                    <mat-option value="SI">Sí</mat-option>
+                    <mat-option value="NO">No</mat-option>
+                  </mat-select>
+                </mat-form-field>
+              </div>
+              }
+            </div>
           }
-        </ul>
+        </div>
+
+        <button mat-stroked-button type="button" class="fe-hijo-agregar"
+                [disabled]="fa.length >= 15" (click)="onAgregarHijo()">
+          <mat-icon>add</mat-icon> Agregar hijo
+        </button>
       }
     </section>
   }

@@ -1,0 +1,226 @@
+<div class="rs" (keydown)="alPulsarTecla($event)" tabindex="-1">
+
+  <!-- ── Cabecera: dónde estamos y cuántos quedan ─────────────────────── -->
+  <header class="rs-cab">
+    <div class="rs-cab__donde">
+      <span class="rs-cab__modulo">{{ datos.modulo }}</span>
+      <span class="rs-cab__sep">·</span>
+      <span class="rs-cab__titulo">{{ datos.titulo }}</span>
+    </div>
+    <span class="rs-cab__cuenta">{{ total() }} seleccionado(s)</span>
+    <span class="rs-espacio"></span>
+    @if (conBuscador()) {
+      <label class="rs-buscar">
+        <mat-icon fontSet="material-symbols-outlined">search</mat-icon>
+        <input type="search" [value]="busqueda()" (input)="busqueda.set($any($event.target).value)"
+               placeholder="Nombre o id…" aria-label="Buscar entre lo seleccionado" />
+      </label>
+    }
+    <button type="button" class="te-btn" (click)="alternarVista()"
+            [title]="vista() === 'ficha' ? 'Ver todos a la vez' : 'Ver uno a uno'">
+      <mat-icon fontSet="material-symbols-outlined">{{ vista() === 'ficha' ? 'grid_view' : 'article' }}</mat-icon>
+      <span class="rs-solo-ancho">{{ vista() === 'ficha' ? 'Todos' : 'Ficha' }}</span>
+    </button>
+    <button type="button" mat-icon-button (click)="cerrar()" aria-label="Cerrar" matTooltip="Cerrar (Esc)">
+      <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+    </button>
+  </header>
+
+  <!-- ── Carrusel: saltar entre lo marcado sin perder el sitio ─────────── -->
+  @if (vista() === 'ficha') {
+  <div class="rs-tira" role="tablist" aria-label="Registros seleccionados">
+    @for (i of visibles(); track i) {
+      @let f = fichas()[i];
+      <button type="button" class="rs-chip" role="tab"
+              [class.rs-chip--activo]="i === indice()"
+              [attr.aria-selected]="i === indice()"
+              (click)="ir(i)" [title]="f.nombre + (f.id ? ' · ' + f.id : '')">
+        <span class="rs-chip__foto">
+          @if (f.portada) {
+            <img [src]="f.portada" [alt]="f.nombre" loading="lazy" />
+          } @else {
+            <span class="rs-chip__iniciales">{{ iniciales(f.nombre) }}</span>
+          }
+        </span>
+        <span class="rs-chip__textos">
+          <span class="rs-chip__nombre">{{ f.nombre }}</span>
+          @if (f.id) { <span class="rs-chip__id">{{ f.id }}</span> }
+        </span>
+      </button>
+    }
+    @if (!visibles().length) {
+      <span class="rs-tira__vacio">Nada coincide con «{{ busqueda() }}»</span>
+    }
+  </div>
+  }
+
+  <!-- ── Todos a la vez: comparar sin ir uno por uno ───────────────────── -->
+  @if (vista() === 'mosaico') {
+    <div class="rs-cuerpo">
+      <div class="rs-mosaico">
+        @for (i of visibles(); track i) {
+          @let f = fichas()[i];
+          <div class="rs-tarjeta" role="button" tabindex="0" (click)="abrirFicha(i)"
+               (keydown.enter)="abrirFicha(i)" [title]="'Abrir la ficha de ' + f.nombre">
+            <button type="button" class="rs-tarjeta__quitar" (click)="descartarIndice(i, $event)"
+                    [attr.aria-label]="'Quitar de la selección a ' + f.nombre" title="Quitar de la selección">
+              <mat-icon fontSet="material-symbols-outlined">close</mat-icon>
+            </button>
+            <span class="rs-tarjeta__cab">
+              <span class="rs-chip__foto">
+                @if (f.portada) {
+                  <img [src]="f.portada" [alt]="f.nombre" loading="lazy" />
+                } @else {
+                  <span class="rs-chip__iniciales">{{ iniciales(f.nombre) }}</span>
+                }
+              </span>
+              <span class="rs-tarjeta__titulos">
+                <span class="rs-tarjeta__nombre">{{ f.nombre }}</span>
+                @if (f.id) { <span class="rs-chip__id">{{ f.id }}</span> }
+              </span>
+            </span>
+            <dl class="rs-tarjeta__datos">
+              @for (c of resumen(f); track c.etiqueta) {
+                <div>
+                  <dt>{{ c.etiqueta }}</dt>
+                  <dd>{{ c.texto }}</dd>
+                </div>
+              }
+            </dl>
+            <span class="rs-tarjeta__pie">
+              @if (f.fotos.length) {
+                <span><mat-icon fontSet="material-symbols-outlined">image</mat-icon> {{ f.fotos.length }}</span>
+              }
+              @if (f.documentos.length) {
+                <span><mat-icon fontSet="material-symbols-outlined">description</mat-icon> {{ f.documentos.length }}</span>
+              }
+              <span class="rs-tarjeta__campos">{{ f.totalCampos }} datos</span>
+            </span>
+          </div>
+        }
+        @if (!visibles().length) {
+          <p class="rs-tira__vacio">Nada coincide con «{{ busqueda() }}»</p>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Ficha del registro ────────────────────────────────────────────── -->
+  @if (vista() === 'ficha') {
+  @if (actual(); as f) {
+    <div class="rs-cuerpo">
+      <div class="rs-ficha">
+        <div class="rs-ficha__cab">
+          <div class="rs-ficha__titulos">
+            <h2>{{ f.nombre }}</h2>
+            @if (f.id) { <p class="rs-ficha__id">{{ f.id }}</p> }
+          </div>
+          <span class="rs-ficha__pos">{{ indice() + 1 }} de {{ total() }}</span>
+        </div>
+
+        @if (f.fotos.length) {
+          <section class="rs-bloque">
+            <h3><mat-icon fontSet="material-symbols-outlined">photo_library</mat-icon> Fotos ({{ f.fotos.length }})</h3>
+            <div class="rs-fotos">
+              @for (foto of f.fotos; track foto.url) {
+                <button type="button" class="rs-foto" (click)="fotoAbierta.set(foto.url)" [title]="foto.etiqueta">
+                  <img [src]="foto.url" [alt]="foto.etiqueta" loading="lazy" />
+                  <span>{{ foto.etiqueta }}</span>
+                </button>
+              }
+            </div>
+          </section>
+        }
+
+        @if (f.documentos.length) {
+          <section class="rs-bloque">
+            <h3><mat-icon fontSet="material-symbols-outlined">folder_open</mat-icon> Documentos ({{ f.documentos.length }})</h3>
+            <div class="rs-docs">
+              @for (doc of f.documentos; track doc.url) {
+                <a class="rs-doc" [href]="doc.url" target="_blank" rel="noopener" [title]="doc.url">
+                  <span class="rs-doc__ext">{{ doc.extension }}</span>
+                  <span class="rs-doc__nombre">{{ doc.etiqueta }}</span>
+                  <mat-icon fontSet="material-symbols-outlined">open_in_new</mat-icon>
+                </a>
+              }
+            </div>
+          </section>
+        }
+
+        @for (g of f.grupos; track g.titulo) {
+          <section class="rs-bloque">
+            <h3><mat-icon fontSet="material-symbols-outlined">{{ g.icono }}</mat-icon> {{ g.titulo }}</h3>
+            <dl class="rs-campos">
+              @for (c of g.campos; track c.clave) {
+                <div class="rs-campo" [class.rs-campo--extra]="!c.declarado">
+                  <dt [title]="c.declarado ? c.etiqueta : c.etiqueta + ' — dato del registro, no sale en la tabla'">
+                    {{ c.etiqueta }}
+                  </dt>
+                  <dd>
+                    @if (c.badge) {
+                      <span class="rs-badge" [attr.data-tono]="c.badge.tono || 'neutro'">{{ c.badge.texto }}</span>
+                    } @else if (c.tipo === 'enlace' && c.url) {
+                      <a [href]="c.url" target="_blank" rel="noopener">{{ c.texto }}</a>
+                    } @else {
+                      {{ c.texto || '—' }}
+                    }
+                  </dd>
+                </div>
+              }
+            </dl>
+          </section>
+        }
+      </div>
+    </div>
+
+  } @else {
+    <div class="rs-vacio">
+      <mat-icon fontSet="material-symbols-outlined">inbox</mat-icon>
+      <p>No queda ningún registro seleccionado.</p>
+    </div>
+  }
+  }
+
+  <!-- ── Pie: moverse, decidir y aplicar ─────────────────────────────── -->
+  @if (total()) {
+    <footer class="rs-pie">
+      @if (vista() === 'ficha') {
+        <button type="button" class="te-btn" (click)="anterior()" [disabled]="total() < 2" title="← anterior">
+          <mat-icon fontSet="material-symbols-outlined">chevron_left</mat-icon> Anterior
+        </button>
+        <button type="button" class="te-btn" (click)="siguiente()" [disabled]="total() < 2" title="siguiente →">
+          Siguiente <mat-icon fontSet="material-symbols-outlined">chevron_right</mat-icon>
+        </button>
+        <button type="button" class="te-btn" (click)="copiarFicha()" matTooltip="Copiar esta ficha como texto">
+          <mat-icon fontSet="material-symbols-outlined">content_copy</mat-icon> <span class="rs-solo-ancho">Copiar ficha</span>
+        </button>
+        <button type="button" class="te-btn te-btn--aviso" (click)="descartar()"
+                matTooltip="Sacar este registro de la selección">
+          <mat-icon fontSet="material-symbols-outlined">remove_selection</mat-icon> <span class="rs-solo-ancho">Quitar</span>
+        </button>
+      }
+      <span class="rs-espacio"></span>
+      @if (acciones().length) {
+        <div class="rs-acciones" role="group" aria-label="Aplicar a lo seleccionado">
+          <span class="rs-acciones__rotulo">Aplicar a lo seleccionado:</span>
+          @for (a of acciones(); track a.accion.id) {
+            <button type="button" class="te-btn" [attr.data-tono]="a.accion.tono || 'neutro'" (click)="aplicar(a.accion.id)"
+                    [title]="a.accion.etiqueta + ' ' + a.cuantas + ' de ' + total()">
+              @if (a.accion.icono) { <mat-icon fontSet="material-symbols-outlined">{{ a.accion.icono }}</mat-icon> }
+              {{ a.accion.etiqueta }} <strong>{{ a.cuantas }}</strong>
+            </button>
+          }
+        </div>
+      }
+      <button type="button" class="te-btn" data-tono="primario" (click)="cerrar()">Listo</button>
+    </footer>
+  }
+
+  <!-- Foto a tamaño completo, sin salir de la vista. -->
+  @if (fotoAbierta(); as url) {
+    <div class="rs-lupa" (click)="fotoAbierta.set(null)">
+      <img [src]="url" alt="Foto ampliada" />
+      <span class="rs-lupa__nota">Clic para cerrar</span>
+    </div>
+  }
+</div>

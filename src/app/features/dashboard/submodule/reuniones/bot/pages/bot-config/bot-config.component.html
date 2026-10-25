@@ -1,0 +1,189 @@
+<section class="pagina">
+  <nav class="migas">
+    <a routerLink="/dashboard/reuniones/bot" class="btn fantasma chico"><mat-icon>arrow_back</mat-icon> Asistente de reuniones</a>
+  </nav>
+
+  <header class="cabecera">
+    <div class="titulos">
+      <h1>Configuración de mi asistente</h1>
+      <p class="sub">Solo afecta a tu bot. Los demás usuarios configuran el suyo.</p>
+    </div>
+  </header>
+
+  @if (error()) {
+    <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ error() }}</span>
+      <button type="button" class="btn chico" (click)="cargar()">Reintentar</button></p>
+  } @else if (cargando() || !cfg()) {
+    <div class="esq" style="height: 420px"></div>
+  } @else if (cfg(); as c) {
+    <p class="alerta info"><mat-icon>info</mat-icon><span class="alerta-texto">
+      El bot entra a las reuniones <strong>como invitado</strong>, con el nombre de abajo. El anfitrión tiene que admitirlo
+      desde la sala de espera. Las contraseñas de aplicación de tus correos del CRM solo sirven para leer las invitaciones:
+      no inician sesión en Google ni en Microsoft.
+    </span></p>
+
+    <form class="secciones" (submit)="$event.preventDefault(); guardar()">
+      <!-- Identidad -->
+      <fieldset class="seccion">
+        <legend><mat-icon>badge</mat-icon> Identidad</legend>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.activo" (change)="set('activo', $any($event.target).checked)" />
+          <span><strong>Asistente activo</strong><small>Apagado, no va a ninguna reunión (ni manual ni por invitación).</small></span>
+        </label>
+        <label class="campo"><span>Nombre con el que entra *</span>
+          <input type="text" maxlength="80" [value]="c.nombre_bot" (input)="set('nombre_bot', $any($event.target).value)"
+                 [class.invalido]="!nombreOk()" placeholder="Asistente de Ana (bot)" />
+          @if (!nombreOk()) { <small class="error">Tiene que incluir la palabra «bot»: los asistentes deben saber que no es una persona.</small> }
+        </label>
+        <label class="campo"><span>Mensaje de presentación (lo escribe en el chat al entrar)</span>
+          <textarea rows="3" maxlength="500" [value]="c.mensaje_presentacion" (input)="set('mensaje_presentacion', $any($event.target).value)"
+                    placeholder="Hola, soy el asistente de Ana. Estoy grabando y transcribiendo esta reunión para tomar notas."></textarea>
+        </label>
+      </fieldset>
+
+      <!-- Invitaciones -->
+      <fieldset class="seccion">
+        <legend><mat-icon>mark_email_read</mat-icon> Invitaciones por correo</legend>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.unirse_invitaciones" (change)="set('unirse_invitaciones', $any($event.target).checked)" />
+          <span><strong>Ir a las reuniones a las que inviten a mis correos</strong>
+            <small>Invita a uno de estos correos (como a cualquier persona) y el bot entra a la hora de la reunión.</small></span>
+        </label>
+        @if (c.unirse_invitaciones) {
+          <div class="opciones">
+            <label><input type="radio" name="politica" [checked]="c.politica_invitaciones === 'AUTOMATICA'" (change)="set('politica_invitaciones', 'AUTOMATICA')" />
+              Entrar solo, sin preguntar</label>
+            <label><input type="radio" name="politica" [checked]="c.politica_invitaciones === 'APROBAR'" (change)="set('politica_invitaciones', 'APROBAR')" />
+              Preguntarme antes de cada reunión</label>
+          </div>
+        }
+        <div class="campo"><span>Correos del CRM que vigila</span>
+          @if (errorBuzones()) {
+            <p class="alerta aviso"><mat-icon>warning</mat-icon><span class="alerta-texto">{{ errorBuzones() }}</span></p>
+          } @else if (!buzones().length) {
+            <p class="alerta aviso"><mat-icon>alternate_email</mat-icon><span class="alerta-texto">
+              No tienes correos vinculados en la Bandeja CRM. Vincula uno (puede ser un buzón dedicado al bot, p. ej.
+              asistente&#64;tuempresa.com) y vuelve aquí.</span>
+              <a class="btn chico" routerLink="/dashboard/tareas/bandeja/cuentas">Ir a la Bandeja CRM</a></p>
+          } @else {
+            <ul class="buzones">
+              @for (b of buzones(); track b.id) {
+                <li>
+                  <label>
+                    <input type="checkbox" [checked]="tieneBuzon(b.id)" (change)="alternarBuzon(b.id, $any($event.target).checked)" />
+                    <span class="b-texto"><strong>{{ b.direccion }}</strong>
+                      <small>{{ b.etiqueta || b.proveedor || 'Correo' }}</small></span>
+                    <span class="tono" [attr.data-tono]="b.estado === 'CONECTADO' ? 'ok' : 'aviso'">{{ b.estado || '—' }}</span>
+                  </label>
+                </li>
+              }
+            </ul>
+          }
+          @if (invitacionesSinBuzon()) { <small class="error">Elige al menos un correo o apaga las invitaciones.</small> }
+          @if (buzonesSinConexion().length) {
+            <small class="aviso-txt">{{ buzonesSinConexion().length }} correo(s) elegido(s) no está(n) conectado(s): revisa la Bandeja CRM o no llegarán las invitaciones.</small>
+          }
+        </div>
+        <div class="campo"><span>Plataformas a las que puede entrar</span>
+          <div class="plataformas">
+            @for (p of CONFIGURABLES; track p) {
+              <label class="plat" [class.sel]="tienePlataforma(p)">
+                <input type="checkbox" [checked]="tienePlataforma(p)" (change)="alternarPlataforma(p, $any($event.target).checked)" />
+                <mat-icon>{{ PLATAFORMAS[p].icono }}</mat-icon> {{ PLATAFORMAS[p].etiqueta }}
+              </label>
+            }
+          </div>
+          @if (!c.plataformas.length) { <small class="error">Elige al menos una plataforma.</small> }
+          <small class="ayuda">WhatsApp no aparece: a sus llamadas el bot no puede entrar; se usan con «Capturar desde este dispositivo».</small>
+        </div>
+      </fieldset>
+
+      <!-- Captura -->
+      <fieldset class="seccion">
+        <legend><mat-icon>videocam</mat-icon> Qué captura</legend>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.transcripcion_vivo" (change)="set('transcripcion_vivo', $any($event.target).checked)" />
+          <span><strong>Transcripción en vivo</strong><small>Trozos de ~15 s mientras dura la reunión. Al final se transcribe todo de nuevo con más calidad.</small></span>
+        </label>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.subtitulos_plataforma" (change)="set('subtitulos_plataforma', $any($event.target).checked)" />
+          <span><strong>Leer los subtítulos de la plataforma</strong><small>Meet y Teams dicen quién habla: así la transcripción en vivo lleva nombres.</small></span>
+        </label>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.grabar_video" (change)="set('grabar_video', $any($event.target).checked)" />
+          <span><strong>Grabar video</strong><small>Sin video se graba solo el audio (menos espacio, sin clips con imagen).</small></span>
+        </label>
+        <div class="rejilla">
+          <label class="campo"><span>Pantallazo cada (segundos)</span>
+            <input type="number" [min]="LIMITES['capturas_cada_seg'].min" [max]="LIMITES['capturas_cada_seg'].max"
+                   [value]="c.capturas_cada_seg" [class.invalido]="fueraDeRango('capturas_cada_seg')"
+                   (input)="numero('capturas_cada_seg', $any($event.target).value)" /></label>
+          <label class="campo"><span>Duración de cada clip (segundos)</span>
+            <input type="number" [min]="LIMITES['clip_segundos'].min" [max]="LIMITES['clip_segundos'].max"
+                   [value]="c.clip_segundos" [class.invalido]="fueraDeRango('clip_segundos')"
+                   (input)="numero('clip_segundos', $any($event.target).value)" /></label>
+        </div>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.capturas_inteligentes" (change)="set('capturas_inteligentes', $any($event.target).checked)" />
+          <span><strong>Pantallazos inteligentes</strong><small>Solo guarda la pantalla cuando cambia (una diapositiva nueva, un documento compartido).</small></span>
+        </label>
+        <label class="interruptor">
+          <input type="checkbox" [checked]="c.clips_automaticos" (change)="set('clips_automaticos', $any($event.target).checked)" />
+          <span><strong>Clips automáticos</strong><small>La IA guarda un clip de cada momento importante que detecta.</small></span>
+        </label>
+      </fieldset>
+
+      <!-- IA -->
+      <fieldset class="seccion">
+        <legend><mat-icon>auto_awesome</mat-icon> Notas con IA</legend>
+        <label class="campo"><span>Actualizar notas cada (segundos)</span>
+          <input type="number" [min]="LIMITES['notas_cada_seg'].min" [max]="LIMITES['notas_cada_seg'].max"
+                 [value]="c.notas_cada_seg" [class.invalido]="fueraDeRango('notas_cada_seg')"
+                 (input)="numero('notas_cada_seg', $any($event.target).value)" /></label>
+        <label class="campo"><span>Instrucciones para la IA (opcional)</span>
+          <textarea rows="4" maxlength="2000" [value]="c.instrucciones_ia ?? ''" (input)="set('instrucciones_ia', $any($event.target).value)"
+                    placeholder="Enfócate en requisitos y fechas. Llama a los compromisos por el nombre de la persona."></textarea>
+        </label>
+      </fieldset>
+
+      <!-- Salida -->
+      <fieldset class="seccion">
+        <legend><mat-icon>logout</mat-icon> Cuándo sale</legend>
+        <div class="rejilla">
+          <label class="campo"><span>Salir si queda solo (minutos)</span>
+            <input type="number" [min]="LIMITES['salir_si_solo_min'].min" [max]="LIMITES['salir_si_solo_min'].max"
+                   [value]="c.salir_si_solo_min" [class.invalido]="fueraDeRango('salir_si_solo_min')"
+                   (input)="numero('salir_si_solo_min', $any($event.target).value)" /></label>
+          <label class="campo"><span>Duración máxima (minutos)</span>
+            <input type="number" [min]="LIMITES['duracion_max_min'].min" [max]="LIMITES['duracion_max_min'].max"
+                   [value]="c.duracion_max_min" [class.invalido]="fueraDeRango('duracion_max_min')"
+                   (input)="numero('duracion_max_min', $any($event.target).value)" /></label>
+          <label class="campo"><span>Espera máxima en la sala de espera (minutos)</span>
+            <input type="number" [min]="LIMITES['sala_espera_max_min'].min" [max]="LIMITES['sala_espera_max_min'].max"
+                   [value]="c.sala_espera_max_min" [class.invalido]="fueraDeRango('sala_espera_max_min')"
+                   (input)="numero('sala_espera_max_min', $any($event.target).value)" /></label>
+        </div>
+      </fieldset>
+
+      <!-- Privacidad -->
+      <fieldset class="seccion">
+        <legend><mat-icon>lock</mat-icon> Privacidad</legend>
+        <div class="opciones">
+          <label><input type="radio" name="conf" [checked]="c.confidencialidad === 'INTERNA'" (change)="set('confidencialidad', 'INTERNA')" />
+            <span><strong>Interna</strong> — la reunión grabada la ve quien tenga permiso en el módulo de Reuniones</span></label>
+          <label><input type="radio" name="conf" [checked]="c.confidencialidad === 'RESTRINGIDA'" (change)="set('confidencialidad', 'RESTRINGIDA')" />
+            <span><strong>Restringida</strong> — solo tú y a quien le des acceso</span></label>
+        </div>
+        <small class="ayuda">La sala en vivo y el chat con la IA son siempre solo tuyos.</small>
+      </fieldset>
+
+      <div class="barra">
+        @if (c.actualizado_en && !sucio()) { <span class="tc">Guardado {{ fechaHora(c.actualizado_en) }}</span> }
+        @if (guardado()) { <span class="tono" data-tono="ok"><mat-icon>check</mat-icon>Cambios guardados</span> }
+        @if (errorGuardar()) { <span class="error">{{ errorGuardar() }}</span> }
+        <button type="submit" class="btn primario" [disabled]="!valido() || guardando() || !sucio()">
+          <mat-icon>save</mat-icon> {{ guardando() ? 'Guardando…' : 'Guardar' }}</button>
+      </div>
+    </form>
+  }
+</section>

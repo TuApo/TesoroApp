@@ -1,0 +1,261 @@
+<div class="pagina">
+  <!-- ── Arriba: vitrina + su cuenta ─────────────────────────────────── -->
+  <section class="arriba">
+    <div class="vitrina">
+      @if (banners().length) {
+        <eco-carrusel [diapositivas]="banners()" (abrir)="abrirBanner($event)" />
+      } @else if (cargando()) {
+        <div class="esqueleto banner-esq"></div>
+      }
+    </div>
+
+    <aside class="cuenta">
+      <div class="saludo">
+        <span class="avatar">{{ (usuario.primerNombre || '?').charAt(0) }}</span>
+        <div>
+          <small>{{ saludo }}</small>
+          <b>{{ usuario.primerNombre || 'Bienvenido' }}</b>
+        </div>
+      </div>
+
+      <a class="cupo" routerLink="/economiapp/cuenta">
+        @if (store.motivoSinCupo()) {
+          <span class="cupo-titulo"><mat-icon>account_balance_wallet</mat-icon> Su bono mercado</span>
+          <b class="cupo-sin">{{ store.motivoSinCupo() }}</b>
+          <small>Puede comprar y pagar en efectivo.</small>
+        } @else {
+          <span class="cupo-titulo"><mat-icon>account_balance_wallet</mat-icon> Bono mercado disponible</span>
+          <b class="cupo-valor">{{ pesos(store.cupo()?.disponible) }}</b>
+          <small>{{ (store.cupo()?.comprometido ?? 0) > 0 ? pesos(store.cupo()?.comprometido) + ' apartados en pedidos' : 'Se descuenta solo cuando le entregan' }}</small>
+        }
+        <mat-icon class="cupo-ir">chevron_right</mat-icon>
+      </a>
+
+      <nav class="atajos" aria-label="Accesos rápidos">
+        <a routerLink="/economiapp/pedidos">
+          <span class="atajo-icono" style="--h: 210"><mat-icon>receipt_long</mat-icon>
+            @if (store.modulos().pedidosAccion) { <i class="atajo-badge">{{ store.modulos().pedidosAccion }}</i> }
+            @else if (store.modulos().pedidos) { <i class="atajo-badge info">{{ store.modulos().pedidos }}</i> }</span>
+          <span>Pedidos</span>
+        </a>
+        <a routerLink="/economiapp/explorar" [queryParams]="{ ver: 'encargo' }">
+          <span class="atajo-icono" style="--h: 35"><mat-icon>local_shipping</mat-icon>
+            @if (store.modulos().encargos) { <i class="atajo-badge info">{{ store.modulos().encargos }}</i> }</span><span>Encargos</span>
+        </a>
+        <a routerLink="/economiapp/explorar" [queryParams]="{ ver: 'hoy' }">
+          <span class="atajo-icono" style="--h: 150"><mat-icon>bolt</mat-icon></span><span>Para hoy</span>
+        </a>
+        <a routerLink="/economiapp/cuenta">
+          <span class="atajo-icono" style="--h: 275"><mat-icon>person</mat-icon>
+            @if (store.modulos().cuentaAlerta) { <i class="atajo-badge">!</i> }</span><span>Mi cuenta</span>
+        </a>
+      </nav>
+    </aside>
+  </section>
+
+  @if (store.inicio()?.sin_tienda_asignada) {
+    <p class="aviso warn">
+      <mat-icon>info</mat-icon>
+      <span>Su oficina{{ store.inicio()?.oficina ? ' (' + store.inicio()?.oficina + ')' : '' }} todavía no tiene tienda
+        asignada: está viendo <b>{{ store.tienda()?.nombre }}</b>. Puede cambiarla arriba.</span>
+    </p>
+  }
+
+  <!-- ── Pedido en curso ──────────────────────────────────────────────── -->
+  @for (d of enCurso(); track d.pedido.id) {
+    <a class="seguimiento" [routerLink]="['/economiapp/pedidos', d.pedido.id]">
+      <span class="seg-icono"><mat-icon>{{ ESTADO[d.pedido.estado]?.icono || 'local_mall' }}</mat-icon></span>
+      <span class="seg-texto">
+        <b>{{ ESTADO[d.pedido.estado]?.texto || d.pedido.estado }}</b>
+        <small>Pedido {{ d.pedido.numero }} · {{ pesos(d.pedido.total) }}</small>
+        <span class="seg-barra"><span [style.width.%]="avance(d.pedido.estado)"></span></span>
+      </span>
+      <mat-icon>chevron_right</mat-icon>
+    </a>
+  }
+
+  <!-- ── Premios por puntos ────────────────────────────────────────────── -->
+  <a class="premios-promo" routerLink="/economiapp/premios" [class.halloween]="temporada.clave() === 'halloween'">
+    <span class="pr-moneda"><mat-icon>stars</mat-icon></span>
+    <span class="pr-texto">
+      <small>Sus puntos</small>
+      <b>{{ (store.puntos()?.saldo ?? 0).toLocaleString('es-CO') }} pts · {{ store.puntos()?.nivel?.nombre || 'Bronce' }}</b>
+      <span>@if (store.puntos()?.racha) { 🔥 Racha de {{ store.puntos()?.racha }} días · } Gane girando la ruleta, jugando y comprando. ¡Canjee perros, belleza, hogar y hasta una bicicleta!</span>
+    </span>
+    <span class="pr-cta">Premios <mat-icon>chevron_right</mat-icon></span>
+  </a>
+
+  <!-- ── Ruleta del día y torneo semanal ─────────────────────────────── -->
+  <div class="juegos-promo">
+    <button type="button" class="jp jp-ruleta" (click)="store.ruletaAbierta.set(true)" [class.lista]="!store.ruleta()?.girada_hoy">
+      <span class="jp-emoji">🎡</span>
+      <span class="jp-texto"><b>Ruleta del día</b><small>{{ store.ruleta()?.girada_hoy ? 'Mañana tiene otro giro' : '¡Gire ya! Puntos, perros y premios' }}</small></span>
+    </button>
+    <a class="jp jp-torneo" routerLink="/economiapp/juegos">
+      <span class="jp-emoji">🏆</span>
+      <span class="jp-texto"><b>Juegos y torneo</b><small>El podio del domingo gana hasta 300 pts</small></span>
+    </a>
+  </div>
+
+  <!-- ── Vitrinas especiales ──────────────────────────────────────────── -->
+  @if (vitrinasDestacadas().length) {
+    <section class="vitrinas-promo" aria-label="Vitrinas especiales">
+      @for (x of vitrinasDestacadas(); track x.v.slug) {
+        <a class="vit-promo" [routerLink]="['/economiapp/vitrina', x.v.slug]" [style.--vf]="x.v.tema.fondo" [style.--va]="x.v.tema.acento" [style.--vt]="x.v.tema.acentoTinta">
+          <img [src]="x.v.carrusel.chico" [attr.srcset]="x.v.carrusel.chico + ' 900w, ' + x.v.carrusel.grande + ' 1600w'" sizes="(max-width: 700px) 86vw, 640px" alt="" loading="lazy" decoding="async" />
+          <span class="vit-texto">
+            <i>{{ x.v.nombre }}</i>
+            <b>{{ x.v.promo.titulo }}</b>
+            <small>{{ x.v.promo.texto }}</small>
+            <span class="vit-cta">Entrar <mat-icon>arrow_forward</mat-icon></span>
+          </span>
+        </a>
+      }
+    </section>
+  }
+
+  <!-- ── Categorías ───────────────────────────────────────────────────── -->
+  <section class="seccion">
+    <div class="seccion-cabeza">
+      <h2>Explore por categoría</h2>
+      <a class="enlace" routerLink="/economiapp/explorar">Ver todo</a>
+    </div>
+    <div class="categorias">
+      @if (ofertas().length || store.promociones().length) {
+        <a class="cat especial" routerLink="/economiapp/explorar" [queryParams]="{ ver: 'ofertas' }">
+          <span class="cat-icono oferta"><mat-icon>local_offer</mat-icon></span><span>Ofertas</span>
+        </a>
+      }
+      @for (c of store.familias(); track c.id) {
+        @if (store.vitrinaDe(c); as v) {
+          <a class="cat especial-vitrina" [routerLink]="['/economiapp/vitrina', v.slug]" [attr.title]="c.descripcion || c.nombre" [style.--vf]="v.tema.fondo">
+            <span class="cat-icono foto"><img [src]="v.miniatura" alt="" loading="lazy" decoding="async" /></span>
+            <span>{{ c.nombre }}</span>
+          </a>
+        } @else {
+        <a class="cat" routerLink="/economiapp/explorar" [queryParams]="{ categoria: c.id }" [attr.title]="c.descripcion || c.nombre">
+          <span class="cat-icono" [style.--h]="tono(c.nombre)">
+            @if (c.imagen) { <eco-imagen [doc]="c.imagen" [nombre]="c.nombre" [icono]="icono(c.nombre, c.icono)" /> }
+            @else { <mat-icon>{{ icono(c.nombre, c.icono) }}</mat-icon> }
+          </span>
+          <span>{{ c.nombre }}</span>
+        </a>
+        }
+      }
+    </div>
+  </section>
+
+  <!-- ── Publicidad destacada (800×800) ──────────────────────────────── -->
+  @if (destacados().length) {
+    <section class="seccion">
+      <div class="seccion-cabeza"><h2>Para usted</h2></div>
+      <div class="riel destacados">
+        @for (b of destacados(); track b.id) {
+          <button type="button" class="destacado" (click)="abrirPublicacion(b)">
+            <eco-imagen [doc]="b.imagen_doc_id" [nombre]="b.titulo || ''" icono="local_offer" />
+            @if (b.titulo) { <span class="dest-texto"><b>{{ b.titulo }}</b>@if (b.subtitulo) {<small>{{ b.subtitulo }}</small>}</span> }
+          </button>
+        }
+      </div>
+    </section>
+  }
+
+  @if (cargando()) {
+    <div class="riel">
+      @for (i of [1,2,3,4,5,6]; track i) { <div class="esqueleto"></div> }
+    </div>
+  } @else if (error()) {
+    <div class="estado-vacio">
+      <mat-icon>cloud_off</mat-icon>
+      <p>{{ error() }}</p>
+      <button type="button" class="eco-btn" (click)="store.elegirTienda(store.tiendaId())">Reintentar</button>
+    </div>
+  } @else {
+    <!-- ── Ofertas ────────────────────────────────────────────────────── -->
+    @if (ofertas().length) {
+      <section class="seccion bloque-color ofertas">
+        <div class="seccion-cabeza">
+          <div><h2><mat-icon class="tit-icono">local_offer</mat-icon> Ofertas de la semana</h2>
+            <p>El descuento ya está en el precio y se aplica al confirmar.</p></div>
+          <a class="enlace" routerLink="/economiapp/explorar" [queryParams]="{ ver: 'ofertas' }">Ver todas</a>
+        </div>
+        <div class="riel">
+          @for (a of ofertas(); track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" /> }
+        </div>
+      </section>
+    }
+
+    <!-- ── Combos ─────────────────────────────────────────────────────── -->
+    @if (kits().length) {
+      <section class="seccion">
+        <div class="seccion-cabeza"><div><h2><mat-icon class="tit-icono kit">redeem</mat-icon> Combos</h2>
+          <p>Todo lo que necesita en un solo clic.</p></div></div>
+        <div class="riel kits">
+          @for (k of kits(); track k.id) {
+            <a class="kit" [routerLink]="['/economiapp/combo', k.id]">
+              <span class="kit-foto"><eco-imagen [doc]="k.imagen" [nombre]="k.nombre" icono="redeem" /></span>
+              <span class="kit-texto"><b>{{ k.nombre }}</b><small>{{ k.componentes.length }} productos · {{ pesos(k.total) }}</small></span>
+            </a>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── Hoy en su tienda ──────────────────────────────────────────── -->
+    <section class="seccion">
+      <div class="seccion-cabeza">
+        <div>
+          <h2><mat-icon class="tit-icono hoy">bolt</mat-icon> Hoy en {{ store.modoOficina() && !store.soloTienda() ? 'su oficina' : store.tienda()?.nombre }}</h2>
+          <p>Hay en la tienda: lo aparta y lo recoge hoy mismo, o se lo llevan.</p>
+        </div>
+        @if (hoy().length > 6) { <a class="enlace" routerLink="/economiapp/explorar" [queryParams]="{ ver: 'hoy' }">Ver todo</a> }
+      </div>
+      @if (hoy().length) {
+        <div class="riel">
+          @for (a of hoy(); track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" /> }
+        </div>
+      } @else {
+        <p class="muted vacio-linea">Esta tienda no tiene existencias publicadas en este momento.</p>
+      }
+    </section>
+
+    <!-- ── Catálogo global, por categoría ───────────────────────────── -->
+    @if (globales().length) {
+      <section class="global">
+        <header class="global-cabeza">
+          <span class="global-icono"><mat-icon>public</mat-icon></span>
+          <div>
+            <h2>Catálogo global</h2>
+            <p>Celulares, tecnología y más. Lo encarga hoy y le llega a {{ store.tienda()?.nombre }}; cada producto dice en cuántos días.</p>
+          </div>
+        </header>
+        <div class="filtros global-tabs" role="tablist" aria-label="Categorías del catálogo global">
+          <button type="button" role="tab" class="eco-filtro" [class.activo]="!globalSel()" (click)="globalSel.set('')">
+            <mat-icon>apps</mat-icon> Todo <i>{{ encargo().length }}</i>
+          </button>
+          @for (g of globales(); track g.nombre) {
+            <button type="button" role="tab" class="eco-filtro" [class.activo]="globalSel() === (g.categoria?.id ?? 'otros')"
+                    (click)="globalSel.set(g.categoria?.id ?? 'otros')">
+              <mat-icon>{{ icono(g.nombre, g.categoria?.icono ?? null) }}</mat-icon> {{ g.nombre }}
+              @if (g.dias) { <i>{{ g.dias }} d</i> }
+            </button>
+          }
+        </div>
+        <div class="riel">
+          @for (a of globalVisibles(); track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" /> }
+        </div>
+        <a class="eco-btn secundario ver-global" routerLink="/economiapp/explorar" [queryParams]="globalSel() && globalSel() !== 'otros' ? { categoria: globalSel() } : { ver: 'encargo' }">
+          Ver todo el catálogo global <mat-icon>arrow_forward</mat-icon>
+        </a>
+      </section>
+    }
+  }
+
+  <!-- ── Confianza ─────────────────────────────────────────────────────── -->
+  <section class="confianza">
+    <div><mat-icon>lock_clock</mat-icon><span><b>Aparta sin pagar</b><small>Su bono mercado se reserva; se descuenta al entregar.</small></span></div>
+    <div><mat-icon>two_wheeler</mat-icon><span><b>Recoge o domicilio</b><small>En la tienda, su oficina o su casa.</small></span></div>
+    <div><mat-icon>verified_user</mat-icon><span><b>Compra segura</b><small>Nadie puede pedir a su nombre.</small></span></div>
+    <div><mat-icon>undo</mat-icon><span><b>Cancela sin costo</b><small>Antes de que lo alisten, el bono mercado vuelve.</small></span></div>
+  </section>
+</div>

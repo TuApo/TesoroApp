@@ -1,0 +1,148 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>local_shipping</mat-icon> Rutas de entrega</h1>
+      <p class="tienda-subtitulo">Pedidos listos para despachar y el seguimiento en vivo de cada repartidor.</p>
+    </div>
+    <div class="cabeza-acciones">
+      <app-selector-tienda />
+      <a class="boton secundario" routerLink="/dashboard/tienda/domicilios"><mat-icon>two_wheeler</mat-icon> Soy domiciliario</a>
+    </div>
+  </div>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  <div class="rejilla" [class.con-detalle]="sel()">
+    <div class="columna">
+      <section class="tienda-tarjeta">
+        <h2><mat-icon>two_wheeler</mat-icon> Domiciliarios <span class="cuenta">{{ conectados() }} conectados</span></h2>
+        @if (!equipo().length) {
+          <p class="muted">Ningún domiciliario ha entrado aún a <b>Domicilios</b>. Asigne el rol DOMICILIARIO en usuarios.</p>
+        } @else {
+          <ul class="equipo">
+            @for (r of equipo(); track r.usuario_id) {
+              <li [class.off]="!+r.disponible" [class.suspendido]="!+r.activo">
+                <span class="punto" [class.on]="+r.disponible && +r.activo"></span>
+                <div>
+                  <b>{{ r.nombre || r.cedula }}</b>
+                  <small>{{ r.vehiculo ? (r.vehiculo === 'A_PIE' ? 'a pie' : r.vehiculo.toLowerCase()) : '' }}{{ r.placa ? ' · ' + r.placa : '' }}{{ r.telefono ? ' · ' + r.telefono : '' }}</small>
+                  <small>
+                    @if (!+r.activo) { Suspendido }
+                    @else if (r.ruta_activa) { {{ r.ruta_estado === 'EN_CURSO' ? 'En la calle' : 'Recogiendo' }} · {{ r.ruta_activa }} }
+                    @else { {{ +r.disponible ? 'Disponible' : 'Desconectado' }} }
+                    · {{ r.entregados_hoy }} hoy @if (r.ultima_posicion_en) { · GPS {{ hace(r.ultima_posicion_en) }} }
+                    @if (+(r.papeles_pendientes ?? 0)) { · <b class="warn">{{ r.papeles_pendientes }} formato{{ +(r.papeles_pendientes ?? 0) === 1 ? '' : 's' }} por entregar</b> }
+                  </small>
+                </div>
+                @if (ctx.esSuperAdmin()) {
+                  <div class="eq-acciones">
+                    <label title="Pedidos a la vez"><mat-icon>layers</mat-icon>
+                      <input type="number" min="1" max="30" [ngModel]="r.max_pedidos" (change)="ajustar(r, { max_pedidos: +$any($event.target).value })" /></label>
+                    <button type="button" class="icono" (click)="ajustar(r, { activo: !+r.activo })" [attr.aria-label]="+r.activo ? 'Suspender' : 'Activar'">
+                      <mat-icon>{{ +r.activo ? 'person_off' : 'person_add' }}</mat-icon></button>
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="tienda-tarjeta">
+        <h2><mat-icon>inventory</mat-icon> En la bolsa, sin domiciliario <span class="cuenta">{{ porDespachar().length }}</span></h2>
+        @if (!porDespachar().length) {
+          <p class="muted">No hay pedidos a domicilio listos esperando repartidor.</p>
+        } @else {
+          <ul class="despachar">
+            @for (p of porDespachar(); track p.id) {
+              <li>
+                <div>
+                  <b>{{ p.numero }}</b> <small>{{ p.cliente_nombre }}</small>
+                  <span>{{ p.direccion_texto }}</span>
+                  @if (p.latitud == null) { <small class="warn">Sin ubicación</small> }
+                  @if (!p.etiqueta_impresa_en) { <small class="warn">Sticker sin imprimir</small> }
+                </div>
+                <a class="boton secundario" [routerLink]="['/dashboard/tienda/alistar', p.id]" aria-label="Sticker"><mat-icon>print</mat-icon></a>
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <section class="tienda-tarjeta">
+        <div class="lista-cabeza">
+          <h2><mat-icon>route</mat-icon> Rutas</h2>
+          <div class="segmentos">
+            @for (f of ['ACTIVAS', 'HOY', 'TODAS']; track f) {
+              <button type="button" [class.activo]="filtro() === f" (click)="filtro.set($any(f))">{{ f === 'ACTIVAS' ? 'Activas' : f === 'HOY' ? 'Hoy' : 'Todas' }}</button>
+            }
+          </div>
+        </div>
+        @if (!rutas().length) {
+          <p class="muted">{{ cargando() ? 'Cargando…' : 'No hay rutas.' }}</p>
+        }
+        <ul class="rutas">
+          @for (r of rutas(); track r.id) {
+            <li [class.activa]="sel()?.id === r.id" (click)="abrir(r.id)">
+              <div class="r-fila">
+                <b>{{ r.repartidor_nombre || 'Sin repartidor' }}</b>
+                <span class="insignia" [class]="'insignia e-' + r.estado.toLowerCase()">{{ estadoTexto(r.estado) }}</span>
+              </div>
+              <small>{{ r.numero }} · {{ r.tienda }} · {{ utc(r.creado_en) | date:'short' }}@if (+(r.por_recoger || 0)) { · <span class="warn">{{ r.por_recoger }} por recoger</span> }</small>
+              <div class="barra"><span [style.width.%]="r.paradas ? ((+(r.entregadas || 0) + +(r.fallidas || 0)) / r.paradas * 100) : 0"></span></div>
+              <small>{{ +(r.entregadas || 0) }}/{{ r.paradas }} entregados @if (+(r.fallidas || 0)) { · {{ r.fallidas }} sin entregar } @if (r.estado === 'EN_CURSO') { · GPS {{ hace(r.ultima_posicion_en) }} }</small>
+            </li>
+          }
+        </ul>
+      </section>
+    </div>
+
+    @if (sel(); as r) {
+      <section class="tienda-tarjeta detalle">
+        <div class="lista-cabeza">
+          <button type="button" class="atras-movil" (click)="sel.set(null)"><mat-icon>arrow_back</mat-icon></button>
+          <div class="det-titulo">
+            <h2>{{ r.repartidor_nombre }} <small>{{ r.numero }}</small></h2>
+            <small>{{ estadoTexto(r.estado) }} · {{ r.paradas.length }} paradas
+              @if (r.distancia_km) { · ~{{ +r.distancia_km | number:'1.0-1' }} km · ~{{ r.minutos_estimados }} min }
+              @if (r.iniciada_en) { · salió {{ r.iniciada_en | date:'shortTime' }} }
+            </small>
+          </div>
+          @if (r.estado === 'CARGANDO') { <button type="button" class="boton peligro" (click)="cancelar()">Cancelar</button> }
+        </div>
+        <div class="barra grande"><span [style.width.%]="avance()"></span></div>
+        @if (sinPosicionReciente()) { <p class="warn"><mat-icon>gps_off</mat-icon> Sin posición del GPS hace más de 5 minutos.</p> }
+        <eco-mapa [puntos]="puntos()" [trazo]="trazo()" [unir]="true" [alto]="380" />
+        <ol class="paradas">
+          @for (p of r.paradas; track p.pedido_id; let i = $index) {
+            <li [class]="p.estado.toLowerCase()">
+              <span class="orden">{{ i + 1 }}</span>
+              <div class="pa-datos">
+                <b>{{ p.cliente_nombre }} <small>{{ p.numero }}</small></b>
+                <span>{{ p.direccion_texto }}</span>
+                @if (p.nota) { <small>{{ p.nota }}</small> }
+                @if (p.hora_confirmada_en) { <small>Hora acordada: {{ franja(p) }}</small> } @else if (p.estado === 'CARGADO') { <small class="warn">Hora sin confirmar</small> }
+              </div>
+              <div class="pa-lado">
+                @if (p.estado === 'ENTREGADO') { <span class="insignia e-finalizada">Entregado {{ p.entregado_en | date:'shortTime' }}</span> }
+                @else if (p.estado === 'FALLIDO') { <span class="insignia peligro">No entregado</span> }
+                @else { <span class="insignia">Pendiente</span> }
+                @if (+p.por_cobrar > 0 && p.estado === 'CARGADO') { <small class="cobrar">{{ pesos(p.por_cobrar) }}</small> }
+                <button type="button" class="icono" (click)="casoDe.set(p.pedido_id)" aria-label="Caso del pedido"><mat-icon>manage_search</mat-icon>
+                  @if (+(p.casos_abiertos ?? 0)) { <b class="rojo">{{ p.casos_abiertos }}</b> }</button>
+              </div>
+            </li>
+          }
+        </ol>
+      </section>
+    }
+  </div>
+</div>
+
+@if (casoDe(); as id) {
+  <div class="capa-caso" (click)="casoDe.set(null)">
+    <div class="capa-cuerpo" (click)="$event.stopPropagation()">
+      <app-caso-pedido [pedidoId]="id" (cerrar)="casoDe.set(null)" />
+    </div>
+  </div>
+}

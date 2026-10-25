@@ -72,6 +72,7 @@ export class TareasShellComponent {
 
   readonly secciones: Seccion[] = [
     { ruta: 'mis-tareas', etiqueta: 'Mis tareas', icono: 'checklist' },
+    { ruta: 'bandeja', etiqueta: 'Bandeja', icono: 'forum' },
     { ruta: 'tableros', etiqueta: 'Tableros', icono: 'view_kanban' },
     // La mesa de soporte solo para quien puede leer el módulo de tickets.
     ...(inject(PermissionsService).canReadRoute(RUTA_TICKETS) ? [{ ruta: 'soporte', etiqueta: 'Mesa de soporte', icono: 'support_agent' }] : []),

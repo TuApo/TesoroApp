@@ -172,6 +172,44 @@ export interface CandidatoUpsertResponse {
 
 
 // ===== Listado y filtros generales =====
+/** Respuesta de /biometria/cotejo-cedula (ms-hr, contratacion/cotejo). */
+export interface CotejoHuellaCedula {
+  ok: boolean;
+  id: number;
+  /** SIN_REFERENCIA (y, en filas viejas, SIN_HUELLA_EN_CEDULA / SIN_CEDULA) llegan con `mostrar: false`. */
+  resultado: 'COINCIDE' | 'NO_CONFIRMADO' | 'SIN_HUELLA_LECTOR' | 'ERROR'
+    | 'SIN_REFERENCIA' | 'SIN_HUELLA_EN_CEDULA' | 'SIN_CEDULA';
+  coincide: boolean;
+  /**
+   * Lo decide el backend: false cuando no hubo contra qué comparar (ni cédula con huella ni
+   * huella de una contratación anterior). Entonces la tarjeta no pinta nada.
+   * Ausente en un backend anterior: se trata como true.
+   */
+  mostrar?: boolean;
+  /** Contra qué se cotejó: la cédula o la huella de una contratación anterior. */
+  origen_referencia?: 'CEDULA' | 'HUELLA_ANTERIOR' | 'NINGUNA' | null;
+  /** Con HUELLA_ANTERIOR: cuándo se tomó esa huella. */
+  referencia_fecha?: string | null;
+  /** Empresa de la huella de referencia; hoy el backend no la conoce y llega null. */
+  referencia_empresa?: string | null;
+  /**
+   * Solo en el GET: después de este cotejo se capturó otra huella para esa empresa o se cargó
+   * otra cédula. Se muestra el resultado con el aviso de volver a cotejar; no se coteja solo.
+   */
+  desactualizado?: boolean;
+  mensaje: string;
+  detalle: string | null;
+  puntaje: number | null;
+  umbral: number | null;
+  empresa: string | null;
+  usuario: string | null;
+  created_at: string | null;
+  /** data:image/png;base64 de la referencia (recorte de la cédula o huella anterior); solo en el POST. */
+  imagen_referencia?: string | null;
+  /** Nombre antiguo: el recorte, solo cuando la referencia es la cédula. */
+  recorte_cedula?: string | null;
+}
+
 export interface ListOptions {
   page?: number;
   page_size?: number;
@@ -254,6 +292,8 @@ export interface ProcesoUpdateByDocumentRequest {
   vacante_fecha_prueba?: string | null;
   /** Dirección donde se cita a la persona. Se guarda en el proceso (V55). */
   vacante_direccion?: string | null;
+  /** Detalle del cargo de la vacante al que entra la persona. Informativo (V61). */
+  vacante_detalle_cargo?: string | null;
 
   // ✅ nuevos
   contratado?: boolean;
@@ -414,9 +454,40 @@ export interface CandidatoRecienteItem {
 export type RangoFechas = { start: string | Date; end: string | Date };
 
 /**
+ * Una persona de la vacante con detalle del cargo elegido (respuesta de
+ * /procesos/detalle-cargo-conteo/): alimenta el contador "va N de M" de la remisión.
+ * `descartado` = rechazado o no pasó / no se presentó a prueba o examen.
+ */
+export interface DetalleCargoConteoItem {
+  numero_documento: string | null;
+  vacante_detalle_cargo: string | null;
+  descartado: boolean;
+}
+
+/**
  * Candidato asignado a una vacante (respuesta de
  * /procesos/candidatos-por-vacante/). snake_case tal cual lo sirve el backend.
  */
+/**
+ * Un testigo del contrato, sellado por ms-hr (V64_3) al poner APLICA (seleccion) o al dar
+ * "Contratar" (contratacion): nombre, documento y la firma de SU cuenta (data URL o null).
+ */
+export interface TestigoContrato {
+  usuario_id: string;
+  nombre: string | null;
+  tipo_documento: string | null;
+  documento: string | null;
+  firma: string | null;
+  fecha: string | null;
+}
+
+/** GET /gestion_contratacion/procesos/{id}/testigos/. Null = nadie quedo sellado. */
+export interface TestigosContrato {
+  proceso_id: number;
+  seleccion: TestigoContrato | null;
+  contratacion: TestigoContrato | null;
+}
+
 export interface CandidatoPorVacanteItem {
   proceso_id: number;
   tipo_doc: string | null;
@@ -1233,6 +1304,25 @@ export class RegistroProcesoContratacion {
       .pipe(this.handle$());
   }
 
+  /**
+   * Coteja la huella guardada de esa empresa contra la impresa en la cédula del
+   * expediente. Es un aviso: un resultado bajo no bloquea nada (ver CotejoHuella).
+   */
+  cotejarHuellaCedula(numero_documento: string | number, empresa: string) {
+    return this.http
+      .post<CotejoHuellaCedula>(this.url(`biometria/cotejo-cedula/${encodeURIComponent(String(numero_documento))}`),
+              null, { params: new HttpParams().set('empresa', empresa) })
+      .pipe(this.handle$());
+  }
+
+  /** Último cotejo guardado de esa empresa (sin imágenes); 404 si nunca se cotejó. */
+  ultimoCotejoHuellaCedula(numero_documento: string | number, empresa: string) {
+    return this.http
+      .get<CotejoHuellaCedula>(this.url(`biometria/cotejo-cedula/${encodeURIComponent(String(numero_documento))}`),
+              { params: new HttpParams().set('empresa', empresa) })
+      .pipe(this.handle$());
+  }
+
   uploadFoto(numero_documento: string | number, file: File) {
     return this.uploadBiometria('foto', numero_documento, file);
   }
@@ -1249,6 +1339,12 @@ export class RegistroProcesoContratacion {
   // =========================================================
   buildCandidatoPayload(f: any, proceso?: any) {
     const get = (a: string, b?: string) => (f?.[a] ?? (b ? f?.[b] : undefined));
+    // Texto/número opcional: vacío = no se manda, así el backend no pisa lo que
+    // la persona llenó en el formulario público cuando aquí no se tocó.
+    const opt = (a: string) => {
+      const v = f?.[a];
+      return v === null || v === undefined || String(v).trim() === '' ? undefined : v;
+    };
 
     // ===== Candidato base =====
     const candidatoBase = this.clean({
@@ -1262,6 +1358,7 @@ export class RegistroProcesoContratacion {
       fecha_nacimiento: this.toYYYYMMDD(get('fecha_nacimiento', 'fechaNacimiento')),
       estado_civil: get('estado_civil', 'estadoCivil'),
       rh: get('rh'),
+      zurdo_diestro: opt('zurdoDiestro'),
       nombreReferenciaFamiliar1: get('nombreReferenciaFamiliar1'),
       parentescoReferenciaFamiliar1: get('parentescoReferenciaFamiliar1'),
       nombreReferenciaFamiliar2: get('nombreReferenciaFamiliar2'),
@@ -1305,6 +1402,14 @@ export class RegistroProcesoContratacion {
       direccion: get('direccion_de_residencia', 'direccion'),
       barrio: get('barrio'),
       hace_cuanto_vive: get('hace_cuanto_vive', 'tiempoResidencia'),
+      lugar_anterior: opt('lugarAnterior'),
+      razon_mudanza: opt('razonMudanza'),
+      zonas_del_pais: opt('zonasDelPais'),
+      donde_le_gustaria_vivir: opt('dondeLeGustariaVivir'),
+      residencia_anterior_departamento: opt('resAnteriorDepartamento'),
+      residencia_anterior_municipio: opt('resAnteriorMunicipio'),
+      residencia_anterior_direccion: opt('resAnteriorDireccion'),
+      residencia_anterior_barrio: opt('resAnteriorBarrio'),
     });
 
     // ===== Vivienda =====
@@ -1313,6 +1418,11 @@ export class RegistroProcesoContratacion {
       personas_con_quien_convive: Array.isArray(personasVive) ? personasVive.join(', ') : personasVive,
       responsable_hijos: get('cuidadorHijos') ? String(get('cuidadorHijos')) : undefined,
       estudia_actualmente: typeof get('estudiaActualmente') === 'boolean' ? get('estudiaActualmente') : undefined,
+      tipo_vivienda: opt('tipoVivienda'),
+      caracteristicas_vivienda: opt('caracteristicasVivienda'),
+      num_habitaciones: opt('numHabitaciones'),
+      personas_por_habitacion: opt('personasPorHabitacion'),
+      servicios: opt('serviciosVivienda'),
     });
 
     // ===== Info CC =====
@@ -1364,13 +1474,17 @@ export class RegistroProcesoContratacion {
     // institución, el título, el año y el nivel de educación superior que la
     // persona había diligenciado en el formulario de la vacante: cada entrevista
     // guardada dejaba a los de "OTROS" con el grado y nada más.
+    // Solo un año de 4 cifras en rango (el mismo del validador de la entrevista):
+    // "30122020" llegó a guardarse y la ficha técnica lo imprimía tal cual.
     const anioFin = Number(get('anioFinalizacion'));
+    const anioFinValido = Number.isInteger(anioFin) && anioFin >= 1950
+      && anioFin <= new Date().getFullYear() + 10;
     const formaciones = get('nivel')
       ? [{
         nivel: get('nivel'),
         institucion: get('institucionEstudio') ?? get('institucion') ?? null,
         titulo_obtenido: get('tituloObtenido') ?? null,
-        anio_finalizacion: Number.isFinite(anioFin) && anioFin > 0 ? anioFin : null,
+        anio_finalizacion: anioFinValido ? anioFin : null,
         estudios_extra: get('estudiosExtra') ?? null,
       }]
       : undefined;
@@ -1410,6 +1524,23 @@ export class RegistroProcesoContratacion {
           primer_apellido: h?.primer_apellido || undefined,
           segundo_apellido: h?.segundo_apellido || undefined,
           sexo: h?.sexo || undefined,
+          // Resto del bloque de hijos del formulario de la vacante. Lo vacío no
+          // viaja (undefined), y el backend conserva del hijo con el mismo
+          // documento los grupos de datos de los que no llegó ninguna clave.
+          nombre: [h?.primer_nombre, h?.segundo_nombre, h?.primer_apellido, h?.segundo_apellido]
+            .map((x: any) => String(x ?? '').trim()).filter(Boolean).join(' ').toUpperCase() || undefined,
+          ocupacion: h?.ocupacion ? String(h.ocupacion).toUpperCase().trim() : undefined,
+          curso: h?.curso ? String(h.curso).toUpperCase().trim() : undefined,
+          vive_con_trabajador: h?.vive_con_trabajador || undefined,
+          tiene_discapacidad: h?.tiene_discapacidad || undefined,
+          cual_discapacidad: h?.cual_discapacidad ? String(h.cual_discapacidad).toUpperCase().trim() : undefined,
+          es_hijastro: h?.es_hijastro || undefined,
+          custodia_legal: h?.custodia_legal || undefined,
+          otro_padre_nombre: h?.otro_padre_nombre ? String(h.otro_padre_nombre).toUpperCase().trim() : undefined,
+          otro_padre_documento: h?.otro_padre_documento ? String(h.otro_padre_documento).trim() : undefined,
+          otro_padre_en_compania: h?.otro_padre_en_compania || undefined,
+          estudia_fundacion: h?.estudia_fundacion || undefined,
+          nivel_educativo: h?.nivel_educativo || undefined,
         })
       )
       .filter((h: any) => !!h.numero_de_documento && !!h.fecha_nac);
@@ -1471,6 +1602,7 @@ export class RegistroProcesoContratacion {
        porque_lo_felicitarian: get('felicitaciones'),
       malentendido: get('situacionConflictiva'),
       actividades_diarias: get('actividadesDiferentes'),
+      personas_a_cargo: opt('personasACargo'),
     });
 
     // ===== Referencias personales (lista) =====
@@ -1565,6 +1697,9 @@ export class RegistroProcesoContratacion {
       experiencia_resumen,
       formaciones,
       experiencias: experiencias.length ? experiencias : undefined,
+      // La lista vacía no viaja ("no tocar"); con esta marca el backend la toma
+      // como el estado entero y borra la última empresa que se quitó.
+      experiencias_completas: get('experiencias_completas') === true ? true : undefined,
       hijos: hijos.length ? hijos : undefined,
       referencias_personales: referencias_personales.length ? referencias_personales : undefined,
       conyuge,
@@ -1749,6 +1884,28 @@ export class RegistroProcesoContratacion {
     const params = new HttpParams().set('publicacion', String(publicacionId));
     return this.http
       .get<CandidatoPorVacanteItem[]>(this.url('procesos/candidatos-por-vacante'), { params })
+      .pipe(this.handle$());
+  }
+
+  /**
+   * GET /gestion_contratacion/procesos/{id}/testigos/
+   * Testigo 1 (quien puso APLICA) y testigo 2 (quien dio "Contratar") del contrato del proceso.
+   */
+  getTestigosProceso(procesoId: number | string): Observable<TestigosContrato> {
+    return this.http
+      .get<TestigosContrato>(this.url(`procesos/${procesoId}/testigos`))
+      .pipe(this.handle$());
+  }
+
+  /**
+   * GET /gestion_contratacion/procesos/detalle-cargo-conteo/?publicacion=<id>
+   * Quién de la vacante va en cada detalle del cargo (último proceso por persona).
+   * Solo lectura; lo usa el contador informativo de la remisión.
+   */
+  getDetalleCargoConteo(publicacionId: number | string): Observable<DetalleCargoConteoItem[]> {
+    const params = new HttpParams().set('publicacion', String(publicacionId));
+    return this.http
+      .get<DetalleCargoConteoItem[]>(this.url('procesos/detalle-cargo-conteo'), { params })
       .pipe(this.handle$());
   }
 

@@ -1,0 +1,354 @@
+<div class="pagina">
+  <header class="cabecera">
+    <div class="titulo">
+      <h1>Fincas y zonas</h1>
+      <p>
+        @if (admin()) { Ubicación, geocerca, coordinadores y cartel QR de cada finca. }
+        @else { Consulta de la parametrización. Solo administración puede cambiarla. }
+      </p>
+    </div>
+    @if (admin() && pestana() === 'fincas') {
+      <button type="button" class="boton" (click)="sincronizar()" [disabled]="trabajando()">
+        <mat-icon>sync</mat-icon> Traer fincas del directorio
+      </button>
+      <button type="button" class="boton primario" (click)="abrirNuevaFinca()">
+        <mat-icon>add_location_alt</mat-icon> Nueva finca
+      </button>
+    }
+    @if (admin() && pestana() === 'zonas') {
+      <button type="button" class="boton primario" (click)="abrirZona(null)"><mat-icon>add</mat-icon> Nueva zona</button>
+    }
+  </header>
+
+  <nav class="pestanas" aria-label="Secciones">
+    <button type="button" [class.activa]="pestana() === 'fincas'" (click)="pestana.set('fincas')">Fincas ({{ fincas().length }})</button>
+    <button type="button" [class.activa]="pestana() === 'zonas'" (click)="pestana.set('zonas')">Zonas ({{ zonas().length }})</button>
+  </nav>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.mal]="a.tipo === 'mal'" role="status">
+      <mat-icon>{{ a.tipo === 'ok' ? 'check_circle' : 'error' }}</mat-icon>
+      <span>{{ a.texto }}</span>
+      <button type="button" class="cerrar" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @if (error(); as e) {
+    <div class="tarjeta vacio">
+      <mat-icon>cloud_off</mat-icon>
+      <span>{{ e }}</span>
+      <button type="button" class="boton" (click)="cargar()"><mat-icon>refresh</mat-icon> Reintentar</button>
+    </div>
+  } @else if (pestana() === 'fincas') {
+    <div class="rejilla lateral" [class.con-sel]="seleccion()">
+      <!-- ─── Lista ─────────────────────────────────────────────────── -->
+      <section class="tarjeta col-lista">
+        <div class="barra">
+          <input class="buscador" type="search" placeholder="Buscar finca, clave o dirección"
+                 [ngModel]="texto()" (ngModelChange)="texto.set($event)" aria-label="Buscar finca" />
+        </div>
+        <div class="barra filtros">
+          <select class="selector" [ngModel]="filtroZona()" (ngModelChange)="filtroZona.set($event)" aria-label="Filtrar por zona">
+            <option value="">Todas las zonas</option>
+            <option value="sin">Sin zona</option>
+            @for (z of zonas(); track z.id) { <option [value]="'' + z.id">{{ z.nombre }}</option> }
+          </select>
+          <label class="interruptor"><input type="checkbox" [ngModel]="soloSinUbicar()" (ngModelChange)="soloSinUbicar.set($event)" />
+            Sin ubicar ({{ totalSinUbicar() }})</label>
+          <label class="interruptor"><input type="checkbox" [ngModel]="soloPropuesta()" (ngModelChange)="soloPropuesta.set($event)" />
+            Con propuesta ({{ totalPropuestas() }})</label>
+          <label class="interruptor"><input type="checkbox" [ngModel]="verInactivas()" (ngModelChange)="verInactivas.set($event)" />
+            Ver inactivas</label>
+        </div>
+        <div class="contador">
+          <span>{{ filtradas().length }} de {{ fincas().length }} fincas</span>
+          @if (zonaFiltrada() && admin()) {
+            <button type="button" class="boton chico" (click)="imprimirZona()" [disabled]="!!imprimiendoZona()">
+              <mat-icon>print</mat-icon> {{ imprimiendoZona() || 'Imprimir todos los QR de la zona' }}
+            </button>
+          }
+        </div>
+
+        @if (cargando() && !fincas().length) {
+          <div class="vacio"><mat-icon>hourglass_empty</mat-icon> Cargando fincas…</div>
+        } @else if (!filtradas().length) {
+          <div class="vacio">
+            <mat-icon>search_off</mat-icon>
+            @if (fincas().length) { Ninguna finca cumple los filtros. }
+            @else { Aún no hay fincas. @if (admin()) { Tráelas del directorio o crea una. } }
+          </div>
+        } @else {
+          <ul class="lista">
+            @for (f of filtradas(); track f.id) {
+              <li class="fila clic" [class.sel]="f.id === seleccionId()" [class.inactiva]="!f.activa"
+                  (click)="elegir(f)" (keydown.enter)="elegir(f)" tabindex="0">
+                <span class="color-zona" [style.background]="f.zona_color || 'var(--slate-400)'"></span>
+                <div class="cuerpo">
+                  <strong>{{ f.nombre }}</strong>
+                  <small>{{ f.zona_nombre || 'Sin zona' }} · {{ f.coordinadores.length }} coord. · {{ f.radio_m }} m</small>
+                </div>
+                @if (f.propuesta_lat != null) { <span class="chip aviso" title="Ubicación propuesta"><mat-icon>add_location</mat-icon></span> }
+                @if (f.lat == null || f.lon == null) { <span class="chip mal">Sin ubicar</span> }
+                @if (!f.activa) { <span class="chip">Inactiva</span> }
+              </li>
+            }
+          </ul>
+        }
+      </section>
+
+      <!-- ─── Detalle ───────────────────────────────────────────────── -->
+      <section class="col-detalle">
+        @if (seleccion(); as f) {
+          @if (form(); as v) {
+            <div class="tarjeta">
+              <div class="detalle-cab">
+                <button type="button" class="boton chico volver" (click)="cerrarFinca()" aria-label="Volver a la lista">
+                  <mat-icon>arrow_back</mat-icon>
+                </button>
+                <div class="cuerpo">
+                  <h2>{{ f.nombre }}</h2>
+                  <small class="tenue">Clave {{ f.clave }} · QR versión {{ f.qr_version }}
+                    @if (f.ubicacion_origen) { · ubicación: {{ f.ubicacion_origen }} }</small>
+                </div>
+                <button type="button" class="boton oscuro" (click)="abrirQr()" [disabled]="cargandoQr()">
+                  <mat-icon>qr_code_2</mat-icon> Cartel QR
+                </button>
+              </div>
+
+              @if (f.propuesta_lat != null) {
+                <div class="propuesta">
+                  <mat-icon>add_location</mat-icon>
+                  <span><b>{{ f.propuesta_por_nombre || 'Un coordinador' }}</b> propuso esta ubicación al marcar (círculo punteado naranja).</span>
+                  @if (admin()) {
+                    <button type="button" class="boton chico primario" (click)="aceptarPropuesta()" [disabled]="trabajando()">Aceptar propuesta</button>
+                  }
+                </div>
+              }
+
+              <div class="mapa-alto mapa-finca">
+                <app-mapa-campo [tilesUrl]="tiles()" [atribucion]="atribucion()" [marcadores]="marcadores()" [circulos]="circulos()"
+                                [vista]="vista()" [elegirPunto]="admin()"
+                                (clicMapa)="tocarMapa($event)" (clicMarcador)="tocarMarcador($event)" />
+              </div>
+              @if (admin()) {
+                <p class="ayuda">
+                  <mat-icon>touch_app</mat-icon>
+                  @if (v.lat == null) { Toca el mapa donde queda la entrada de la finca para ubicarla. }
+                  @else { Toca el mapa para mover el alfiler. El círculo es la geocerca de marcación. }
+                </p>
+              }
+
+              <div class="formulario dos">
+                <div class="campo">
+                  <label for="f-nombre">Nombre</label>
+                  <input id="f-nombre" [ngModel]="v.nombre" (ngModelChange)="poner('nombre', $event)" [disabled]="!admin()" />
+                </div>
+                <div class="campo">
+                  <label for="f-zona">Zona</label>
+                  <select id="f-zona" [ngModel]="v.zona_id" (ngModelChange)="poner('zona_id', $event)" [disabled]="!admin()">
+                    <option [ngValue]="null">Sin zona</option>
+                    @for (z of zonas(); track z.id) { <option [ngValue]="z.id">{{ z.nombre }}{{ z.activa ? '' : ' (inactiva)' }}</option> }
+                  </select>
+                </div>
+                <div class="campo">
+                  <label for="f-lat">Latitud</label>
+                  <input id="f-lat" type="number" step="0.000001" inputmode="decimal" [ngModel]="v.lat"
+                         (ngModelChange)="ponerCoordenada('lat', $event)" [disabled]="!admin()" />
+                </div>
+                <div class="campo">
+                  <label for="f-lon">Longitud</label>
+                  <input id="f-lon" type="number" step="0.000001" inputmode="decimal" [ngModel]="v.lon"
+                         (ngModelChange)="ponerCoordenada('lon', $event)" [disabled]="!admin()" />
+                </div>
+                <div class="campo radio">
+                  <label for="f-radio">Radio de la geocerca</label>
+                  <div class="radio-fila">
+                    <input id="f-radio" type="range" [min]="RADIO_MIN" [max]="RADIO_MAX" step="10" [ngModel]="v.radio_m"
+                           (ngModelChange)="ponerRadio($event)" [disabled]="!admin()" />
+                    <input type="number" class="radio-num" [min]="RADIO_MIN" [max]="RADIO_MAX" [ngModel]="v.radio_m"
+                           (change)="ponerRadio($any($event.target).value)" [disabled]="!admin()" aria-label="Radio en metros" />
+                    <span>m</span>
+                  </div>
+                </div>
+                <div class="campo">
+                  <label for="f-dir">Dirección o indicaciones</label>
+                  <input id="f-dir" [ngModel]="v.direccion" (ngModelChange)="poner('direccion', $event)" [disabled]="!admin()" />
+                </div>
+                <div class="campo ancho">
+                  <label for="f-notas">Notas</label>
+                  <textarea id="f-notas" [ngModel]="v.notas" (ngModelChange)="poner('notas', $event)" [disabled]="!admin()"></textarea>
+                </div>
+                <label class="interruptor ancho">
+                  <input type="checkbox" [ngModel]="v.activa" (ngModelChange)="poner('activa', $event)" [disabled]="!admin()" />
+                  Finca activa (las inactivas no aparecen para marcar)
+                </label>
+              </div>
+
+              @if (admin()) {
+                <div class="acciones-form">
+                  @if (v.lat != null) { <button type="button" class="boton chico" (click)="quitarUbicacion()">Quitar ubicación</button> }
+                  <span class="espacio"></span>
+                  <button type="button" class="boton" (click)="deshacer()" [disabled]="!cambios() || trabajando()">Deshacer</button>
+                  <button type="button" class="boton primario" (click)="guardar()" [disabled]="!cambios() || trabajando()">
+                    <mat-icon>save</mat-icon> Guardar
+                  </button>
+                </div>
+              }
+            </div>
+
+            <div class="tarjeta">
+              <h2><mat-icon>groups</mat-icon> Coordinadores asignados</h2>
+              @if (!f.coordinadores.length) { <p class="tenue">Ninguno todavía.</p> }
+              <div class="chips">
+                @for (c of f.coordinadores; track c.id) {
+                  <span class="chip persona">
+                    <span class="mini">{{ iniciales(c.nombre) }}</span> {{ c.nombre }}
+                    @if (admin()) {
+                      <button type="button" (click)="quitarCoordinador(c)" [disabled]="trabajando()" [attr.aria-label]="'Quitar a ' + c.nombre">
+                        <mat-icon>close</mat-icon>
+                      </button>
+                    }
+                  </span>
+                }
+              </div>
+              @if (admin()) {
+                <div class="agregar">
+                  <input class="buscador" type="search" placeholder="Agregar coordinador: escribe un nombre"
+                         [ngModel]="buscarCoord()" (ngModelChange)="escribirCoord($event)" aria-label="Buscar coordinador" />
+                  @if (buscarCoord().trim().length >= 2) {
+                    <ul class="lista resultados">
+                      @for (c of candidatos(); track c.id) {
+                        <li class="fila clic" (click)="agregarCoordinador(c)" (keydown.enter)="agregarCoordinador(c)" tabindex="0">
+                          <span class="avatar">{{ iniciales(c.nombre) }}</span>
+                          <div class="cuerpo"><strong>{{ c.nombre }}</strong>@if (c.detalle) { <small>{{ c.detalle }}</small> }</div>
+                          <mat-icon>person_add</mat-icon>
+                        </li>
+                      } @empty {
+                        <li class="tenue">{{ buscandoPlataforma() ? 'Buscando…' : 'Sin resultados' }}</li>
+                      }
+                    </ul>
+                  }
+                </div>
+              }
+            </div>
+          }
+        } @else {
+          <div class="tarjeta vacio solo-escritorio">
+            <mat-icon>agriculture</mat-icon>
+            Elige una finca para verla en el mapa{{ admin() ? ', ubicarla y asignar coordinadores' : '' }}.
+          </div>
+        }
+      </section>
+    </div>
+  } @else {
+    <!-- ─── Zonas ─────────────────────────────────────────────────────── -->
+    <section class="tarjeta">
+      @if (!zonas().length) {
+        <div class="vacio"><mat-icon>map</mat-icon> Aún no hay zonas. @if (admin()) { Crea la primera para agrupar fincas. }</div>
+      } @else {
+        <ul class="lista">
+          @for (z of zonas(); track z.id) {
+            <li class="fila" [class.clic]="admin()" [class.inactiva]="!z.activa"
+                (click)="admin() && abrirZona(z)" (keydown.enter)="admin() && abrirZona(z)" tabindex="0">
+              <span class="color-zona grande" [style.background]="z.color || '#2563EB'"></span>
+              <div class="cuerpo">
+                <strong>{{ z.nombre }}</strong>
+                <small>{{ z.sede || 'Sin sede' }}@if (z.descripcion) { · {{ z.descripcion }} }</small>
+              </div>
+              <span class="chip">{{ z.fincas }} fincas</span>
+              <span class="chip">{{ z.coordinadores }} coord.</span>
+              @if (!z.activa) { <span class="chip">Inactiva</span> }
+            </li>
+          }
+        </ul>
+      }
+    </section>
+  }
+</div>
+
+<!-- ─── Hoja: cartel QR ─────────────────────────────────────────────────── -->
+@if (cartel(); as c) {
+  <div class="panel-flotante" (click)="cartel.set(null)">
+    <div class="hoja cartel" (click)="$event.stopPropagation()" role="dialog" aria-label="Cartel QR">
+      <h3>{{ c.nombre }}</h3>
+      @if (c.zona) { <p class="tenue">{{ c.zona }}</p> }
+      <img [src]="c.imagen" [alt]="'QR de ' + c.nombre" />
+      <p class="instr">Escanea con la app TuApo al llegar y al salir</p>
+      <p class="tenue">Versión {{ c.version }} del QR. Si regeneras el QR, los carteles impresos dejan de servir.</p>
+      <div class="acciones">
+        @if (admin()) {
+          <button type="button" class="boton peligro" (click)="regenerarQr()" [disabled]="cargandoQr()"><mat-icon>autorenew</mat-icon> Regenerar QR</button>
+        }
+        <button type="button" class="boton" (click)="cartel.set(null)">Cerrar</button>
+        <button type="button" class="boton primario" (click)="imprimirCartel()"><mat-icon>print</mat-icon> Imprimir</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Hoja: nueva finca ───────────────────────────────────────────────── -->
+@if (nuevaFinca(); as n) {
+  <div class="panel-flotante" (click)="nuevaFinca.set(null)">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" aria-label="Nueva finca">
+      <h3>Nueva finca</h3>
+      <div class="formulario">
+        <div class="campo">
+          <label for="n-nombre">Nombre</label>
+          <input id="n-nombre" [ngModel]="n.nombre" (ngModelChange)="ponerNueva('nombre', $event)" (keydown.enter)="crearFinca()" />
+        </div>
+        <div class="campo">
+          <label for="n-zona">Zona</label>
+          <select id="n-zona" [ngModel]="n.zona_id" (ngModelChange)="ponerNueva('zona_id', $event)">
+            <option [ngValue]="null">Sin zona</option>
+            @for (z of zonas(); track z.id) { <option [ngValue]="z.id">{{ z.nombre }}</option> }
+          </select>
+        </div>
+      </div>
+      <p class="tenue">Después de crearla la ubicas tocando el mapa.</p>
+      <div class="acciones">
+        <button type="button" class="boton" (click)="nuevaFinca.set(null)">Cancelar</button>
+        <button type="button" class="boton primario" (click)="crearFinca()" [disabled]="trabajando() || !n.nombre.trim()">Crear finca</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Hoja: zona ──────────────────────────────────────────────────────── -->
+@if (formZona(); as z) {
+  <div class="panel-flotante" (click)="formZona.set(null)">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" aria-label="Zona">
+      <h3>{{ z.id == null ? 'Nueva zona' : 'Editar zona' }}</h3>
+      <div class="formulario dos">
+        <div class="campo">
+          <label for="z-nombre">Nombre</label>
+          <input id="z-nombre" [ngModel]="z.nombre" (ngModelChange)="ponerZona('nombre', $event)" />
+        </div>
+        <div class="campo">
+          <label for="z-color">Color en el mapa</label>
+          <input id="z-color" type="color" class="color" [ngModel]="z.color" (ngModelChange)="ponerZona('color', $event)" />
+        </div>
+        <div class="campo">
+          <label for="z-sede">Sede</label>
+          <input id="z-sede" [ngModel]="z.sede" (ngModelChange)="ponerZona('sede', $event)" />
+        </div>
+        <label class="interruptor">
+          <input type="checkbox" [ngModel]="z.activa" (ngModelChange)="ponerZona('activa', $event)" /> Zona activa
+        </label>
+        <div class="campo ancho">
+          <label for="z-desc">Descripción</label>
+          <textarea id="z-desc" [ngModel]="z.descripcion" (ngModelChange)="ponerZona('descripcion', $event)"></textarea>
+        </div>
+      </div>
+      <div class="acciones">
+        @if (z.id != null) {
+          @let zonaActual = zonaPorId(z.id);
+          @if (zonaActual) {
+            <button type="button" class="boton peligro" (click)="borrarZona(zonaActual)" [disabled]="trabajando()"><mat-icon>delete</mat-icon> Borrar</button>
+          }
+        }
+        <button type="button" class="boton" (click)="formZona.set(null)">Cancelar</button>
+        <button type="button" class="boton primario" (click)="guardarZona()" [disabled]="trabajando() || !z.nombre.trim()">Guardar</button>
+      </div>
+    </div>
+  </div>
+}

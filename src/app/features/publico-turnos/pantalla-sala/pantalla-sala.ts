@@ -8,7 +8,8 @@ import { AudioAtenuador } from '../../dashboard/submodule/turnos/service/audio-a
 import { ReproductorGuion } from '../../dashboard/submodule/turnos/components/reproductor-guion/reproductor-guion';
 import { DatosVista, EmisionPieza } from '../../dashboard/submodule/turnos/components/vista-render/vista-render';
 import { conectarSse, ConexionSse } from '../../dashboard/submodule/turnos/service/sse.util';
-import { CroquisSvg, leerPisos } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
+import { leerPisos, resolverDestino } from '../../dashboard/submodule/turnos/components/croquis-svg/croquis-svg';
+import { PlanoOficina } from '../../dashboard/submodule/turnos/components/plano-oficina/plano-oficina';
 import { idYoutube } from '../../dashboard/submodule/turnos/service/media.util';
 
 /**
@@ -25,7 +26,7 @@ import { idYoutube } from '../../dashboard/submodule/turnos/service/media.util';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-pantalla-sala',
-  imports: [CommonModule, MatIconModule, CroquisSvg, ReproductorGuion],
+  imports: [CommonModule, MatIconModule, ReproductorGuion, PlanoOficina],
   templateUrl: './pantalla-sala.html',
   styleUrl: './pantalla-sala.css',
 })
@@ -107,6 +108,19 @@ export class PantallaSala implements OnInit {
     const pisos = leerPisos(c);
     return area?.piso && pisos.some(p => p.id === area.piso) ? area.piso : pisos[0]?.id ?? null;
   });
+  /**
+   * Llamado con plano: si la pantalla muestra el plano y se sabe a dónde va la persona, el
+   * llamado ocupa la pantalla con el plano iluminado en ese puesto (los 12 s que dura).
+   */
+  readonly llamadoConPlano = computed(() => {
+    const v = this.vista(), t = this.llamado();
+    return !!(v?.mostrar_croquis && v.croquis && t && !t.remoto && resolverDestino(v.croquis, t));
+  });
+  /** Renglón bajo el puesto: área y referencia, sin repetir el área si el puesto ya la nombra ("Caja · 2"). */
+  lineaArea(t: Turno): string | null {
+    const area = t.punto_tipo !== 'MOVIL' && t.area_nombre && !(t.punto_nombre ?? '').includes(t.area_nombre) ? t.area_nombre : null;
+    return [area, t.area_referencia].filter(Boolean).join(' · ') || null;
+  }
   readonly mostrarMedia = computed(() => { const v = this.vista(); return !!v && v.layout !== 'SOLO_TURNOS' && this.piezas().length > 0; });
   readonly mostrarTurnos = computed(() => { const v = this.vista(); return !!v && v.layout !== 'SOLO_MEDIA'; });
 

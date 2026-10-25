@@ -1,0 +1,184 @@
+<div class="ges-contenedor">
+  <div class="ges-contenido">
+    <div class="disab-card">
+      <!-- ════════ HERO + ALCANCE ════════ -->
+      <div class="disab-hero disab-hero-inicio" data-acciones="propias">
+        <div class="disab-hero-icon"><mat-icon>healing</mat-icon></div>
+        <div class="disab-hero-texts">
+          <h1 class="disab-hero-title">Incapacidades</h1>
+          <p class="disab-hero-sub">
+            Resumen del modulo: cuantas hay, cuantos dias, quien esta incapacitado hoy y por que.
+            Toca un acceso rapido para ir al submodulo.
+          </p>
+          @if (datos(); as d) {
+            <span class="ini-alcance" [class.ini-alcance-restringido]="d.alcance.restringido"
+                  [matTooltip]="d.alcance.restringido ? 'Tu usuario solo ve esta parte de la empresa' : 'Ves las cifras de toda la empresa'">
+              <mat-icon>{{ d.alcance.restringido ? 'location_on' : 'public' }}</mat-icon>
+              <span>{{ d.alcance.texto }}</span>
+            </span>
+          }
+        </div>
+        <div class="hero-acciones">
+          <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar()" [disabled]="cargando()">
+            <mat-icon>refresh</mat-icon><span>Actualizar</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- ════════ ACCESOS RAPIDOS (solo los del menu del usuario) ════════ -->
+      @if (accesos().length) {
+        <nav class="ini-accesos" aria-label="Accesos rapidos de Incapacidades">
+          @for (a of accesos(); track a.ruta) {
+            <a class="ini-acceso" [routerLink]="a.ruta">
+              <span class="ini-acceso-icono"><mat-icon>{{ a.icono }}</mat-icon></span>
+              <span class="ini-acceso-textos">
+                <span class="ini-acceso-nombre">{{ a.nombre }}</span>
+                @if (a.descripcion) { <span class="ini-acceso-desc">{{ a.descripcion }}</span> }
+              </span>
+            </a>
+          }
+        </nav>
+      }
+
+      <!-- ════════ FILTROS ════════ -->
+      <div class="ges-filtros ini-filtros">
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Periodo (fecha de inicio)</mat-label>
+          <mat-select [ngModel]="periodo()" (ngModelChange)="cambiarPeriodo($event)">
+            @for (p of periodos; track p.valor) { <mat-option [value]="p.valor">{{ p.texto }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        @if (periodo() === 'PERSONALIZADO') {
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Desde</mat-label>
+            <input matInput type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" (change)="cargar()" />
+          </mat-form-field>
+          <mat-form-field appearance="outline" subscriptSizing="dynamic">
+            <mat-label>Hasta</mat-label>
+            <input matInput type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" (change)="cargar()" />
+          </mat-form-field>
+        }
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Temporal</mat-label>
+          <mat-select [ngModel]="temporal()" (ngModelChange)="temporal.set($event); cargar()">
+            <mat-option value="">Todas</mat-option>
+            @for (t of datos()?.opciones?.temporales ?? []; track t) { <mat-option [value]="t">{{ t }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic">
+          <mat-label>Oficina</mat-label>
+          <mat-select [ngModel]="oficina()" (ngModelChange)="oficina.set($event); cargar()">
+            <mat-option value="">Todas</mat-option>
+            @for (o of datos()?.opciones?.oficinas ?? []; track o) { <mat-option [value]="o">{{ o }}</mat-option> }
+          </mat-select>
+        </mat-form-field>
+        @if (temporal() || oficina() || periodo() !== 'ULTIMOS_12') {
+          <button type="button" mat-button (click)="limpiarFiltros()"><mat-icon>filter_alt_off</mat-icon> Limpiar</button>
+        }
+        <span class="ges-espaciador"></span>
+        @if (cargando()) { <mat-spinner diameter="26"></mat-spinner> }
+      </div>
+      @if (datos(); as d) {
+        <p class="ini-rango">Del {{ d.desde }} al {{ d.hasta }} · corte de hoy {{ d.hoy }}</p>
+      }
+
+      @if (error()) {
+        <div class="ges-cuerpo"><div class="ges-aviso ges-aviso-peligro"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div></div>
+      }
+
+      <!-- ════════ KPI ════════ -->
+      @if (kpis(); as k) {
+        <div class="kpi-fila">
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>healing</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.total | number }}</span><span class="kpi-etiqueta">Incapacidades del periodo</span></span></div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>event</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.dias | number }}</span><span class="kpi-etiqueta">Dias de incapacidad</span></span></div>
+          <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>personal_injury</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.activasHoy | number }}</span><span class="kpi-etiqueta">Incapacitados hoy</span></span></div>
+          <div class="kpi-tarjeta" [matTooltip]="'Mes anterior (' + k.mesAnterior.etiqueta + '): ' + k.mesAnterior.cantidad">
+            <span class="kpi-icono"><mat-icon>calendar_month</mat-icon></span>
+            <span class="kpi-textos">
+              <span class="kpi-valor">{{ k.mesActual.cantidad | number }}
+                @if (k.variacionMesPct !== null) {
+                  <span [class]="'ini-variacion ini-' + tono()">
+                    <mat-icon>{{ tono() === 'sube' ? 'trending_up' : tono() === 'baja' ? 'trending_down' : 'trending_flat' }}</mat-icon>{{ k.variacionMesPct > 0 ? '+' : '' }}{{ k.variacionMesPct }}%
+                  </span>
+                }
+              </span>
+              <span class="kpi-etiqueta">{{ k.mesActual.etiqueta }} vs {{ k.mesAnterior.etiqueta }} ({{ k.mesAnterior.cantidad | number }})</span>
+            </span>
+          </div>
+          <div class="kpi-tarjeta"><span class="kpi-icono"><mat-icon>groups</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.personas | number }}</span><span class="kpi-etiqueta">Personas</span></span></div>
+          <div class="kpi-tarjeta kpi-aviso"><span class="kpi-icono"><mat-icon>link</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.prorrogas | number }}</span><span class="kpi-etiqueta">Prorrogas</span></span></div>
+          <div class="kpi-tarjeta kpi-alerta"><span class="kpi-icono"><mat-icon>attach_file</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.sinSoporte | number }}</span><span class="kpi-etiqueta">Sin soporte cargado</span></span></div>
+          <div class="kpi-tarjeta kpi-ok"><span class="kpi-icono"><mat-icon>balance</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ k.diasEmpresa | number }} / {{ k.diasEntidad | number }}</span><span class="kpi-etiqueta">Dias empresa / EPS-ARL</span></span></div>
+        </div>
+
+        <!-- Estados: chips compactos (caben en movil) -->
+        <div class="ini-estados">
+          <div class="ini-estados-grupo">
+            <span class="ini-estados-titulo">Por estado</span>
+            <div class="ini-chips">
+              @for (s of k.porEstado; track s.clave) {
+                <span class="ges-chip ges-chip-info">{{ s.etiqueta }} <b>{{ s.cantidad | number }}</b></span>
+              } @empty { <span class="ini-vacio">—</span> }
+            </div>
+          </div>
+          <div class="ini-estados-grupo">
+            <span class="ini-estados-titulo">Documento</span>
+            <div class="ini-chips">
+              @for (s of k.porEstadoDocumento; track s.clave) {
+                <span class="ges-chip" [class.ges-chip-ok]="s.clave === 'OK'" [class.ges-chip-aviso]="s.clave !== 'OK'">{{ s.etiqueta }} <b>{{ s.cantidad | number }}</b></span>
+              } @empty { <span class="ini-vacio">—</span> }
+            </div>
+          </div>
+        </div>
+      }
+
+      <!-- ════════ GRAFICAS ════════ -->
+      <div class="ges-cuerpo">
+        @if (datos(); as d) {
+          <div class="ges-graficas ini-graficas">
+            <div class="ges-grafica ges-grafica-ancha">
+              <p class="ges-grafica-titulo">Tendencia de los ultimos 12 meses</p>
+              <div echarts [options]="opcionTendencia()" class="ges-echart ini-echart"></div>
+            </div>
+            @if (hayDatos()) {
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Por tipo de incapacidad</p>
+                <div echarts [options]="opcionTipo()" class="ges-echart ini-echart"></div>
+              </div>
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Por temporal</p>
+                <div echarts [options]="opcionTemporal()" class="ges-echart ini-echart"></div>
+              </div>
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Por oficina</p>
+                <div echarts [options]="opcionOficina()" class="ini-echart" [style.height]="altoBarras(d.series.porOficina.length)"></div>
+              </div>
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Top 10 diagnosticos (CIE-10)</p>
+                <div echarts [options]="opcionDiagnosticos()" class="ini-echart" [style.height]="altoBarras(d.series.diagnosticos.length)"></div>
+              </div>
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Top 10 empresas usuarias</p>
+                <div echarts [options]="opcionEmpresa()" class="ini-echart" [style.height]="altoBarras(d.series.porEmpresa.length)"></div>
+              </div>
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Top 10 EPS</p>
+                <div echarts [options]="opcionEps()" class="ini-echart" [style.height]="altoBarras(d.series.porEps.length)"></div>
+              </div>
+              <div class="ges-grafica">
+                <p class="ges-grafica-titulo">Dias a cargo de la empresa vs EPS / ARL</p>
+                <div echarts [options]="opcionCargo()" class="ges-echart ini-echart"></div>
+              </div>
+            } @else {
+              <div class="ges-grafica ges-grafica-ancha">
+                <div class="ges-estado"><mat-icon>bar_chart</mat-icon><p>No hay incapacidades en el periodo y los filtros elegidos.</p></div>
+              </div>
+            }
+          </div>
+        } @else if (!cargando() && !error()) {
+          <div class="ges-estado"><mat-icon>bar_chart</mat-icon><p>Sin datos.</p></div>
+        }
+      </div>
+    </div>
+  </div>
+</div>

@@ -297,6 +297,25 @@ export interface EstadoAgentes {
   ultimas: Tarea[];
   vigilantes: Vigilante[];
   catalogo: { total: number };
+  /** Diagnostico del puente (salud.js). Opcional: un puente anterior a oct-2026 no lo trae. */
+  salud?: SaludPool;
+}
+
+export type NivelAlerta = 'critica' | 'alta' | 'media' | 'baja';
+
+export interface AlertaPool {
+  nivel: NivelAlerta;
+  codigo: string;
+  mensaje: string;
+  /** Que hacer para resolverla. */
+  accion: string | null;
+}
+
+export interface SaludPool {
+  estado: 'ok' | 'ok_con_avisos' | 'degradado' | 'parado';
+  alertas: AlertaPool[];
+  cli: { binario: string; version: string | null };
+  modelo: { porDefecto: string; respaldo: string };
 }
 
 export interface NuevaTarea {

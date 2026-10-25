@@ -63,58 +63,46 @@
 
 .em-btn mat-icon { font-size: 17px; width: 17px; height: 17px; }
 
-/* ── Barra de selección ──────────────────────────────────────────────────── */
-.em-barra {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  padding: 12px 14px;
+/* ── Un paquete por destino ──────────────────────────────────────────────── */
+.em-paq {
+  padding: 14px;
   margin-bottom: 14px;
   border: 1px solid var(--border);
   border-radius: var(--r-md, 12px);
   background: var(--surface);
 }
 
-.em-conteo {
+.em-paq-head {
   display: flex;
-  align-items: baseline;
-  gap: 5px;
-  flex: none;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
 }
 
-.em-conteo strong {
-  font-size: 1.4rem;
-  font-weight: 800;
+.em-paq-icon {
+  display: grid;
+  place-items: center;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: var(--surface-3);
   color: var(--navy-ink);
 }
 
-.em-conteo span {
-  font-size: .78rem;
-  color: var(--muted);
+.em-paq-icon mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.em-paq-titulo {
+  margin: 0;
+  font-size: .9rem;
+  font-weight: 700;
+  color: var(--navy-ink);
 }
 
-.em-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  padding: 6px 11px;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-2);
-  color: var(--text-2);
-  font: inherit;
-  font-size: .75rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: background .14s ease, border-color .14s ease;
-}
+.em-sub strong { color: var(--navy-ink); }
 
-.em-chip:hover { background: var(--surface-3); border-color: var(--border-strong); }
-
-.em-chip mat-icon { font-size: 15px; width: 15px; height: 15px; }
-
-/* ── La lista ordenable ──────────────────────────────────────────────────── */
+/* ── La lista (solo lectura: el orden es el del parametrizador) ──────────── */
 .em-lista {
   display: flex;
   flex-direction: column;
@@ -127,9 +115,9 @@
 .em-item {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 6px 8px 6px 4px;
-  min-height: 46px;
+  gap: 10px;
+  padding: 6px 10px;
+  min-height: 42px;
   border: 1px solid var(--border);
   border-radius: 10px;
   background: var(--surface);
@@ -137,44 +125,21 @@
   color: var(--text-2);
 }
 
-/* Lo que NO entra al PDF se queda a la vista pero apagado: quitarlo de la
-   lista haría imposible volver a meterlo. */
+/* Lo que falta en el expediente se queda a la vista, apagado: no entra al PDF. */
 .em-item-fuera {
   background: var(--surface-2);
   color: var(--text-faint);
 }
 
-.em-item.cdk-drag-preview,
-.em-item.cdk-drag-dragging { opacity: .9; }
-
-.em-asa {
-  display: grid;
-  place-items: center;
+.em-num {
   flex: none;
-  width: 26px;
-  height: 30px;
-  color: var(--slate-300);
-  cursor: grab;
+  min-width: 22px;
+  font-size: .72rem;
+  font-weight: 800;
+  text-align: right;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
 }
-
-.em-asa:active { cursor: grabbing; }
-.em-asa mat-icon { font-size: 18px; width: 18px; height: 18px; }
-
-.em-check {
-  display: grid;
-  place-items: center;
-  flex: none;
-  width: 28px;
-  height: 28px;
-  border: 0;
-  border-radius: 7px;
-  background: transparent;
-  color: var(--text-faint);
-  cursor: pointer;
-}
-
-.em-check-on { color: var(--ok-fg); }
-.em-check mat-icon { font-size: 20px; width: 20px; height: 20px; }
 
 .em-cuerpo {
   display: flex;
@@ -198,18 +163,26 @@
   white-space: nowrap;
 }
 
-/* El número ES el orden final: sin él, arrastrar treinta filas es a ciegas. */
-.em-orden {
+.em-copias {
   flex: none;
-  padding: 2px 8px;
+  padding: 1px 7px;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: var(--ok-bg);
-  border: 1px solid var(--ok-border);
-  color: var(--ok-fg);
   font-size: .68rem;
-  font-weight: 800;
-  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  color: var(--muted);
 }
+
+.em-estado {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--text-faint);
+}
+
+.em-estado-ok { color: var(--ok-fg); }
+.em-estado-falta { color: var(--warn-fg); }
 
 .em-accion {
   display: grid;
@@ -227,31 +200,6 @@
 
 .em-accion:hover:not(:disabled) { background: var(--surface-3); color: var(--navy-ink); }
 .em-accion mat-icon { font-size: 17px; width: 17px; height: 17px; }
-
-/* Arrastre: el hueco marca dónde va a caer. */
-.em-hueco {
-  height: 46px;
-  border: 2px dashed var(--border-strong);
-  border-radius: 10px;
-  background: var(--surface-2);
-}
-
-.em-arrastre {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 14px;
-  border-radius: 10px;
-  background: var(--navy);
-  color: #fff;
-  font-size: .82rem;
-  font-weight: 600;
-  box-shadow: 0 12px 30px rgba(15, 23, 42, .35);
-}
-
-.cdk-drop-list-dragging .em-item:not(.cdk-drag-placeholder) {
-  transition: transform .18s cubic-bezier(0, 0, .2, 1);
-}
 
 /* ── Estados ─────────────────────────────────────────────────────────────── */
 .em-vacio,

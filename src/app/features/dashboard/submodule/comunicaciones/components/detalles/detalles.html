@@ -1,0 +1,145 @@
+@if (conv(); as c) {
+  <div class="cabeza">
+    <app-com-avatar [usuarioId]="c.otro_usuario_id" [nombre]="c.nombre" [grupo]="c.tipo === 'GRUPO'" [icono]="iconoConv()" [color]="c.color" [tam]="56" />
+    @if (!editandoTitulo()) {
+      <h3>{{ c.nombre }}</h3>
+      @if (c.descripcion) { <p class="desc">{{ c.descripcion }}</p> }
+      @if (c.alcance_tipo) { <p class="desc">{{ c.total_participantes.toLocaleString('es-CO') }} personas · se actualiza solo con los contratos vigentes</p> }
+      @if (c.tipo === 'GRUPO' && soyAdmin() && !c.alcance_tipo) { <button type="button" class="link" (click)="editandoTitulo.set(true)">Editar nombre y descripción</button> }
+    } @else {
+      <input #t class="campo" [value]="c.titulo ?? ''" maxlength="160" />
+      <textarea #d class="campo" rows="2" [value]="c.descripcion ?? ''" maxlength="500" placeholder="Descripción del grupo"></textarea>
+      <div class="fila-btn"><button type="button" (click)="editandoTitulo.set(false)">Cancelar</button>
+        <button type="button" class="ok" (click)="guardarTitulo(t.value, d.value)">Guardar</button></div>
+    }
+    <div class="prefs">
+      <button type="button" (click)="preferencia({ fijada: !c.fijada })" [class.on]="c.fijada"><mat-icon>push_pin</mat-icon>{{ c.fijada ? 'Fijado' : 'Fijar' }}</button>
+      <button type="button" (click)="preferencia({ silenciada: !c.silenciada })" [class.on]="c.silenciada"><mat-icon>{{ c.silenciada ? 'notifications_off' : 'notifications' }}</mat-icon>{{ c.silenciada ? 'Silenciado' : 'Silenciar' }}</button>
+      <button type="button" (click)="preferencia({ archivada: !c.archivada })" [class.on]="c.archivada"><mat-icon>archive</mat-icon>{{ c.archivada ? 'Archivado' : 'Archivar' }}</button>
+    </div>
+  </div>
+
+  <nav class="tabs">
+    @for (p of pestanas; track p.v) {
+      <button type="button" [class.on]="pestana() === p.v" (click)="pestana.set(p.v)" [matTooltip]="p.t"><mat-icon>{{ p.i }}</mat-icon><span>{{ p.t }}</span></button>
+    }
+  </nav>
+
+  <div class="contenido">
+    @switch (pestana()) {
+      @case ('compromisos') {
+        <div class="nuevo-comp">
+          <input #nc type="text" placeholder="¿Qué se acordó? Ej: Enviar el informe" (keydown.enter)="nuevoCompromiso(nc, ncr, ncf)" />
+          <div class="fila">
+            <select #ncr><option value="">Responsable…</option>
+              @for (p of personas(); track p.usuario_id) { <option [value]="p.usuario_id">{{ p.nombre }}</option> }</select>
+            <input #ncf type="date" />
+            <button type="button" class="ok" (click)="nuevoCompromiso(nc, ncr, ncf)"><mat-icon>add</mat-icon></button>
+          </div>
+        </div>
+        <div class="lista">
+          @for (x of compromisos(); track x.id) {
+            <app-com-compromiso [c]="x" [personas]="personas()" [mostrarOrigen]="!!x.llamada_id" [mostrarConversacion]="false" (cambio)="actualizar($event)"
+              (borrado)="quitar($event)" (irOrigen)="origen($event)" />
+          } @empty { <p class="vacio">Aún no hay compromisos. Se agregan solos cuando la IA resume una llamada o el chat, o a mano aquí arriba.</p> }
+        </div>
+      }
+      @case ('resumenes') {
+        <button type="button" class="accion" [disabled]="resumiendo() || !store.iaDisponible()" (click)="resumir()">
+          <mat-icon [class.gira]="resumiendo()">{{ resumiendo() ? 'autorenew' : 'auto_awesome' }}</mat-icon>
+          {{ resumiendo() ? 'Resumiendo el chat…' : 'Resumir lo nuevo del chat' }}
+        </button>
+        @if (!store.iaDisponible()) { <p class="vacio">La IA no está configurada en este entorno.</p> }
+        @if (aviso()) { <p class="aviso">{{ aviso() }}</p> }
+        <div class="lista">
+          @for (r of resumenes(); track r.id) {
+            <details class="resumen" [open]="$first">
+              <summary>
+                <mat-icon>{{ r.origen === 'LLAMADA' ? 'call' : 'chat' }}</mat-icon>
+                <span><strong>{{ r.titulo || (r.origen === 'LLAMADA' ? 'Llamada' : 'Resumen del chat') }}</strong>
+                  <small>{{ fecha(r.creado_en) }}{{ r.automatico ? ' · automático' : '' }}</small></span>
+              </summary>
+              <p>{{ r.resumen }}</p>
+              @if (r.decisiones.length) { <h4>Decisiones</h4><ul>@for (x of r.decisiones; track x) { <li>{{ x }}</li> }</ul> }
+              @if (r.pendientes.length) { <h4>Pendientes</h4><ul>@for (x of r.pendientes; track x) { <li>{{ x }}</li> }</ul> }
+              @if (r.llamada_id) { <button type="button" class="link" (click)="abrirActaDe(r.llamada_id)">Ver acta completa</button> }
+            </details>
+          } @empty { <p class="vacio">Sin resúmenes todavía.</p> }
+        </div>
+      }
+      @case ('llamadas') {
+        <div class="lista">
+          @for (l of llamadas(); track l.id) {
+            <button type="button" class="llamada" (click)="verActa(l)">
+              <mat-icon [class.perdida]="l.estado !== 'FINALIZADA'">{{ l.estado === 'FINALIZADA' ? (l.tipo === 'VIDEO' ? 'videocam' : 'call') : 'phone_missed' }}</mat-icon>
+              <span><strong>{{ l.titulo || (l.tipo === 'VIDEO' ? 'Videollamada' : 'Llamada de voz') }}</strong>
+                <small>{{ fecha(l.creada_en) }} · {{ l.estado === 'FINALIZADA' ? dur(l.duracion_seg) : (l.estado | lowercase) }}</small></span>
+              @if (estadoTrans(l)) { <em [attr.data-e]="l.transcripcion_estado">{{ estadoTrans(l) }}</em> }
+            </button>
+          } @empty { <p class="vacio">No ha habido llamadas en esta conversación.</p> }
+        </div>
+      }
+      @case ('archivos') {
+        <div class="subtabs">
+          <button type="button" [class.on]="claseArchivo() === 'fotos'" (click)="claseArchivo.set('fotos')">Fotos</button>
+          <button type="button" [class.on]="claseArchivo() === 'docs'" (click)="claseArchivo.set('docs')">Documentos</button>
+          <button type="button" [class.on]="claseArchivo() === 'escaneos'" (click)="claseArchivo.set('escaneos')">Escaneos</button>
+          <button type="button" [class.on]="claseArchivo() === 'media'" (click)="claseArchivo.set('media')">Audio y video</button>
+        </div>
+        @if (claseArchivo() === 'fotos') {
+          <div class="grilla">
+            @for (a of archivos(); track a.id; let i = $index) {
+              <img [src]="abs(a.miniatura_url || a.url)" [alt]="a.nombre" loading="lazy" (click)="abrirArchivo(i)" />
+            } @empty { <p class="vacio">Sin fotos.</p> }
+          </div>
+        } @else {
+          <div class="lista">
+            @for (a of archivos(); track a.id; let i = $index) {
+              <button type="button" class="archivo" (click)="abrirArchivo(i)">
+                <mat-icon>{{ icono(a) }}</mat-icon>
+                <span><strong>{{ a.nombre }}</strong><small>{{ tam(a.tamano) }} · {{ cuando(a.creado_en) }}</small></span>
+                <a [href]="abs(a.descarga_url)" download (click)="$event.stopPropagation()"><mat-icon>download</mat-icon></a>
+              </button>
+            } @empty { <p class="vacio">Nada por aquí.</p> }
+          </div>
+        }
+      }
+      @case ('personas') {
+        @if (c.tipo === 'GRUPO' && !c.alcance_tipo) { <button type="button" class="accion" (click)="agregarPersonas()"><mat-icon>person_add</mat-icon> Agregar personas</button> }
+        @if (grande()) {
+          <label class="buscar-p"><mat-icon>search</mat-icon>
+            <input type="search" placeholder="Buscar por nombre, cargo o finca" (input)="buscarPersonas($any($event.target).value)" />
+          </label>
+        }
+        <div class="lista">
+          @for (p of personasVista(); track p.usuario_id) {
+            <div class="persona">
+              <app-com-avatar [usuarioId]="p.usuario_id" [nombre]="p.nombre" [tieneFoto]="p.tiene_foto" [tam]="36" [presencia]="p.en_linea"
+                [coordinador]="p.coordinador" />
+              <span><strong>{{ p.nombre }}{{ p.usuario_id === store.miId() ? ' (tú)' : '' }}@if (p.coordinador) { <em class="coord">Coordinador</em> }</strong>
+                <small>{{ p.rol === 'ADMIN' && c.tipo === 'GRUPO' ? (c.alcance_tipo ? 'Publica · ' : 'Administrador · ') : '' }}{{ detalleP(p) }}</small>
+                <app-com-actividad [enLinea]="p.en_linea" [ultimaVezMs]="p.ultima_vez_ms" /></span>
+              @if (p.usuario_id !== store.miId() && c.tipo !== 'DIRECTA') {
+                <button type="button" class="ico" (click)="escribirA(p.usuario_id)" matTooltip="Escribirle" [attr.aria-label]="'Escribir a ' + p.nombre"><mat-icon>chat</mat-icon></button>
+              }
+              @if (c.tipo === 'GRUPO' && !c.alcance_tipo && (soyAdmin() || p.usuario_id === store.miId())) {
+                <button type="button" class="ico" [matMenuTriggerFor]="m"><mat-icon>more_vert</mat-icon></button>
+                <mat-menu #m="matMenu">
+                  @if (soyAdmin() && p.usuario_id !== store.miId()) {
+                    <button mat-menu-item (click)="hacerAdmin(p.usuario_id, p.rol !== 'ADMIN')">
+                      <mat-icon>admin_panel_settings</mat-icon> {{ p.rol === 'ADMIN' ? 'Quitar administrador' : 'Hacer administrador' }}</button>
+                  }
+                  <button mat-menu-item (click)="quitarPersona(p.usuario_id)"><mat-icon>logout</mat-icon>
+                    {{ p.usuario_id === store.miId() ? 'Salir del grupo' : 'Quitar del grupo' }}</button>
+                </mat-menu>
+              }
+            </div>
+          } @empty { @if (grande()) { <p class="vacio">{{ cargandoPersonas() ? 'Cargando…' : 'Nadie coincide.' }}</p> } }
+          @if (grande() && hayMasPersonas()) {
+            <button type="button" class="accion" [disabled]="cargandoPersonas()" (click)="cargarPersonas(false)">Ver más personas</button>
+          }
+        </div>
+      }
+    }
+  </div>
+}

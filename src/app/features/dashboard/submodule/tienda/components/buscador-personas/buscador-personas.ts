@@ -7,7 +7,11 @@ import { MatIconModule } from '@angular/material/icon';
 import { Subject, debounceTime, distinctUntilChanged, switchMap } from 'rxjs';
 import { takeUntilDestroyed } from '@angular/core/rxjs-interop';
 
+import { ImagenAmpliableComponent } from '../../../../../../shared/components/imagen-ampliable/imagen-ampliable.component';
 import { PersonaTarjeta, TiendaService } from '../../service/tienda.service';
+import { TomarFoto } from '../tomar-foto/tomar-foto';
+import { EscanerCodigoComponent } from '@/app/shared/components/escaner-codigo/escaner-codigo.component';
+import { cedulaDesdeCodigo } from '@/app/shared/components/escaner-codigo/cedula-desde-codigo';
 
 /**
  * Buscador de personas del mostrador.
@@ -24,7 +28,7 @@ import { PersonaTarjeta, TiendaService } from '../../service/tienda.service';
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-buscador-personas',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, ImagenAmpliableComponent, TomarFoto, EscanerCodigoComponent],
   templateUrl: './buscador-personas.html',
   styleUrls: ['../../styles/tienda-comun.css', './buscador-personas.css'],
 })
@@ -49,7 +53,13 @@ export class BuscadorPersonas {
 
   readonly pidiendoMercado = signal(false);
   readonly identidadConfirmada = signal(false);
-  solicitud = { monto: 0, cuotas: 1 };
+  /** Foto que se le toma a la persona al autorizar: queda como soporte con la cédula de quien autoriza. */
+  readonly fotoAutorizacion = signal<string | null>(null);
+  solicitud = { monto: 0, cuotas: 1, observacion: '' };
+
+  readonly ajustandoTope = signal(false);
+  readonly guardandoTope = signal(false);
+  ajuste: { tope: number | null; motivo: string; vigente_hasta: string } = { tope: null, motivo: '', vigente_hasta: '' };
 
   private teclas = new Subject<string>();
 
@@ -77,6 +87,13 @@ export class BuscadorPersonas {
     });
   }
 
+  /** Lee el código de la cédula (PDF417 del reverso o QR de la digital) y busca por el número. */
+  cedulaLeida(texto: string): void {
+    const c = cedulaDesdeCodigo(texto);
+    if (c) this.escribir(c);
+    else this.error.set('No encontramos un número de cédula en ese código');
+  }
+
   escribir(valor: string): void {
     this.texto.set(valor);
     this.error.set(null);
@@ -90,7 +107,8 @@ export class BuscadorPersonas {
         this.elegida.set(ficha);
         this.resultados.set([]);
         this.identidadConfirmada.set(false);
-        this.solicitud = { monto: ficha.cupo_mercado_disponible, cuotas: 1 };
+        this.fotoAutorizacion.set(null);
+        this.solicitud = { monto: ficha.cupo_mercado_disponible, cuotas: 1, observacion: '' };
         this.seleccionada.emit(ficha);
       },
       error: () => this.error.set('No se pudo cargar la ficha de la persona'),
@@ -113,10 +131,13 @@ export class BuscadorPersonas {
       monto: this.solicitud.monto,
       cuotas: this.solicitud.cuotas,
       identidad_verificada: this.identidadConfirmada(),
+      foto_doc_id: this.fotoAutorizacion() ?? undefined,
+      observacion: this.solicitud.observacion || undefined,
     }).subscribe({
       next: r => {
         this.aviso.set(`Autorización ${r['codigo_autorizacion']} creada por `
-          + `${Number(r['monto']).toLocaleString('es-CO')}. El cupo queda apartado hasta que se ejecute.`);
+          + `$${Number(r['monto']).toLocaleString('es-CO')}${r['por_excepcion'] ? ' (por encima del tope de tesorería, con excepción)' : ''}. `
+          + 'El cupo queda apartado hasta que se use en la caja.');
         this.pidiendoMercado.set(false);
         this.elegir(p);
       },
@@ -126,6 +147,47 @@ export class BuscadorPersonas {
       },
     });
   }
+
+  abrirAjusteTope(): void {
+    const p = this.elegida();
+    if (!p) return;
+    this.ajuste = { tope: p.tope_ajustado?.tope ?? p.cupo_mercado_limite, motivo: '', vigente_hasta: '' };
+    this.ajustandoTope.set(true);
+  }
+
+  /** Guarda el tope ajustado (o lo quita con `quitar`). Vuelve a pedir la ficha con las cifras nuevas. */
+  guardarTope(quitar = false): void {
+    const p = this.elegida();
+    if (!p) return;
+    this.guardandoTope.set(true);
+    this.error.set(null);
+    this.api.ajustarTope(p.cedula, this.tiendaId, {
+      tope: quitar ? null : this.ajuste.tope,
+      motivo: this.ajuste.motivo || (quitar ? 'Vuelve al tope de tesorería' : ''),
+      vigente_hasta: this.ajuste.vigente_hasta || null,
+    }).subscribe({
+      next: () => {
+        this.guardandoTope.set(false);
+        this.ajustandoTope.set(false);
+        this.aviso.set(quitar ? 'Se quitó el ajuste: manda otra vez el tope de tesorería.' : 'Tope ajustado.');
+        this.elegir(p);
+      },
+      error: e => {
+        this.guardandoTope.set(false);
+        const cuerpo = (e as { error?: { error?: string } })?.error;
+        this.error.set(cuerpo?.error ?? 'No se pudo ajustar el tope');
+      },
+    });
+  }
+
+  /** De dónde sale el tope, en palabras del mostrador. */
+  origenTope(p: PersonaTarjeta): string {
+    if (p.origen_tope === 'AJUSTE_TIENDA') return 'ajustado en tienda';
+    if (p.origen_tope === 'TESORERIA') return 'según tesorería';
+    return 'por antigüedad';
+  }
+
+  campo(a: Record<string, unknown>, k: string): any { return a[k]; }
 
   /** El estado que resume la fila, para pintarla de un vistazo. */
   estado(p: PersonaTarjeta): { clase: string; texto: string } {

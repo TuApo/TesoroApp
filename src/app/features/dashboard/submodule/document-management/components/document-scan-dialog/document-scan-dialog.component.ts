@@ -38,6 +38,15 @@ import {
 } from '../../service/scanner/document-scanner.service';
 import { OpencvLoaderService } from '../../service/scanner/opencv-loader.service';
 import { OcrService, OcrPageResult } from '../../service/scanner/ocr.service';
+import {
+    CALIDAD_CARA,
+    CarasCedula,
+    LADO_MAX_CARA,
+    medidasAcotadas,
+    nombreArchivoCara
+} from './caras-cedula.util';
+
+export type { CarasCedula } from './caras-cedula.util';
 
 export interface ScannedPage {
     raw: string;
@@ -61,6 +70,12 @@ export interface ScannedDoc {
  * `modo: 'cedula'` es el flujo guiado de documento de identidad: TODO lo capturado
  * cae en UN solo documento de dos páginas (frente y reverso), que es lo que pide el
  * campo de formulario "Escanear cédula" — dos PDFs sueltos no sirven ahí.
+ *
+ * `salida` (solo en modo cédula) decide QUÉ devuelve el diálogo al finalizar:
+ * - `'pdf'` (por defecto, lo de siempre): `File[]` con UN PDF A4 de dos páginas.
+ * - `'imagenes'`: `CarasCedula` = `{ frente, reverso }`, dos JPEG ya recortados y
+ *   enderezados. Es lo que necesita Contratación: el servidor arma con ellas la hoja
+ *   carta al 150 % (ms-documents `CedulaAmpliadaService`). No lleva OCR.
  */
 export interface ScanDialogConfig {
     modo?: 'libre' | 'cedula';
@@ -68,6 +83,8 @@ export interface ScanDialogConfig {
     maxDocs?: number;
     /** Nombre del documento en modo cédula (por defecto "Cédula"). */
     docName?: string;
+    /** Qué entrega el modo cédula al finalizar. Fuera del modo cédula se ignora. */
+    salida?: 'pdf' | 'imagenes';
 }
 
 /** Páginas exactas del flujo de cédula, en orden. */
@@ -156,6 +173,13 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     private stabilityHistory: CornerPx[][] = [];
     private stableFrames = 0;
 
+    /**
+     * Cédula: tras capturar una cara, el disparo automático no se rearma hasta que
+     * el documento sale del cuadro (se voltea o se retira). Sin esto, con la cara
+     * quieta 1,5 s se capturaba OTRA VEZ la misma y quedaba "frente + frente".
+     */
+    esperandoRetiro = false;
+
     constructor(
         private dialogRef: MatDialogRef<DocumentScanDialogComponent>,
         private cdr: ChangeDetectorRef,
@@ -170,6 +194,11 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     /** Flujo guiado de cédula: un único documento con frente y reverso. */
     get esCedula(): boolean {
         return this.config?.modo === 'cedula';
+    }
+
+    /** Modo cédula que entrega las dos caras en JPEG en vez de un PDF. */
+    get salidaImagenes(): boolean {
+        return this.esCedula && this.config?.salida === 'imagenes';
     }
 
     /** Tope de documentos; en cédula siempre 1 (las dos caras van juntas). */
@@ -187,6 +216,11 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     /** Cara que toca capturar ahora ('' cuando ya están las dos). */
     get siguienteCara(): string {
         return CARAS_CEDULA[this.carasCapturadas] ?? '';
+    }
+
+    /** Cara que se está capturando en la sesión de cámara abierta (cuenta las de la sesión). */
+    get caraEnCaptura(): string {
+        return CARAS_CEDULA[this.carasCapturadas + this.tempPages.length] ?? '';
     }
 
     /** ¿Queda cupo para capturar más? */
@@ -207,6 +241,13 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
 
     /** Mensaje guía del modo cédula (banner del listado). */
     get guiaCedula(): string {
+        if (this.salidaImagenes) {
+            switch (this.carasCapturadas) {
+                case 0: return 'Captura primero el FRENTE, con el documento horizontal y sin reflejos.';
+                case 1: return 'Ahora captura el REVERSO.';
+                default: return 'Frente y reverso listos: al finalizar se arma la hoja carta al 150 %.';
+            }
+        }
         switch (this.carasCapturadas) {
             case 0: return 'Captura primero el FRENTE de la cédula.';
             case 1: return 'Ahora captura el REVERSO; ambas caras quedan en un solo PDF.';
@@ -315,6 +356,7 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
         this.stabilityHistory = [];
         this.blurWarning = false;
         this.autoCaptureCountdown = 0;
+        this.esperandoRetiro = false;
 
         try {
             this.stream = await navigator.mediaDevices.getUserMedia({
@@ -439,6 +481,9 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
                 this.stableFrames = 0;
                 this.stabilityHistory = [];
                 this.autoCaptureCountdown = 0;
+                // El documento salió del cuadro (se volteó o se retiró): la cara
+                // siguiente ya se puede disparar sola.
+                this.esperandoRetiro = false;
                 this.cdr.markForCheck();
             });
         }
@@ -471,8 +516,8 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
 
         if (isStable) {
             this.stableFrames = STABILITY_FRAMES;
-            this.autoCaptureCountdown = 1;
-            if (this.autoCapture && !this.isProcessingCrop) {
+            this.autoCaptureCountdown = this.esperandoRetiro ? 0 : 1;
+            if (this.autoCapture && !this.isProcessingCrop && !this.esperandoRetiro) {
                 this.triggerAutoCapture();
             }
         } else {
@@ -551,12 +596,14 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     private async autoWarpAndAdd(sourceUrl: string, corners: CornerPx[]) {
         this.isProcessingCrop = true;
         this.cdr.markForCheck();
+        let agregada = false;
         try {
             const warped = await this.scanner.warpAndCrop(sourceUrl, corners);
             this.tempPages.push({ raw: warped, processed: warped, filter: 'original' });
             this.stabilityHistory = [];
             this.stableFrames = 0;
             this.autoCaptureCountdown = 0;
+            agregada = true;
         } catch (e) {
             console.error('autoWarp error', e);
             Swal.fire('Error', 'No se pudo procesar la imagen, ajusta manualmente.', 'error');
@@ -564,6 +611,21 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
         } finally {
             this.isProcessingCrop = false;
             this.cdr.markForCheck();
+        }
+        if (agregada) this.trasCapturaCedula();
+    }
+
+    /**
+     * Cédula: después de cada cara se espera a que el documento salga del cuadro
+     * antes de volver a disparar solo, y con las dos caras la sesión de cámara se
+     * cierra sola (vuelve al listado, donde queda FINALIZAR). Fuera de la cédula no
+     * cambia nada: el escaneo libre sigue acumulando páginas.
+     */
+    private trasCapturaCedula() {
+        if (!this.esCedula) return;
+        this.esperandoRetiro = true;
+        if (this.carasCapturadas + this.tempPages.length >= CARAS_CEDULA.length) {
+            void this.finishWebCapture();
         }
     }
 
@@ -617,6 +679,7 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     async confirmCrop() {
         this.isProcessingCrop = true;
         this.cdr.detectChanges();
+        let agregada = false;
 
         try {
             let warpedImage: string;
@@ -630,6 +693,7 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
                 this.tempPages.push({ raw: warpedImage, processed: warpedImage, filter: 'original' });
                 this.mode = 'capture-web';
                 if (this.stream) this.startDetectionLoop();
+                agregada = true;
             } else if (this.editingPageIndex !== null && this.currentDocPages[this.editingPageIndex]) {
                 const old = this.currentDocPages[this.editingPageIndex];
                 this.currentDocPages[this.editingPageIndex] = {
@@ -648,6 +712,7 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
             this.isProcessingCrop = false;
             this.cdr.markForCheck();
         }
+        if (agregada) this.trasCapturaCedula();
     }
 
     private fallbackWarp(srcUrl: string, points: CornerPx[]): Promise<string> {
@@ -942,6 +1007,11 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
     async exportAllAndClose() {
         if (this.scannedDocs.length === 0) return;
 
+        if (this.salidaImagenes) {
+            await this.exportarCarasYCerrar();
+            return;
+        }
+
         Swal.fire({
             title: 'Procesando PDF...',
             html: this.enableOcr
@@ -1002,6 +1072,101 @@ export class DocumentScanDialogComponent implements OnInit, OnDestroy {
             console.error(e);
             Swal.fire('Error', 'Hubo un error generando los PDFs', 'error');
         }
+    }
+
+    /**
+     * `salida: 'imagenes'`: cierra con `{ frente, reverso }` en JPEG. Cada cara sale
+     * como quedó en el diálogo (recortada, enderezada, con el filtro elegido), solo
+     * reducida a `LADO_MAX_CARA`. El orden es el de las páginas: si se capturaron al
+     * revés, se reordenan arrastrando las miniaturas en "Edición y filtros".
+     */
+    private async exportarCarasYCerrar() {
+        const doc = this.scannedDocs[0];
+        if (!doc || doc.pages.length < CARAS_CEDULA.length) {
+            Swal.fire('Faltan caras', 'Captura el frente y el reverso del documento.', 'info');
+            return;
+        }
+        Swal.fire({
+            title: 'Preparando las caras...',
+            allowOutsideClick: false,
+            didOpen: () => Swal.showLoading()
+        });
+        try {
+            const nombre = this.config?.docName || 'Cédula';
+            const caras: CarasCedula = {
+                frente: await this.caraAJpeg(doc.pages[0].processed, nombreArchivoCara(nombre, 'frente')),
+                reverso: await this.caraAJpeg(doc.pages[1].processed, nombreArchivoCara(nombre, 'reverso'))
+            };
+            Swal.close();
+            this.dialogRef.close(caras);
+        } catch (e) {
+            console.error('[scanner] caras de la cédula', e);
+            Swal.fire('Error', 'No se pudieron preparar las imágenes. Vuelve a capturar las caras.', 'error');
+        }
+    }
+
+    /** Una cara como JPEG, reducida sin deformar a `LADO_MAX_CARA`. */
+    private async caraAJpeg(src: string, nombre: string): Promise<File> {
+        const img = await this.cargarImagen(src);
+        const { ancho, alto } = medidasAcotadas(img.naturalWidth, img.naturalHeight, LADO_MAX_CARA);
+        const canvas = document.createElement('canvas');
+        canvas.width = ancho;
+        canvas.height = alto;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Sin contexto 2D');
+        // Fondo blanco: un PNG con transparencia no puede quedar negro en el JPEG.
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, ancho, alto);
+        ctx.drawImage(img, 0, 0, ancho, alto);
+        const blob = await new Promise<Blob | null>(res => canvas.toBlob(res, 'image/jpeg', CALIDAD_CARA));
+        if (!blob || blob.size === 0) throw new Error('No se pudo generar el JPEG');
+        return new File([blob], nombre, { type: 'image/jpeg' });
+    }
+
+    /**
+     * Gira 90° a la derecha la página abierta en "Edición y filtros". Sirve para
+     * dejar el documento horizontal: la hoja al 150 % mide la imagen por su ancho.
+     * Se aplica al guardar los cambios, como el resto de la edición.
+     */
+    async rotarPaginaActual() {
+        const i = this.selectedPageIndex;
+        const page = this.currentDocPages[i];
+        if (!page || this.isProcessingCrop) return;
+        this.isProcessingCrop = true;
+        this.cdr.markForCheck();
+        try {
+            const raw = await this.rotar90(page.raw);
+            const processed = page.processed === page.raw ? raw : await this.rotar90(page.processed);
+            this.currentDocPages[i] = { ...page, raw, processed, ocr: undefined };
+        } catch (e) {
+            console.error('[scanner] rotar', e);
+            Swal.fire('Error', 'No se pudo girar la imagen.', 'error');
+        } finally {
+            this.isProcessingCrop = false;
+            this.cdr.markForCheck();
+        }
+    }
+
+    private async rotar90(src: string): Promise<string> {
+        const img = await this.cargarImagen(src);
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalHeight;
+        canvas.height = img.naturalWidth;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Sin contexto 2D');
+        ctx.translate(canvas.width, 0);
+        ctx.rotate(Math.PI / 2);
+        ctx.drawImage(img, 0, 0);
+        return canvas.toDataURL('image/jpeg', 0.92);
+    }
+
+    private cargarImagen(src: string): Promise<HTMLImageElement> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => resolve(img);
+            img.onerror = () => reject(new Error('No se pudo leer la imagen capturada'));
+            img.src = src;
+        });
     }
 
     private async buildPdfFile(doc: ScannedDoc): Promise<File> {

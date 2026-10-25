@@ -1,0 +1,73 @@
+<div class="tm">
+  <div class="tm__barra">
+    <span class="tm__estado" role="status" [title]="analisis()?.modelo ? 'Modelo: ' + analisis()!.modelo : ''">
+      @if (cargando()) { <mat-icon class="girando">sync</mat-icon> Leyendo la conversación… }
+      @else if (hace(); as h) { Actualizado {{ h }} }
+      @else if (enVivo()) { Se actualizan solos mientras hablan }
+      @else { Sin temas todavía }
+      @if (nuevas() > 0 && !cargando()) { <span class="tm__nuevas">{{ nuevas() }} {{ nuevas() === 1 ? 'frase nueva' : 'frases nuevas' }}</span> }
+    </span>
+    <button type="button" class="tm__btn" (click)="actualizar.emit()" [disabled]="cargando() || !frases()" [title]="frases() ? 'Pedir los temas ya, con lo conversado hasta ahora' : 'Aún no hay conversación que analizar'">
+      <mat-icon>auto_awesome</mat-icon> Actualizar ahora
+    </button>
+  </div>
+
+  @if (error(); as e) { <p class="tm__error" role="alert"><mat-icon>error</mat-icon> {{ e }}</p> }
+
+  @if (analisis()?.resumen; as r) {
+    <section class="tm__resumen" aria-label="Resumen de lo conversado">
+      <span class="tm__eti"><mat-icon>notes</mat-icon> Lo conversado hasta ahora</span>
+      <p>{{ r }}</p>
+      <span class="tm__ayuda">Se propone como nota al finalizar la atención.</span>
+    </section>
+  }
+
+  @if (temas().length) {
+    <ul class="tm__lista">
+      @for (t of temas(); track t.clave) {
+        @let tipo = tipoDe(t);
+        <li class="tema" [attr.data-tipo]="t.tipo">
+          <div class="tema__cab">
+            <span class="tema__tipo"><mat-icon>{{ tipo.icono }}</mat-icon> {{ tipo.etiqueta }}</span>
+            <strong class="tema__titulo">{{ t.titulo }}</strong>
+            @if (t.at_ms !== null && t.at_ms !== undefined) {
+              <button type="button" class="tema__min" (click)="irACita.emit(t)" [title]="'Ir a la frase del minuto ' + formato(t.at_ms)">{{ formato(t.at_ms) }}</button>
+            }
+          </div>
+          @if (t.resumen) { <p class="tema__resumen">{{ t.resumen }}</p> }
+          @if (diferencia(t)) {
+            <div class="tema__dif" [attr.aria-label]="'En la ficha: ' + t.valor_ficha + '. Dijo: ' + t.valor_dicho">
+              <span class="tema__dif-fila"><small>En la ficha{{ t.campo ? ' · ' + t.campo : '' }}</small><s>{{ t.valor_ficha }}</s></span>
+              <mat-icon aria-hidden="true">arrow_forward</mat-icon>
+              <span class="tema__dif-fila tema__dif-fila--dicho"><small>Dijo</small><b>{{ t.valor_dicho }}</b></span>
+            </div>
+          } @else if (t.valor_dicho) {
+            <p class="tema__dato"><small>{{ t.campo || 'Dato' }}:</small> {{ t.valor_dicho }}</p>
+          }
+          @if (t.cita) {
+            <button type="button" class="tema__cita" (click)="irACita.emit(t)" title="Ver la frase en la transcripción">
+              <span>“{{ t.cita }}”</span>
+              @if (quien(t)) { <small>{{ quien(t) }}{{ t.at_ms !== null && t.at_ms !== undefined ? ' · ' + formato(t.at_ms) : '' }}</small> }
+            </button>
+          }
+          @if (t.modulo && modulo(t); as m) {
+            <button type="button" class="tema__accion" (click)="abrirModulo.emit(t)" [disabled]="!puedeAbrir(t)"
+                    [title]="puedeAbrir(t) ? 'Abre ' + m.etiqueta + ' en una ventana encima de la llamada' : 'Su rol no tiene acceso a ' + m.etiqueta">
+              <mat-icon>{{ m.icono }}</mat-icon>
+              <span>{{ t.accion || ('Abrir ' + m.etiqueta) }}</span>
+              <mat-icon class="tema__flecha">open_in_new</mat-icon>
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  } @else if (!cargando() && !error()) {
+    <div class="tm__vacio">
+      <mat-icon>tips_and_updates</mat-icon>
+      <p>
+        @if (enVivo() || frases()) { Cuando la conversación avance, aquí salen los temas: datos que no coinciden con la ficha, trámites que pidió, alertas y preguntas pendientes. }
+        @else { Los temas salen de lo que se dice en la llamada cruzado con los datos de la persona. Se activan con la transcripción. }
+      </p>
+    </div>
+  }
+</div>

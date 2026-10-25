@@ -1,5 +1,6 @@
 <div class="cumple-page">
 
+  @if (!incrustado) {
   <header class="cabecera">
     <div>
       <h1>Cumpleaños</h1>
@@ -11,6 +12,12 @@
       </p>
     </div>
   </header>
+  } @else {
+    <p class="sub-incrustado">
+      El correo de felicitación sale solo el día del cumpleaños, con la plantilla de la temporal de cada persona, a
+      quienes estén en el padrón (el Excel). Aquí se sube el padrón, se elige la plantilla y la hora, y se ve qué salió.
+    </p>
+  }
 
   @if (cargando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
 
@@ -174,6 +181,31 @@
                     }
                   </div>
 
+                  @if (celebradosDia(); as cel) {
+                    @if (cel.length || d.total) {
+                      <div class="union-celebracion">
+                        <mat-icon>celebration</mat-icon>
+                        <div>
+                          @if (cel.length) {
+                            <b>En la celebración de la plataforma:</b>
+                            {{ nombresCelebrados(cel) }}.
+                            @if (celebradosSinCorreo().length) {
+                              <span class="union-aviso">{{ nombresCelebrados(celebradosSinCorreo()) }}
+                                {{ celebradosSinCorreo().length === 1 ? 'no está' : 'no están' }} en el padrón: no
+                                {{ celebradosSinCorreo().length === 1 ? 'le llega' : 'les llega' }} el correo.</span>
+                            }
+                          } @else {
+                            <b>Nadie de este día está en la celebración de la plataforma.</b>
+                          }
+                        </div>
+                        @if (d.total) {
+                          <a mat-stroked-button routerLink="/dashboard/marketing/cumpleanos/calendario" [queryParams]="{ padron: d.fecha }">
+                            <mat-icon>cake</mat-icon> Celebrar en la plataforma</a>
+                        }
+                      </div>
+                    }
+                  }
+
                   @if (d.total === 0) {
                     <p class="vacio">
                       @if (busqueda()) {
@@ -203,6 +235,10 @@
                       </ng-template>
                       <ng-template tablaCelda="correo" let-p>
                         <span [class.sin-correo]="!p.correo">{{ p.correo || 'sin correo' }}</span>
+                      </ng-template>
+                      <ng-template tablaCelda="plataforma" let-p>
+                        @if (celebradoEnPlataforma(p)) { <span class="pastilla ok">🎉 En la plataforma</span> }
+                        @else { <span class="pastilla neutro">—</span> }
                       </ng-template>
                     </app-tabla-estandar>
                   }

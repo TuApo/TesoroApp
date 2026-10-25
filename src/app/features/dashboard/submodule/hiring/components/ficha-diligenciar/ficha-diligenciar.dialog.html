@@ -5,16 +5,17 @@
       <h2>{{ data.titulo }} · completar lo que falta</h2>
       <p>
         Ya tiene los datos de la persona. Haz clic en las casillas vacías y escribe; donde no haya
-        casilla usa la herramienta de texto de la barra. Al guardar queda bloqueada en el expediente.
+        casilla usa la herramienta de texto de la barra. Lo escrito en las casillas se recuerda aunque salgas;
+        al consolidar queda bloqueada en el expediente.
       </p>
     </div>
     <span class="fd-spacer"></span>
     <button mat-stroked-button type="button" (click)="cancelar()" [disabled]="guardando()">
-      <mat-icon>close</mat-icon> Cancelar
+      <mat-icon>logout</mat-icon> Salir
     </button>
     <button mat-flat-button color="primary" type="button" (click)="guardar()" [disabled]="guardando() || !cargado()">
       <mat-icon>{{ guardando() ? 'hourglass_empty' : 'cloud_upload' }}</mat-icon>
-      {{ guardando() ? 'Guardando…' : 'Guardar en el expediente' }}
+      {{ guardando() ? 'Consolidando…' : 'Consolidar en el expediente' }}
     </button>
   </header>
 
@@ -26,8 +27,8 @@
     @if (!cargado() && !error()) {
       <div class="fd-cargando"><mat-icon class="fd-spin">progress_activity</mat-icon> Abriendo la ficha…</div>
     }
-    <div class="fd-visor">
-      <ngx-extended-pdf-viewer [src]="url" (pdfLoaded)="alCargar()" (pdfLoadingFailed)="alFallar($event)" [showToolbar]="true" [showSidebarButton]="false"
+    <div class="fd-visor" (input)="alTocar()" (change)="alTocar()">
+      <ngx-extended-pdf-viewer [src]="url" [formData]="formInicial" (formDataChange)="alCambiarForm($event)" (pdfLoaded)="alCargar()" (pdfLoadingFailed)="alFallar($event)" [showToolbar]="true" [showSidebarButton]="false"
         [showFindButton]="false" [showPagingButtons]="true" [showZoomButtons]="true"
         [showPresentationModeButton]="false" [showOpenFileButton]="false" [showPrintButton]="false"
         [showDownloadButton]="false" [showTextEditor]="true" [showDrawEditor]="false"

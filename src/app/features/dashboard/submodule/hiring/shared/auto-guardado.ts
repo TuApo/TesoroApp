@@ -34,6 +34,8 @@ export class AutoGuardado {
 
   private timer: ReturnType<typeof setTimeout> | null = null;
   private enVuelo = false;
+  /** La escritura en curso, para quien necesite esperarla (ver `esperar`). */
+  private vuelo: Promise<void> | null = null;
   private otraVez = false;
   private esperandoSalida = false;
   private llavePedida: string | null = null;
@@ -116,7 +118,8 @@ export class AutoGuardado {
     this.estado.set('guardando');
     this.error.set(null);
     try {
-      await this.guardar();
+      this.vuelo = this.guardar();
+      await this.vuelo;
       this.estado.set('guardado');
     } catch (e: any) {
       if (e instanceof GuardadoIncompleto) {
@@ -128,6 +131,7 @@ export class AutoGuardado {
       }
     } finally {
       this.enVuelo = false;
+      this.vuelo = null;
     }
 
     if (this.otraVez) {
@@ -144,6 +148,15 @@ export class AutoGuardado {
     this.otraVez = false;
     this.llavePedida = null;
     if (!this.enVuelo) this.estado.set('inactivo');
+  }
+
+  /**
+   * Espera a que termine la escritura en curso, si la hay, sin lanzar otra ni
+   * propagar su error. Para una acción explícita (p. ej. "Contratar") que no
+   * debe cruzarse con un guardado automático a medio camino.
+   */
+  async esperar(): Promise<void> {
+    if (this.vuelo) await this.vuelo.catch(() => undefined);
   }
 
   /** ¿El foco está en un campo donde se escribe (y hay que esperar a que salga)? */

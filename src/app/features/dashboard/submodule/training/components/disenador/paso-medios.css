@@ -1,0 +1,35 @@
+.pmd { display: grid; gap: 14px; }
+.pmd-aviso { display: flex; gap: 12px; align-items: flex-start; padding: 12px 14px; border-radius: var(--r-md); background: var(--info-bg); border: 1px solid var(--info-border); color: var(--info-fg); flex-wrap: wrap; }
+.pmd-aviso > div { flex: 1; min-width: 220px; }
+.pmd-aviso ul { margin: 4px 0 0; padding-left: 18px; color: var(--text); font-size: 13px; }
+.pmd-aviso a { text-decoration: none; }
+.pmd-grid { display: grid; grid-template-columns: minmax(220px, 300px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.pmd-lecciones { display: grid; gap: 4px; position: sticky; top: 12px; }
+.pmd-lecciones__cab { display: flex; justify-content: space-between; align-items: center; gap: 6px; margin-bottom: 6px; flex-wrap: wrap; }
+.pmd-item { display: flex; align-items: center; gap: 8px; text-align: left; border: 0; background: none; border-radius: 10px; padding: 0 10px; min-height: 40px !important; cursor: pointer; color: var(--text); font: 14px var(--font-sans); }
+.pmd-item:hover { background: var(--surface-3); }
+.pmd-item.activa { background: var(--blue-soft); color: var(--brand-blue-strong); font-weight: 700; }
+html[data-theme='dark'] .pmd-item.activa { background: rgb(43 89 240 / .18); color: var(--text); }
+.pmd-item__t { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pmd-item__n { min-width: 22px; height: 22px; border-radius: 11px; display: grid; place-items: center; font-size: 12px; font-weight: 800; background: var(--mt-accent-soft); color: var(--mt-accent-ink); }
+.pmd-item__n.cero { background: var(--surface-3); color: var(--muted); }
+.pmd-lecciones__acc { display: grid; gap: 8px; padding-top: 10px; margin-top: 6px; border-top: 1px solid var(--border); }
+.pmd-medios { display: grid; gap: 10px; min-width: 0; }
+.pmd-cab { display: grid; gap: 10px; }
+.pmd-agregar { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; font-size: 13px; color: var(--muted); }
+.pmd-tipo { display: inline-flex; align-items: center; gap: 4px; border: 1px dashed var(--border-strong); background: var(--surface); color: var(--text); border-radius: 999px; padding: 0 10px; min-height: 34px !important; font: 600 12.5px var(--font-sans); cursor: pointer; }
+.pmd-tipo mat-icon { font-size: 16px; width: 16px; height: 16px; color: var(--primary); }
+.pmd-tipo:hover { border-color: var(--primary); }
+.pmd-pie { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; }
+.pmd-nota { flex: 1; min-width: 200px; color: var(--muted); font-size: 13px; }
+@media (max-width: 900px) {
+  .pmd-grid { grid-template-columns: minmax(0, 1fr); }
+  .pmd-lecciones { position: static; }
+}
+/* La columna de clases no puede crecer con su contenido: los títulos largos se cortan con "…". */
+.pmd-lecciones { min-width: 0; overflow: hidden; }
+.pmd-lecciones > * { min-width: 0; max-width: 100%; box-sizing: border-box; }
+.pmd-item { width: 100%; box-sizing: border-box; }
+.pmd-item__t { min-width: 0; }
+.pmd-lecciones__cab .pz-estado { white-space: normal; }
+.pmd-lecciones__acc .pz-btn { white-space: normal; text-align: center; }

@@ -1,0 +1,465 @@
+<div class="pagina">
+  <header class="cabeza">
+    <h1>Su carrito</h1>
+    <p class="muted">En {{ store.etiquetaAmbito() }}
+      @if (varias()) { · <b>{{ store.porTienda().length }} tiendas</b>, un solo pedido: cada tienda alista su parte }</p>
+  </header>
+
+  @if (store.lineas().length === 0) {
+    <div class="estado-vacio">
+      <mat-icon>shopping_cart</mat-icon>
+      <h2>Su carrito está vacío</h2>
+      <p>Agregue mercado de su tienda o encargue del catálogo global.</p>
+      <a class="eco-btn" routerLink="/economiapp">Empezar a comprar</a>
+    </div>
+  } @else {
+    <div class="layout">
+      <div class="columna">
+        <ol class="pasos-asistente">
+          @for (pa of PASOS; track pa.n) {
+            <li [class.actual]="paso() === pa.n" [class.hecho]="paso() > pa.n">
+              <button type="button" (click)="irA(pa.n)" [disabled]="pa.n > paso()"><span>{{ paso() > pa.n ? '✓' : pa.n }}</span> {{ pa.t }}</button>
+            </li>
+          }
+        </ol>
+        @if (paso() === 1) {
+        <!-- 1. Lo que lleva -->
+        @if (paraHoy().length) {
+          <section class="tarjeta bloque">
+            <h2 class="bloque-titulo"><mat-icon class="hoy">bolt</mat-icon> Para hoy <small>{{ paraHoy().length }}</small></h2>
+            <ul class="lineas">
+              @for (l of paraHoy(); track l.linea_id) {
+                <ng-container *ngTemplateOutlet="linea; context: { $implicit: l }" />
+              }
+            </ul>
+          </section>
+        }
+        @if (porEncargo().length) {
+          <section class="tarjeta bloque">
+            <h2 class="bloque-titulo"><mat-icon class="encargo">local_shipping</mat-icon> Por encargo <small>{{ porEncargo().length }}</small></h2>
+            <p class="aviso warn">
+              <mat-icon>schedule</mat-icon>
+              <span>Su pedido completo estará listo en unos <b>{{ store.diasMax() }} días</b>
+                @if (fechaLlegada(store.diasMax())) { (aprox. el {{ fechaLlegada(store.diasMax()) }}) }.
+                Si quiere lo de hoy antes, haga dos pedidos.</span>
+            </p>
+            <ul class="lineas">
+              @for (l of porEncargo(); track l.linea_id) {
+                <ng-container *ngTemplateOutlet="linea; context: { $implicit: l }" />
+              }
+            </ul>
+          </section>
+        }
+
+        @if (servicios().length) {
+          <section class="tarjeta bloque">
+            <h2 class="bloque-titulo"><mat-icon class="servicio">confirmation_number</mat-icon> Servicios y bonos <small>{{ servicios().length }}</small></h2>
+            <p class="aviso servicio-aviso">
+              <mat-icon>qr_code_2</mat-icon>
+              <span>Al confirmar le damos un <b>código</b> por cada uno para reclamarlo en la tienda. Ahí verificamos su identidad
+                (o la de quien usted autorice) y en ese momento se descuenta de su bono mercado.</span>
+            </p>
+            <ul class="lineas">
+              @for (l of servicios(); track l.linea_id) {
+                <ng-container *ngTemplateOutlet="linea; context: { $implicit: l }" />
+              }
+            </ul>
+          </section>
+        }
+
+        <!-- 2. Cómo lo recibe -->
+        @if (!soloServicios()) {
+        <section class="tarjeta bloque">
+          <h2 class="bloque-titulo"><span class="paso">1</span> ¿Cómo lo recibe?</h2>
+          <div class="opciones">
+            @if (store.tienda()?.permite_recogida !== false) {
+              <label class="opcion" [class.activa]="entrega() === 'RECOGE_TIENDA'">
+                <input type="radio" name="entrega" [checked]="entrega() === 'RECOGE_TIENDA'" (change)="entrega.set('RECOGE_TIENDA')" />
+                <mat-icon>storefront</mat-icon>
+                <span><b>Apartar y recoger en {{ varias() ? 'cada tienda' : 'la tienda' }}</b><small>{{ varias() ? 'Cada tienda le avisa cuando su parte esté lista' : (store.tienda()?.nombre + (store.tienda()?.direccion ? ' · ' + store.tienda()?.direccion : '')) }}</small></span>
+                <i class="gratis">Gratis</i>
+              </label>
+              <label class="opcion" [class.activa]="entrega() === 'RECOGE_OFICINA'">
+                <input type="radio" name="entrega" [checked]="entrega() === 'RECOGE_OFICINA'" (change)="entrega.set('RECOGE_OFICINA')" />
+                <mat-icon>apartment</mat-icon>
+                <span><b>Recoger en mi oficina</b><small>{{ store.inicio()?.oficina || 'La oficina donde lo contrataron' }}{{ varias() ? ' · todo junto' : '' }}</small></span>
+                <i class="gratis">Gratis</i>
+              </label>
+            }
+            @if (!store.domicilioPosible()) {
+              <div class="opcion deshabilitada">
+                <mat-icon>two_wheeler</mat-icon>
+                <span><b>Domicilio</b><small>{{ store.tienda()?.nombre || 'Esta tienda' }} todavía no hace domicilios. Recoja en la tienda o en su oficina.</small></span>
+              </div>
+            }
+            @if (store.domicilioPosible()) {
+              <label class="opcion" [class.activa]="entrega() === 'DOMICILIO'">
+                <input type="radio" name="entrega" [checked]="entrega() === 'DOMICILIO'" (change)="entrega.set('DOMICILIO')" />
+                <mat-icon>two_wheeler</mat-icon>
+                <span><b>Domicilio</b><small>Se lo llevamos a su casa o finca{{ varias() ? ' (un solo cobro)' : '' }}</small></span>
+                <i>{{ store.costoDomicilio() ? pesos(store.costoDomicilio()) : 'Gratis' }}</i>
+              </label>
+            }
+          </div>
+
+          @if (entrega() === 'DOMICILIO') {
+            @if (misDirecciones().length) {
+              <div class="mis-dir">
+                @for (d of misDirecciones(); track d.id) {
+                  <button type="button" class="chip-pago" [class.activa]="direccionElegida() === d.id" (click)="usarDireccion(d)">
+                    <mat-icon>{{ d.nombre.toLowerCase().includes('trabajo') ? 'work' : 'home' }}</mat-icon> {{ d.nombre }}
+                  </button>
+                }
+                <button type="button" class="chip-pago" [class.activa]="!direccionElegida()" (click)="nuevaDireccion()"><mat-icon>add_location_alt</mat-icon> Otra dirección</button>
+              </div>
+            }
+            @if (!direccionElegida()) {
+              <div class="buscar-dir">
+                <mat-icon>search</mat-icon>
+                <input type="search" [ngModel]="busqueda()" (ngModelChange)="buscarDireccion($event)" name="buscadir"
+                       placeholder="Busque su dirección: Cra 6 # 3-45 Cajicá" autocomplete="off" />
+                @if (buscando()) { <mat-icon class="girando">progress_activity</mat-icon> }
+              </div>
+              @if (resultados().length) {
+                <ul class="resultados-dir">
+                  @for (l of resultados(); track $index) {
+                    <li><button type="button" (click)="elegirLugar(l)"><mat-icon>place</mat-icon>
+                      <span><b>{{ l.direccion || l.descripcion.split(',')[0] }}</b><small>{{ zona(l) }}</small></span></button></li>
+                  }
+                </ul>
+              }
+            }
+            <div class="campos">
+              <label class="campo">
+                <span>Dirección *</span>
+                <input type="text" [ngModel]="direccion()" (ngModelChange)="direccion.set($event)" name="dir"
+                       placeholder="Calle, número, barrio o vereda" autocomplete="street-address" />
+              </label>
+              <div class="ubicacion">
+                <div class="ub-cabeza">
+                  <span>Ubicación en el mapa *</span>
+                  <button type="button" class="eco-btn secundario" (click)="usarMiUbicacion()" [disabled]="ubicando()">
+                    <mat-icon>my_location</mat-icon> {{ ubicando() ? 'Buscando…' : (ubicacion() ? 'Volver a mi ubicación' : 'Usar mi ubicación') }}
+                  </button>
+                </div>
+                @if (errorUbicacion()) { <small class="ub-error">{{ errorUbicacion() }}</small> }
+                @if (ubicacion(); as u) {
+                  <eco-mapa [puntos]="[{ lat: u.lat, lng: u.lng, tono: 'elegido', etiqueta: '' }]" [alto]="240" [seleccionable]="true" (elegido)="moverPunto($event)" />
+                  <small class="muted">Si el punto no quedó exacto, toque en el mapa donde es la entrega.</small>
+                  @if (!direccionElegida()) {
+                    <label class="guardar-dir"><input type="checkbox" [checked]="!!guardarComo()" (change)="guardarComo.set($any($event.target).checked ? 'Casa' : '')" />
+                      Guardar como
+                      <input type="text" class="nombre-dir" maxlength="40" [ngModel]="guardarComo()" (ngModelChange)="guardarComo.set($event)" name="guardarComo" /></label>
+                  }
+                } @else {
+                  <small class="muted">El repartidor necesita el punto para armar la ruta. Lo usamos solo para esta entrega.</small>
+                }
+              </div>
+              <label class="campo">
+                <span>Indicaciones</span>
+                <textarea [ngModel]="indicaciones()" (ngModelChange)="indicaciones.set($event)" name="ind"
+                          placeholder="Casa de rejas verdes, después de la tienda…"></textarea>
+              </label>
+            </div>
+          }
+          <div class="quien">
+            <span class="etiqueta-quien">¿Quién lo recibe?</span>
+            <div class="chips-pago">
+              <button type="button" class="chip-pago" [class.activa]="recibe() === 'TITULAR'" (click)="recibe.set('TITULAR')"><mat-icon>person</mat-icon> Yo mismo</button>
+              <button type="button" class="chip-pago" [class.activa]="recibe() === 'TERCERO'" (click)="recibe.set('TERCERO')"><mat-icon>group</mat-icon> Otra persona</button>
+            </div>
+            <small class="muted">Al entregar verificamos a quien recibe con su rostro (o su cédula original) y firma el recibido.
+              @if (recibe() === 'TERCERO') { Escriba sus datos y tome las fotos: así la tienda la reconoce al entregar. }</small>
+            @if (recibe() === 'TERCERO') {
+              <div class="tercero">
+                <div class="campos dos">
+                  <label class="campo"><span>Nombre completo *</span><input type="text" [ngModel]="tNombre()" (ngModelChange)="tNombre.set($event)" name="tnom" autocomplete="off" /></label>
+                  <label class="campo"><span>Cédula *</span><input type="text" inputmode="numeric" [ngModel]="tCedula()" (ngModelChange)="tCedula.set($event)" name="tced" /></label>
+                  <label class="campo"><span>Celular</span><input type="tel" [ngModel]="tTelefono()" (ngModelChange)="tTelefono.set($event)" name="ttel" /></label>
+                  <label class="campo"><span>Parentesco</span><input type="text" placeholder="Esposa, hijo, vecino…" [ngModel]="tParentesco()" (ngModelChange)="tParentesco.set($event)" name="tpar" /></label>
+                </div>
+                <div class="fotos-tercero">
+                  <div class="foto-t">
+                    <span>Cara de la persona *</span>
+                    @if (tomandoRostroT()) {
+                      <eco-captura-rostro [frontal]="false" [conVivacidad]="false" [permitirArchivo]="true" (capturado)="rostroTercero($event)" />
+                    } @else if (vistaT().rostro) {
+                      <img [src]="vistaT().rostro" alt="Cara" /><button type="button" class="enlace" (click)="tomandoRostroT.set(true)">Repetir</button>
+                    } @else { <button type="button" class="eco-btn secundario" (click)="tomandoRostroT.set(true)"><mat-icon>photo_camera</mat-icon> Tomar foto</button> }
+                  </div>
+                  @for (f of [{ k: 'cedula_frente', t: 'Cédula por delante *' }, { k: 'cedula_reverso', t: 'Cédula por detrás *' }]; track f.k) {
+                    <label class="foto-t subir">
+                      <span>{{ f.t }}</span>
+                      <input type="file" accept="image/*" capture="environment" (change)="fotoTercero($any(f.k), $event)" hidden />
+                      @if ($any(vistaT())[f.k]) { <img [src]="$any(vistaT())[f.k]" [alt]="f.t" /><span class="enlace">Cambiar</span> }
+                      @else { <span class="eco-btn secundario"><mat-icon>badge</mat-icon> Foto</span> }
+                    </label>
+                  }
+                </div>
+              </div>
+            }
+          </div>
+        </section>
+
+        }
+
+        <!-- 3. Cuándo -->
+        <section class="tarjeta bloque">
+          <h2 class="bloque-titulo"><span class="paso">2</span> ¿Cuándo? <small class="opcional">opcional</small></h2>
+          <p class="muted ayuda">
+            {{ entrega() === 'DOMICILIO' ? 'Elija cuándo quiere recibirlo.' : 'Diga cuándo pasa a recoger, por ejemplo al salir de turno.' }}
+            Si no elige, la tienda le avisa cuando esté listo.
+          </p>
+          <div class="campos dos">
+            <label class="campo">
+              <span>Día</span>
+              <input type="date" [min]="fechaMinima()" [ngModel]="fecha()" (ngModelChange)="fecha.set($event)" name="fecha" />
+            </label>
+            <label class="campo">
+              <span>Hora</span>
+              <input type="time" [ngModel]="hora()" (ngModelChange)="hora.set($event)" name="hora" [disabled]="!fecha()" />
+            </label>
+          </div>
+        </section>
+
+        }
+
+        @if (paso() === 2) {
+        <!-- 4. Pago -->
+        <section class="tarjeta bloque">
+          <h2 class="bloque-titulo"><span class="paso">3</span> ¿Cómo paga?</h2>
+          @if (porTienda) {
+            <p class="muted ayuda"><mat-icon>account_balance_wallet</mat-icon> Primero usamos su bono mercado; lo que falte lo paga como prefiera.
+              @if (varias()) { Su carrito tiene productos de {{ store.porTienda().length }} tiendas: cada una cobra lo suyo con sus propios medios. }</p>
+            <ul class="pago-tiendas">
+              @for (t of store.porTienda(); track t.tienda_id; let i = $index) {
+                <li class="pago-tienda">
+                  <div class="pt-cabeza"><b>{{ t.tienda_nombre }}</b><span>{{ pesos(totalTienda(i)) }}</span></div>
+                  @if (aceptados(t.tienda_id).includes('NOMINA') && store.puedeNomina()) {
+                    <label class="pt-bono">
+                      <span><mat-icon>account_balance_wallet</mat-icon> Con bono mercado</span>
+                      <span class="monto">$ <input type="number" inputmode="numeric" min="0" step="1000" [ngModel]="bonoTienda()[t.tienda_id] || 0"
+                        (ngModelChange)="cambiarBono(t.tienda_id, $event, totalTienda(i))" [name]="'bono' + i" aria-label="Bono mercado para esta tienda" /></span>
+                    </label>
+                  }
+                  @if ((bonoTienda()[t.tienda_id] || 0) < totalTienda(i)) {
+                    <span class="pt-resto">{{ (bonoTienda()[t.tienda_id] || 0) > 0 ? 'El resto (' + pesos(totalTienda(i) - (bonoTienda()[t.tienda_id] || 0)) + ') con:' : 'Paga con:' }}</span>
+                    <div class="chips-pago">
+                      @for (m of aceptados(t.tienda_id); track m) {
+                        @if (m !== 'NOMINA') {
+                          <button type="button" class="chip-pago" [class.activa]="restoTienda()[t.tienda_id] === m" (click)="elegirResto(t.tienda_id, m)">
+                            <mat-icon>{{ metodo(m).icono }}</mat-icon> {{ metodo(m).nombre }}
+                          </button>
+                        }
+                      }
+                    </div>
+                  } @else {
+                    <span class="pt-resto ok"><mat-icon>check_circle</mat-icon> Todo con bono mercado</span>
+                  }
+                </li>
+              }
+            </ul>
+          } @else if (!dividir()) {
+            <div class="metodos">
+              @for (m of METODOS; track m.valor) {
+                <button type="button" class="metodo" [class.activa]="pago() === m.valor"
+                        [disabled]="m.valor === 'NOMINA' && !store.puedeNomina()" (click)="pago.set(m.valor)" [attr.aria-pressed]="pago() === m.valor">
+                  <mat-icon>{{ m.icono }}</mat-icon>
+                  <span><b>{{ m.nombre }}</b>
+                    <small>@if (m.valor === 'NOMINA') { @if (store.motivoSinCupo()) { {{ store.motivoSinCupo() }} } @else { Disponible {{ pesos(store.cupo()?.disponible) }} } } @else { {{ m.ayuda }} }</small></span>
+                </button>
+              }
+            </div>
+            @if (metodo(pago()).referencia) {
+              <label class="campo">
+                <span>{{ metodo(pago()).referencia }} <small class="muted">(opcional, agiliza la verificación)</small></span>
+                <input type="text" [ngModel]="referenciaUnica()" (ngModelChange)="referenciaUnica.set($event)" name="ref" maxlength="120" />
+              </label>
+            }
+            <button type="button" class="enlace dividir" (click)="activarDivision()"><mat-icon>call_split</mat-icon> Dividir el pago (parte bono mercado, parte efectivo, transferencia…)</button>
+          } @else {
+            <ul class="partes">
+              @for (p of partes(); track $index; let i = $index) {
+                <li class="parte">
+                  <select [ngModel]="p.metodo" (ngModelChange)="cambiarParte(i, { metodo: $event })" [name]="'m' + i" aria-label="Forma de pago">
+                    @for (m of METODOS; track m.valor) {
+                      <option [value]="m.valor" [disabled]="m.valor === 'NOMINA' && !store.puedeNomina()">{{ m.nombre }}</option>
+                    }
+                  </select>
+                  <label class="monto"><span>$</span>
+                    <input type="number" inputmode="numeric" min="0" step="100" [ngModel]="p.monto" (ngModelChange)="cambiarParte(i, { monto: $event })" [name]="'v' + i" aria-label="Monto" />
+                  </label>
+                  @if (falta() > 0) { <button type="button" class="mini" (click)="completar(i)" title="Poner aquí lo que falta">+{{ pesos(falta()) }}</button> }
+                  <button type="button" class="icono-btn quitar" (click)="quitarParte(i)" aria-label="Quitar esta forma de pago"><mat-icon>close</mat-icon></button>
+                  @if (metodo(p.metodo).referencia) {
+                    <input class="ref" type="text" [placeholder]="metodo(p.metodo).referencia + ' (opcional)'" [ngModel]="p.referencia"
+                           (ngModelChange)="cambiarParte(i, { referencia: $event })" [name]="'r' + i" maxlength="120" />
+                  }
+                </li>
+              }
+            </ul>
+            <div class="partes-pie">
+              @if (partes().length < 6) { <button type="button" class="enlace" (click)="agregarParte()"><mat-icon>add</mat-icon> Agregar otra forma de pago</button> }
+              <span class="cuadre" [class.ok]="falta() === 0" [class.mal]="falta() !== 0">
+                @if (falta() === 0) { <mat-icon>check_circle</mat-icon> Cuadra con el total }
+                @else if (falta() > 0) { Faltan {{ pesos(falta()) }} } @else { Sobran {{ pesos(-falta()) }} }
+              </span>
+            </div>
+          }
+          @if (superaCupo()) {
+            <p class="aviso danger"><mat-icon>error</mat-icon>
+              <span>Lo que va con cupo ({{ pesos(montoNomina()) }}) supera su cupo disponible ({{ pesos(store.cupo()?.disponible) }}).
+                Divida el pago o use otra forma.</span></p>
+          }
+          @if (varias() || plan().length > 1 || pago() !== 'NOMINA') {
+            <p class="muted ayuda"><mat-icon>fact_check</mat-icon> Al confirmar le mostramos a dónde pagarle a cada tienda (Nequi, PSE, cuenta…). Suba el comprobante y la plataforma lo valida antes de despachar. El efectivo se paga al recibir.</p>
+          }
+        </section>
+
+        <!-- 5. Sus datos -->
+        <section class="tarjeta bloque">
+          <h2 class="bloque-titulo"><span class="paso">4</span> Sus datos</h2>
+          <div class="campos dos">
+            <label class="campo">
+              <span>Nombre *</span>
+              <input type="text" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" name="nombre" autocomplete="name" />
+            </label>
+            <label class="campo">
+              <span>Celular</span>
+              <input type="tel" [ngModel]="telefono()" (ngModelChange)="telefono.set($event)" name="tel"
+                     inputmode="tel" autocomplete="tel" placeholder="Para avisarle cuando esté listo" />
+            </label>
+          </div>
+          <label class="campo">
+            <span>Nota para la tienda</span>
+            <input type="text" [ngModel]="observacion()" (ngModelChange)="observacion.set($event)" name="obs"
+                   placeholder="Ej.: el arroz de 5 kg, no de 1 kg" />
+          </label>
+          <p class="muted ayuda"><mat-icon>verified_user</mat-icon> Su cédula sale de su sesión: nadie puede pedir a su nombre.</p>
+        </section>
+        }
+
+        @if (paso() === 3) {
+        <section class="tarjeta bloque">
+          <h2 class="bloque-titulo"><span class="paso">3</span> Revise y confirme</h2>
+          <dl class="repaso">
+            <div><dt>Entrega</dt><dd>{{ entrega() === 'DOMICILIO' ? 'Domicilio a ' + direccion() : entrega() === 'RECOGE_OFICINA' ? 'Recoge en su oficina' : 'Recoge en la tienda' }}</dd></div>
+            @if (entrega() === 'DOMICILIO' && indicaciones()) { <div><dt>Indicaciones</dt><dd>{{ indicaciones() }}</dd></div> }
+            <div><dt>Recibe</dt><dd>{{ recibe() === 'TERCERO' ? tNombre() + ' · C.C. ' + tCedula() : 'Usted' }}</dd></div>
+            @for (t of store.porTienda(); track t.tienda_id) {
+              <div><dt>Pago{{ varias() ? ' · ' + t.tienda_nombre : '' }}</dt>
+                <dd>@if (bonoTienda()[t.tienda_id] > 0) { Bono mercado {{ pesos(bonoTienda()[t.tienda_id]) }} }
+                  @if ((bonoTienda()[t.tienda_id] || 0) < totalTienda($index)) { {{ bonoTienda()[t.tienda_id] > 0 ? '+ ' : '' }}{{ metodo(restoTienda()[t.tienda_id] || 'EFECTIVO').nombre }} {{ pesos(totalTienda($index) - (bonoTienda()[t.tienda_id] || 0)) }} }</dd></div>
+            }
+          </dl>
+        </section>
+
+        <section class="tarjeta bloque">
+          <h2 class="bloque-titulo"><mat-icon>face</mat-icon> Confirme que es usted</h2>
+          @if (verificacion()?.aprueba) {
+            <p class="ok-verif"><mat-icon>verified_user</mat-icon> Identidad verificada con su foto de contratación.</p>
+          } @else if (sinBiometria()) {
+            <p class="aviso info"><mat-icon>badge</mat-icon><span>Sin reconocimiento facial: al recibir presenta su cédula original y firma en papel.
+              <button type="button" class="enlace" (click)="sinBiometria.set(false)">Mejor verificar ahora</button></span></p>
+          } @else if (!aceptaBio()) {
+            <div class="legal">{{ TEXTO_TITULAR }}</div>
+            <label class="check"><input type="checkbox" (change)="aceptaBio.set($any($event.target).checked)" /> <span>Autorizo verificar mi identidad con mi rostro para confirmar esta solicitud.</span></label>
+            @if (recibe() === 'TITULAR') { <button type="button" class="enlace" (click)="sinBiometria.set(true)">Prefiero no usar reconocimiento facial</button> }
+            @else { <small class="muted">Para autorizar a otra persona hace falta verificar que es usted.</small> }
+          } @else if (verificando()) {
+            <p class="muted"><mat-icon>hourglass_top</mat-icon> Comparando con su foto de contratación…</p>
+          } @else {
+            <eco-captura-rostro [frontal]="true" [conVivacidad]="true" (capturado)="verificarme($event)" />
+            @if (errorVerif()) { <p class="aviso warn"><mat-icon>error</mat-icon><span>{{ errorVerif() }}</span></p> }
+          }
+        </section>
+
+        @if (montoNomina() > 0 && verificacion()?.aprueba) {
+          <section class="tarjeta bloque">
+            <h2 class="bloque-titulo"><mat-icon>draw</mat-icon> Firme la solicitud de préstamo</h2>
+            <p class="muted">Solicito un préstamo de <b>{{ pesos(montoNomina()) }}</b> en bienes, y autorizo su descuento de mi salario conforme al artículo 149 del Código Sustantivo del Trabajo. Al recibir firmará también el papel impreso.</p>
+            <eco-firma texto="Firme aquí con el dedo" [pie]="'Firma de ' + nombre()" (firma)="firmaPrestamo.set($event)" />
+          </section>
+        }
+
+        @if (recibe() === 'TERCERO') {
+          <section class="tarjeta bloque">
+            <div class="legal">{{ TEXTO_AUTORIZA_TERCERO }}</div>
+            <label class="check"><input type="checkbox" [checked]="aceptaTercero()" (change)="aceptaTercero.set($any($event.target).checked)" />
+              <span>Declaro que los datos y fotos son de {{ tNombre() || 'esta persona' }}, que tengo su permiso, y acepto el descuento de lo que reclame en mi nombre.</span></label>
+          </section>
+        }
+        }
+      </div>
+
+      <!-- Resumen -->
+      <aside class="resumen tarjeta">
+        <h2>Resumen</h2>
+        <dl>
+          <div><dt>Productos ({{ store.unidades() }})</dt><dd>{{ pesos(store.total() + store.ahorro()) }}</dd></div>
+          @if (store.ahorro() > 0) { <div class="ahorro"><dt>Promociones</dt><dd>−{{ pesos(store.ahorro()) }}</dd></div> }
+          @if (entrega() === 'DOMICILIO') { <div><dt>Domicilio</dt><dd>{{ costoDomicilio() ? pesos(costoDomicilio()) : 'Gratis' }}</dd></div> }
+          @if (store.diasMax()) { <div><dt>Listo en</dt><dd>~{{ store.diasMax() }} días</dd></div> }
+          @else { <div><dt>Listo</dt><dd>Hoy</dd></div> }
+          <div class="total"><dt>Total</dt><dd>{{ pesos(totalPedido()) }}</dd></div>
+        </dl>
+        @if (false) {
+          <dl class="desglose">
+            @for (p of plan(); track $index) { <div><dt>{{ metodo(p.metodo).nombre }}</dt><dd>{{ pesos(p.monto) }}</dd></div> }
+          </dl>
+        }
+        @if (montoNomina() > 0 && !store.motivoSinCupo()) {
+          <p class="nota"><mat-icon>lock_clock</mat-icon> Al confirmar se apartan {{ pesos(montoNomina()) }} de su bono mercado. Se descuentan de la nómina solo cuando reciba el pedido.</p>
+        }
+        @if (error()) { <p class="aviso danger"><mat-icon>error</mat-icon><span>{{ error() }}</span></p> }
+        @if (faltaDireccion()) { <p class="aviso warn"><mat-icon>place</mat-icon><span>{{ !direccion().trim() ? "Escriba la dirección del domicilio." : "Marque la ubicación del domicilio en el mapa." }}</span></p> }
+        @if (paso() < 3) {
+          @if (motivoPaso()) { <p class="aviso warn"><mat-icon>info</mat-icon><span>{{ motivoPaso() }}</span></p> }
+          <button type="button" class="eco-btn ancho confirmar" (click)="siguiente()" [disabled]="!!motivoPaso()">
+            Continuar <mat-icon>arrow_forward</mat-icon>
+          </button>
+        } @else {
+        @if (motivoConfirmar()) { <p class="aviso warn"><mat-icon>info</mat-icon><span>{{ motivoConfirmar() }}</span></p> }
+        <button type="button" class="eco-btn ancho confirmar" (click)="confirmar()" [disabled]="!puedeConfirmar()">
+          @if (enviando()) { Confirmando… }
+          @else {
+            <mat-icon>check</mat-icon>
+            {{ soloServicios() ? 'Activar' : (entrega() === 'DOMICILIO' ? 'Pedir domicilio' : 'Apartar mi pedido') }} · {{ pesos(totalPedido()) }}
+          }
+        </button>
+        }
+        @if (paso() > 1) { <button type="button" class="enlace seguir" (click)="irA(paso() - 1)">Volver al paso anterior</button> }
+        <a class="enlace seguir" routerLink="/economiapp">Seguir comprando</a>
+      </aside>
+    </div>
+  }
+</div>
+
+<ng-template #linea let-l>
+  <li class="linea">
+    <a class="linea-foto" [routerLink]="['/economiapp/producto', l.producto_id]">
+      <eco-imagen [doc]="l.imagen" [nombre]="l.nombre" [icono]="iconoDe(l.categoria_id)" />
+    </a>
+    <div class="linea-texto">
+      <a [routerLink]="['/economiapp/producto', l.producto_id]"><b>{{ l.nombre }}</b></a>
+      <small>{{ pesos(l.precio_unitario) }} c/u ·
+        @if (l.tipo === 'SERVICIO' || l.tipo === 'BONO') { <span class="hoy-txt">se activa con código</span> }
+        @else { <span [class.hoy-txt]="l.disponibilidad === 'EN_STOCK'">{{ llegada(l) }}</span> }
+        @if (varias() && l.tienda_nombre) { · <span class="tienda-linea"><mat-icon>storefront</mat-icon>{{ l.tienda_nombre }}</span> }</small>
+      <span class="linea-subtotal">{{ pesos(l.subtotal) }}
+        @if (l.descuento > 0) { <i class="ahorro-linea">Ahorra {{ pesos(l.descuento) }}</i> }
+      </span>
+    </div>
+    <div class="stepper" [class.ocupado]="store.ocupadoLinea() === l.producto_id">
+      <button type="button" (click)="store.cambiarCantidad(l, l.cantidad - 1)" [disabled]="store.ocupadoLinea() === l.producto_id"
+              [attr.aria-label]="l.cantidad <= 1 ? 'Quitar' : 'Uno menos'">
+        <mat-icon>{{ l.cantidad <= 1 ? 'delete' : 'remove' }}</mat-icon>
+      </button>
+      <span>{{ l.cantidad }}</span>
+      <button type="button" (click)="store.cambiarCantidad(l, +l.cantidad + 1)" [disabled]="store.ocupadoLinea() === l.producto_id"
+              aria-label="Uno más">
+        <mat-icon>add</mat-icon>
+      </button>
+    </div>
+  </li>
+</ng-template>

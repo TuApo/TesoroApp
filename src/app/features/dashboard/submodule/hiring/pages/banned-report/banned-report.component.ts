@@ -1,12 +1,13 @@
 import { SharedModule } from '@/app/shared/shared.module';
 import { isPlatformBrowser } from '@angular/common';
-import {  Component, Inject, PLATFORM_ID , ChangeDetectionStrategy } from '@angular/core';
+import {  Component, Inject, PLATFORM_ID , ChangeDetectionStrategy, ChangeDetectorRef, inject } from '@angular/core';
 import { FormGroup, FormBuilder, Validators } from '@angular/forms';
 import { debounceTime, distinctUntilChanged } from 'rxjs';
 import Swal from 'sweetalert2';
 import { AdminService } from '../../../users/services/admin.service';
 import { VetadosService } from '../../service/vetados/vetados.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -20,6 +21,8 @@ import { UtilityServiceService } from '../../../../../../shared/services/utility
 export class BannedReportComponent {
   reporteForm!: FormGroup;
   sedes: any[] = [];
+  /** OnPush: las sedes llegan por HTTP y hay que avisar para que el selector se pinte. */
+  private readonly cdr = inject(ChangeDetectorRef);
   username: string = '';  // Usuario actual (reportado por)
   sede: any;  // Sede del usuario
   categorias: number[] = [];  // Array de categorías del 1 al 13
@@ -29,6 +32,7 @@ export class BannedReportComponent {
     private adminService: AdminService,
     private vetadosService: VetadosService,
     private UtilityServiceService: UtilityServiceService,
+    private sedeScope: SedeScopeService,
     @Inject(PLATFORM_ID) private platformId: Object
   ) {
 
@@ -68,11 +72,15 @@ export class BannedReportComponent {
     // Obtener lista de sedes
     (await this.adminService.traerSucursales()).subscribe({
       next: (data: any) => {
-        const sucursales = Array.isArray(data?.sucursal) ? [...data.sucursal] : [];
+        // `/gestion_admin/sedes/` devuelve un ARREGLO plano de sedes; `data.sucursal` era la
+        // forma de Django y dejaba el selector siempre vacío. Se aceptan las dos.
+        const lista = Array.isArray(data) ? data : (Array.isArray(data?.sucursal) ? data.sucursal : []);
+        const sucursales = lista.filter((s: any) => s?.activa !== false && String(s?.nombre ?? '').trim());
         sucursales.sort((a: any, b: any) => String(a?.nombre ?? '').localeCompare(String(b?.nombre ?? '')));  // Ordenar sedes
         this.sedes = sucursales;
+        this.cdr.markForCheck();
       },
-      error: () => { this.sedes = []; }
+      error: () => { this.sedes = []; this.cdr.markForCheck(); }
     });
 
     // Obtener usuario actual y sede
@@ -85,6 +93,11 @@ export class BannedReportComponent {
       this.reporteForm.patchValue({
         reportadoPor: this.username
       });
+      // La sede del reporte se propone con la activa, salvo que sea transversal
+      // (ADMINISTRATIVOS, VIRTUAL): entonces hay que elegir la oficina en el formulario.
+      if (!this.sedeScope.trabajaDesdeTransversal()) {
+        this.reporteForm.patchValue({ sede: this.sede });
+      }
     }
   }
 
@@ -129,7 +142,9 @@ export class BannedReportComponent {
   async enviarReporte() {
     if (this.reporteForm.valid) {
       const reporte = this.reporteForm.getRawValue();  // Obtener valores del formulario
-      this.vetadosService.enviarReporte(reporte, this.sede).subscribe(
+      // Manda la sede ELEGIDA en el formulario: antes se pisaba con la del usuario y el
+      // selector no servía de nada.
+      this.vetadosService.enviarReporte(reporte, reporte.sede || this.sede).subscribe(
         response => {
           Swal.fire({
             title: 'Éxito',

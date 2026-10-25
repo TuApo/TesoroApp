@@ -1,0 +1,105 @@
+<section class="ap">
+  @if (error() && !datos()) {
+    <div class="ap-vacio">
+      <mat-icon>link_off</mat-icon>
+      <p><strong>{{ error() }}</strong></p>
+    </div>
+  }
+
+  @if (datos(); as d) {
+    <header class="ap-cab">
+      <span class="ap-foto">
+        @if (d.persona.foto_url) {
+          <img [src]="url(d.persona.foto_url)" alt="" [style.object-position]="d.persona.enfoque_x + '% ' + d.persona.enfoque_y + '%'" />
+        } @else {
+          <mat-icon>cake</mat-icon>
+        }
+      </span>
+      <div class="ap-cab__txt">
+        <span class="ap-ceja">🎂 Cumpleaños · {{ fecha() }}</span>
+        <h2>{{ d.persona.nombre }}</h2>
+        @if (d.persona.cargo) { <p>{{ d.persona.cargo }}</p> }
+      </div>
+    </header>
+
+    @if (!d.abierta) {
+      <p class="ap-aviso"><mat-icon>event_busy</mat-icon> Esta celebración ya pasó. ¡Gracias por participar!</p>
+    }
+
+    <article class="ap-bloque">
+      <header class="ap-bloque__cab">
+        <div>
+          <h3>¿Cómo es {{ d.persona.primer_nombre }}?</h3>
+          <p class="ap-sub">Elige hasta {{ d.max_etiquetas }} cosas que la describan. Con lo que elija el equipo, la IA crea un
+            fondo único para su celebración.</p>
+        </div>
+        <span class="ap-cuenta" [class.ap-cuenta--lleno]="elegidas().size === d.max_etiquetas">{{ elegidas().size }}/{{ d.max_etiquetas }}</span>
+      </header>
+
+      @if (top().length) {
+        <p class="ap-top">Lo que más dice el equipo ({{ d.personas_votaron }} {{ d.personas_votaron === 1 ? 'persona' : 'personas' }}):
+          @for (e of top(); track e.id) { <span>{{ e.emoji }} {{ e.nombre }}</span> }</p>
+      }
+
+      @for (c of categorias(); track c.nombre) {
+        <div class="ap-grupo">
+          <span class="ap-grupo__titulo">{{ c.nombre }}</span>
+          <div class="ap-chips">
+            @for (e of c.etiquetas; track e.id) {
+              <button type="button" class="ap-chip" [class.ap-chip--on]="elegidas().has(e.id)" [disabled]="!d.abierta"
+                      [attr.aria-pressed]="elegidas().has(e.id)" (click)="alternar(e)">
+                <span class="ap-chip__emoji" aria-hidden="true">{{ e.emoji }}</span>{{ e.nombre }}
+                @if (votos(e)) { <span class="ap-chip__n">{{ votos(e) }}</span> }
+              </button>
+            }
+          </div>
+        </div>
+      }
+
+      @if (d.abierta) {
+        <div class="ap-pie">
+          @if (guardadoEtiquetas() && !cambiaronEtiquetas()) { <span class="ap-ok"><mat-icon>check_circle</mat-icon> Guardado</span> }
+          <button type="button" class="ap-btn" [disabled]="!cambiaronEtiquetas() || guardandoEtiquetas()" (click)="guardarEtiquetas()">
+            {{ guardandoEtiquetas() ? 'Guardando…' : 'Guardar mis etiquetas' }}</button>
+        </div>
+      }
+    </article>
+
+    <article class="ap-bloque ap-bloque--jefe">
+      <header class="ap-bloque__cab">
+        <div>
+          <h3>Mensaje de su jefe</h3>
+          @if (d.es_jefe) {
+            <p class="ap-sub">Sale firmado en la celebración, debajo de su foto. Es sorpresa: el resto del equipo no lo ve antes.</p>
+          } @else {
+            <p class="ap-sub">
+              @if (d.tiene_mensaje_jefe) { ✅ {{ d.jefe_nombre || 'Su jefe' }} ya le escribió. Se verá el día de la celebración. }
+              @else { {{ d.jefe_nombre || 'Su jefe' }} le escribirá un mensaje que saldrá el día de la celebración. }
+            </p>
+          }
+        </div>
+      </header>
+      @if (d.es_jefe) {
+        <label class="ap-campo">
+          <span>Tu mensaje para {{ d.persona.primer_nombre }}</span>
+          <textarea rows="4" maxlength="500" [ngModel]="mensaje()" (ngModelChange)="mensaje.set($event); guardadoMensaje.set(false)"
+                    [disabled]="!d.abierta" [placeholder]="d.persona.primer_nombre + ', gracias por tu compromiso y tu alegría de todos los días…'"></textarea>
+          <small>{{ mensaje().length }}/500</small>
+        </label>
+        <label class="ap-campo">
+          <span>Firma</span>
+          <input maxlength="120" [ngModel]="firma()" (ngModelChange)="firma.set($event); guardadoMensaje.set(false)" [disabled]="!d.abierta" />
+        </label>
+        @if (d.abierta) {
+          <div class="ap-pie">
+            @if (guardadoMensaje()) { <span class="ap-ok"><mat-icon>check_circle</mat-icon> Guardado</span> }
+            <button type="button" class="ap-btn" [disabled]="guardandoMensaje()" (click)="guardarMensaje()">
+              {{ guardandoMensaje() ? 'Guardando…' : 'Guardar mensaje' }}</button>
+          </div>
+        }
+      }
+    </article>
+
+    @if (error()) { <p class="ap-error">{{ error() }}</p> }
+  }
+</section>

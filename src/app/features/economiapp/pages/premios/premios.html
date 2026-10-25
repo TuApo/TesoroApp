@@ -1,0 +1,263 @@
+<div class="premios-pagina" [class.halloween]="enHalloween()">
+
+  <!-- ── Portada: saldo y nivel ─────────────────────────────────────────── -->
+  <section class="portada-premios" aria-label="Sus puntos">
+    <picture>
+      <source media="(max-width: 700px)" [attr.srcset]="imagenes().movilChico + ' 720w, ' + imagenes().movil + ' 1080w'" sizes="100vw" />
+      <img [src]="imagenes().escritorioChico" [attr.srcset]="imagenes().escritorioChico + ' 1400w, ' + imagenes().escritorio + ' 2400w'"
+           sizes="(max-width: 1312px) 100vw, 1280px" alt="" fetchpriority="high" decoding="async" />
+    </picture>
+    <div class="pp-velo"></div>
+    <div class="pp-texto">
+      <span class="pp-etq"><mat-icon>stars</mat-icon> Puntos Tu Apo @if (enHalloween()) { · <b>edición Halloween</b> }</span>
+      <div class="pp-saldo" aria-live="polite">
+        <b>{{ miles(saldoVisible()) }}</b><small>puntos</small>
+      </div>
+      <div class="pp-nivel" [style.--nv]="nivel().color">
+        <span class="nivel-insignia"><mat-icon>{{ nivel().icono }}</mat-icon> {{ nivel().nombre }}</span>
+        @if (puntos()?.nivel?.siguiente; as sig) {
+          <span class="nivel-barra" role="progressbar" [attr.aria-valuenow]="puntos()?.nivel?.progreso" aria-valuemin="0" aria-valuemax="100">
+            <span [style.width.%]="puntos()?.nivel?.progreso"></span>
+          </span>
+          <small>Le faltan <b>{{ miles(puntos()?.nivel?.faltan) }}</b> puntos ganados para <b>{{ sig }}</b></small>
+        } @else {
+          <small>¡Llegó al nivel más alto!</small>
+        }
+      </div>
+      <div class="pp-acciones">
+        @if (canjeables().length) {
+          <button type="button" class="pp-cta" (click)="filtro.set('ya'); irA('catalogo')"><mat-icon>redeem</mat-icon> {{ canjeables().length }} premio{{ canjeables().length === 1 ? '' : 's' }} para canjear</button>
+        } @else {
+          <button type="button" class="pp-cta" (click)="irA('ganar')"><mat-icon>bolt</mat-icon> Cómo ganar más</button>
+        }
+        @if (pendientes().length) {
+          <button type="button" class="pp-sec" (click)="irA('canjes')"><mat-icon>qr_code_2</mat-icon> Mis canjes ({{ pendientes().length }})</button>
+        }
+      </div>
+    </div>
+  </section>
+
+  <div class="pp-cuerpo">
+    <!-- ── Ruleta y juegos ──────────────────────────────────────────────── -->
+    <div class="ruleta-juegos">
+      <button type="button" class="rj rj-ruleta" (click)="store.ruletaAbierta.set(true)">
+        <span class="rj-emoji">🎡</span>
+        <span><b>Ruleta del día</b><small>{{ store.ruleta()?.girada_hoy ? 'Ya giró hoy · vuelva mañana' : '¡Tiene un giro! Puntos, perros y premios' }}</small></span>
+      </button>
+      <a class="rj rj-juegos" routerLink="/economiapp/juegos">
+        <span class="rj-emoji">🏆</span>
+        <span><b>Torneo semanal</b><small>El podio del domingo gana hasta 300 puntos</small></span>
+      </a>
+    </div>
+
+    <!-- ── Racha de la semana ───────────────────────────────────────────── -->
+    <section class="tarjeta racha" aria-label="Racha de ingresos">
+      <div class="racha-cabeza">
+        <div>
+          <h2><mat-icon class="fuego">local_fire_department</mat-icon> Racha de {{ puntos()?.racha ?? 0 }} día{{ (puntos()?.racha ?? 0) === 1 ? '' : 's' }}</h2>
+          <p>Gire la ruleta cada día: siempre gana algo. El día 7 abre el cofre: <b>+{{ puntos()?.bono_racha ?? 50 }}</b> extra.</p>
+        </div>
+        @if (puntos()?.ingreso_hoy) { <span class="chip ok"><mat-icon>check</mat-icon> Hoy listo</span> }
+      </div>
+      <ol class="dias">
+        @for (d of semana(); track d.dia) {
+          <li [class.hecho]="d.hecho" [class.hoy]="d.hoy" [class.cofre]="d.cofre">
+            <span class="dia-moneda">
+              @if (d.cofre) { <img [src]="imagenes().cofre" alt="Cofre del día 7" /> }
+              @else if (d.hecho) { <mat-icon>check</mat-icon> }
+              @else { <mat-icon>stars</mat-icon> }
+            </span>
+            <b>{{ d.cofre ? '+' + d.puntos : '🎡' }}</b>
+            <small>{{ d.hoy ? 'Hoy' : 'Día ' + d.dia }}</small>
+          </li>
+        }
+      </ol>
+      @if (puntos()?.racha_max) { <p class="muted racha-max">Su mejor racha: {{ puntos()?.racha_max }} días</p> }
+    </section>
+
+    <!-- ── Próximo premio ───────────────────────────────────────────────── -->
+    @if (proximo(); as p) {
+      <button type="button" class="tarjeta proximo" (click)="abrir(p)">
+        <span class="prox-foto"><eco-imagen [doc]="p.imagen" [nombre]="p.nombre" icono="redeem" /></span>
+        <span class="prox-texto">
+          <small>Su próximo premio</small>
+          <b>{{ p.nombre }}</b>
+          <span class="barra"><span [style.width.%]="progreso(p)"></span></span>
+          <small>{{ miles(saldo()) }} / {{ miles(p.puntos) }} · le faltan <b>{{ miles(p.faltan) }}</b></small>
+        </span>
+        <mat-icon>chevron_right</mat-icon>
+      </button>
+    }
+
+    @if (cargando() && !premios().length) {
+      <div class="riel">@for (i of [1,2,3,4]; track i) { <div class="esqueleto"></div> }</div>
+    } @else if (error()) {
+      <div class="estado-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p></div>
+    } @else {
+      <!-- ── Camino de premios (se desbloquean al sumar) ───────────────── -->
+      @if (camino().length) {
+        <section class="seccion" aria-label="Camino de premios">
+          <div class="seccion-cabeza"><div><h2>El camino de premios</h2><p>Cada punto lo acerca al siguiente. Los grandes se abren al subir de nivel.</p></div></div>
+          <ol class="camino">
+            @for (p of camino(); track p.id; let i = $index) {
+              @if (i === posicion() + 1 && i > 0) {
+                <li class="usted" aria-label="Usted va aquí"><span><mat-icon>person_pin_circle</mat-icon> Usted va aquí · {{ miles(saldo()) }} pts</span></li>
+              }
+              <li class="nodo" [class.der]="i % 2 === 1" [class.listo]="p.alcanzable" [class.bloqueado]="p.bloqueado_por_nivel"
+                  [class.agotado]="p.agotado || p.limite_alcanzado">
+                <button type="button" (click)="abrir(p)" [attr.aria-label]="p.nombre + ', ' + p.puntos + ' puntos. ' + motivo(p)">
+                  <span class="nodo-foto" [style.--avance]="progreso(p) + '%'">
+                    <eco-imagen [doc]="p.imagen" [nombre]="p.nombre" icono="redeem" />
+                    @if (p.bloqueado_por_nivel) { <span class="candado"><mat-icon>lock</mat-icon></span> }
+                    @else if (p.alcanzable) { <span class="brillo"></span> }
+                  </span>
+                  <span class="nodo-texto">
+                    <b>{{ p.nombre }}</b>
+                    <span class="nodo-pts"><mat-icon>stars</mat-icon>{{ miles(p.puntos) }}</span>
+                    <small>{{ motivo(p) }}</small>
+                    @if (p.existencias != null && p.existencias <= 5 && !p.agotado) { <i class="quedan">¡Quedan {{ p.existencias }}!</i> }
+                  </span>
+                </button>
+              </li>
+            }
+          </ol>
+        </section>
+      }
+
+      <!-- ── Catálogo ──────────────────────────────────────────────────── -->
+      <section class="seccion" id="catalogo">
+        <div class="seccion-cabeza"><h2>Todos los premios</h2></div>
+        <div class="filtros" role="tablist">
+          <button type="button" class="eco-filtro" [class.activo]="filtro() === 'todos'" (click)="filtro.set('todos')">Todos</button>
+          <button type="button" class="eco-filtro" [class.activo]="filtro() === 'ya'" (click)="filtro.set('ya')"><mat-icon>redeem</mat-icon> Para canjear ya @if (canjeables().length) { <i class="n">{{ canjeables().length }}</i> }</button>
+          @for (c of categorias(); track c) {
+            <button type="button" class="eco-filtro" [class.activo]="filtro() === c" (click)="filtro.set(c)">{{ c }}</button>
+          }
+        </div>
+        @if (visibles().length) {
+          <div class="rejilla-premios">
+            @for (p of visibles(); track p.id) {
+              <button type="button" class="premio" [class.listo]="p.alcanzable" [class.bloqueado]="p.bloqueado_por_nivel" (click)="abrir(p)">
+                <span class="premio-foto">
+                  <eco-imagen [doc]="p.imagen" [nombre]="p.nombre" icono="redeem" />
+                  @if (p.bloqueado_por_nivel) { <span class="sello-nivel"><mat-icon>lock</mat-icon> {{ NIVELES[p.nivel_minimo]?.nombre }}</span> }
+                  @if (p.destacado) { <span class="sello-dest"><mat-icon>local_fire_department</mat-icon></span> }
+                </span>
+                <span class="premio-cuerpo">
+                  <span class="premio-pts"><mat-icon>stars</mat-icon>{{ miles(p.puntos) }}</span>
+                  <b>{{ p.nombre }}</b>
+                  @if (p.alcanzable) { <span class="premio-estado ok">¡Canjéelo ya!</span> }
+                  @else { <span class="barra"><span [style.width.%]="progreso(p)"></span></span><small>{{ motivo(p) }}</small> }
+                </span>
+              </button>
+            }
+          </div>
+        } @else {
+          <p class="muted">Todavía no alcanza ningún premio: siga sumando, ¡ya casi!</p>
+        }
+      </section>
+    }
+
+    <!-- ── Cómo ganar ─────────────────────────────────────────────────── -->
+    <section class="seccion" id="ganar">
+      <div class="seccion-cabeza"><div><h2>Cómo ganar puntos</h2><p>Todo lo que compra en la tienda suma. Mire los puntos en cada producto.</p></div></div>
+      <div class="ganar">
+        @for (r of puntos()?.reglas ?? []; track r.codigo) {
+          <div class="regla">
+            <mat-icon>{{ ICONO_REGLA[r.codigo] || 'stars' }}</mat-icon>
+            <span><b>{{ r.nombre }}</b><small>{{ r.descripcion }}</small></span>
+          </div>
+        }
+      </div>
+      <div class="ganar-atajos">
+        <a class="eco-btn secundario" routerLink="/economiapp/explorar" [queryParams]="{ ver: 'ofertas' }"><mat-icon>local_offer</mat-icon> Ofertas (doble puntos)</a>
+        <a class="eco-btn secundario" routerLink="/economiapp/explorar" [queryParams]="{ q: 'perro caliente' }"><mat-icon>lunch_dining</mat-icon> Perros calientes (+20 pts)</a>
+      </div>
+    </section>
+
+    <!-- ── Mis canjes ─────────────────────────────────────────────────── -->
+    <section class="seccion" id="canjes">
+      <div class="seccion-cabeza"><div><h2>Mis canjes</h2><p>Muestre el código en la tienda: se lo escanean y le entregan su premio.</p></div></div>
+      @for (c of pendientes(); track c.id) {
+        <article class="canje activo">
+          <div class="canje-qr">@if (qr()[c.id]) { <img [src]="qr()[c.id]" [alt]="'Código ' + c.codigo" /> } @else { <mat-icon>qr_code_2</mat-icon> }</div>
+          <div class="canje-texto">
+            <b>{{ c.premio_nombre }}</b>
+            <span class="canje-codigo">{{ codigoVisible(c.codigo) }}</span>
+            <small>{{ miles(c.puntos) }} puntos · {{ c.tienda_nombre || 'Cualquier tienda' }} · {{ venceEn(c) }}</small>
+            @if (c.origen === 'RULETA') { <small class="de-ruleta">🎡 Ganado en la ruleta</small> }
+            @else { <button type="button" class="enlace" (click)="cancelar(c)">Cancelar y devolver puntos</button> }
+          </div>
+        </article>
+      } @empty {
+        <p class="muted">No tiene premios por reclamar.</p>
+      }
+      @if (historialCanjes().length) {
+        <ul class="canjes-viejos">
+          @for (c of historialCanjes(); track c.id) {
+            <li><mat-icon>{{ c.estado === 'ENTREGADO' ? 'check_circle' : c.estado === 'CANCELADO' ? 'cancel' : 'schedule' }}</mat-icon>
+              <span><b>{{ c.premio_nombre }}</b><small>{{ c.estado === 'ENTREGADO' ? 'Entregado' : c.estado === 'CANCELADO' ? 'Cancelado' : 'Vencido' }} · {{ miles(c.puntos) }} pts</small></span></li>
+          }
+        </ul>
+      }
+    </section>
+
+    <!-- ── Historial ──────────────────────────────────────────────────── -->
+    @if (puntos()?.movimientos?.length) {
+      <section class="seccion">
+        <button type="button" class="enlace historial-btn" (click)="verHistorial.set(!verHistorial())">
+          <mat-icon>{{ verHistorial() ? 'expand_less' : 'history' }}</mat-icon> {{ verHistorial() ? 'Ocultar' : 'Ver' }} historial de puntos
+        </button>
+        @if (verHistorial()) {
+          <ul class="historial">
+            @for (m of puntos()?.movimientos ?? []; track m.id) {
+              <li [class.menos]="m.puntos < 0"><span><b>{{ etiquetaOrigen(m.origen) }}</b><small>{{ m.descripcion }}</small></span>
+                <b class="mov">{{ m.puntos > 0 ? '+' : '' }}{{ miles(m.puntos) }}</b></li>
+            }
+          </ul>
+        }
+      </section>
+    }
+  </div>
+
+  <!-- ── Hoja del premio / canje ──────────────────────────────────────── -->
+  @if (abierto(); as p) {
+    <div class="velo" (click)="cerrar()"></div>
+    <section class="hoja hoja-premio" role="dialog" aria-modal="true" [attr.aria-label]="p.nombre">
+      @if (recienCanjeado(); as c) {
+        <eco-confeti />
+        <div class="exito-canje">
+          <span class="exito-icono"><mat-icon>celebration</mat-icon></span>
+          <h2>¡Premio canjeado!</h2>
+          <p>Muestre este código en <b>{{ c.tienda_nombre || 'la tienda' }}</b> y se lo entregan. Tiene hasta {{ venceEn(c) }}.</p>
+          <div class="canje-qr grande">@if (qr()[c.id]) { <img [src]="qr()[c.id]" [alt]="'Código ' + c.codigo" /> } @else { <mat-icon>qr_code_2</mat-icon> }</div>
+          <span class="canje-codigo grande">{{ codigoVisible(c.codigo) }}</span>
+          <button type="button" class="eco-btn ancho" (click)="cerrar(); irA('canjes')">Listo</button>
+        </div>
+      } @else {
+        <header class="hoja-cabeza">
+          <h2>{{ p.nombre }}</h2>
+          <button type="button" class="icono-btn" (click)="cerrar()" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+        </header>
+        <div class="hp-foto"><eco-imagen [doc]="p.imagen" [nombre]="p.nombre" icono="redeem" /></div>
+        @if (p.descripcion) { <p class="hoja-sub">{{ p.descripcion }}</p> }
+        <dl class="hp-datos">
+          <div><dt>Cuesta</dt><dd><mat-icon>stars</mat-icon> {{ miles(p.puntos) }} puntos</dd></div>
+          @if (p.valor_pesos) { <div><dt>Vale en tienda</dt><dd>{{ pesos(p.valor_pesos) }}</dd></div> }
+          <div><dt>Usted tiene</dt><dd>{{ miles(saldo()) }} puntos</dd></div>
+          @if (p.alcanzable) { <div><dt>Le quedan</dt><dd>{{ miles(saldo() - p.puntos) }} puntos</dd></div> }
+          @if (p.nivel_minimo !== 'BRONCE') { <div><dt>Nivel</dt><dd>{{ NIVELES[p.nivel_minimo]?.nombre }}</dd></div> }
+          @if (p.existencias != null) { <div><dt>Disponibles</dt><dd>{{ p.existencias }}</dd></div> }
+        </dl>
+        @if (!p.alcanzable) {
+          <div class="aviso warn"><mat-icon>info</mat-icon><span>{{ motivo(p) }}. @if (!p.bloqueado_por_nivel && !p.agotado) { Compre en la tienda y entre cada día para sumar. }</span></div>
+          <span class="barra grande"><span [style.width.%]="progreso(p)"></span></span>
+        }
+        <button type="button" class="eco-btn ancho canjear" [disabled]="!p.alcanzable || canjeando()" (click)="canjear(p)">
+          <mat-icon>redeem</mat-icon> {{ canjeando() ? 'Canjeando…' : 'Canjear por ' + miles(p.puntos) + ' puntos' }}
+        </button>
+        <p class="muted letra-chica">Los puntos se descuentan al canjear. Si no lo reclama a tiempo o lo cancela, vuelven a su saldo.</p>
+      }
+    </section>
+  }
+</div>

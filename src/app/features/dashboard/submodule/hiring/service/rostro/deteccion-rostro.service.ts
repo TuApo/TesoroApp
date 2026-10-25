@@ -1,5 +1,7 @@
 import { Injectable } from '@angular/core';
 
+import { CajaRostro } from './foto-documento.util';
+
 /** Lo que se ve de la persona en un fotograma. */
 export interface LecturaRostro {
   /** Hay una cara en cuadro. */
@@ -20,6 +22,19 @@ export interface LecturaRostro {
   /** Cuánto cerrado está cada ojo (0 abierto, 1 cerrado). */
   ojoIzq: number;
   ojoDer: number;
+  /**
+   * La caja completa de la cara (normalizada al fotograma crudo, sin espejo)
+   * con la altura de los ojos. Es de lo que sale el recorte 3:4 de la foto.
+   */
+  caja: CajaRostro | null;
+}
+
+/** Lo que se encontró en una imagen suelta (modo "Adjuntar"). */
+export interface DeteccionImagen {
+  /** Cuántas caras hay. 0 = no hay nadie; más de 1 = no es una foto de UNA persona. */
+  caras: number;
+  /** La caja de la cara más grande, o null si no hay ninguna. */
+  caja: CajaRostro | null;
 }
 
 /** Sin cara en cuadro: valores neutros para no tener que comprobar nulos. */
@@ -32,7 +47,27 @@ const SIN_CARA: LecturaRostro = {
   inclinacion: 0,
   ojoIzq: 0,
   ojoDer: 0,
+  caja: null,
 };
+
+/** Caja de un conjunto de puntos normalizados, con la altura media de los ojos. */
+function cajaDePuntos(puntos: Array<{ x: number; y: number }>): CajaRostro {
+  let minX = 1;
+  let maxX = 0;
+  let minY = 1;
+  let maxY = 0;
+  for (const p of puntos) {
+    if (p.x < minX) minX = p.x;
+    if (p.x > maxX) maxX = p.x;
+    if (p.y < minY) minY = p.y;
+    if (p.y > maxY) maxY = p.y;
+  }
+  const oD = puntos[P_OJO_DERECHO];
+  const oI = puntos[P_OJO_IZQUIERDO];
+  // Sin acotar a 0..1 a propósito: el encuadre del vídeo siempre se ha medido
+  // así, y el recorte ya se encarga de no salirse de la imagen.
+  return { minX, maxX, minY, maxY, ojosY: oD && oI ? (oD.y + oI.y) / 2 : null };
+}
 
 /**
  * Puntos de la malla de 478 que hacen falta para saber si mira de frente.
@@ -70,6 +105,15 @@ export class DeteccionRostroService {
   private cargando: Promise<boolean> | null = null;
   /** El modelo ya se intentó cargar y no se pudo. No se reintenta en bucle. */
   private imposible = false;
+
+  /**
+   * Segundo detector, en modo IMAGE, para las fotos ADJUNTADAS. El de vídeo no
+   * sirve para una imagen suelta: sigue la cara entre fotogramas y exige marcas
+   * de tiempo crecientes. Se crea solo si alguien adjunta un archivo.
+   */
+  private landmarkerImagen: any | null = null;
+  private cargandoImagen: Promise<boolean> | null = null;
+  private imposibleImagen = false;
 
   get disponible(): boolean {
     return !!this.landmarker;
@@ -125,16 +169,7 @@ export class DeteccionRostroService {
 
     // Caja de la cara en coordenadas normalizadas: es la medida de "dónde
     // está y qué tan cerca" que no depende de la resolución de la cámara.
-    let minX = 1;
-    let maxX = 0;
-    let minY = 1;
-    let maxY = 0;
-    for (const p of puntos) {
-      if (p.x < minX) minX = p.x;
-      if (p.x > maxX) maxX = p.x;
-      if (p.y < minY) minY = p.y;
-      if (p.y > maxY) maxY = p.y;
-    }
+    const caja = cajaDePuntos(puntos);
 
     const cat: Array<{ categoryName: string; score: number }> =
       r?.faceBlendshapes?.[0]?.categories ?? [];
@@ -143,13 +178,70 @@ export class DeteccionRostroService {
 
     return {
       hayCara: true,
-      centroX: (minX + maxX) / 2,
-      centroY: (minY + maxY) / 2,
-      alto: Math.max(0, Math.min(1, maxY - minY)),
+      centroX: (caja.minX + caja.maxX) / 2,
+      centroY: (caja.minY + caja.maxY) / 2,
+      alto: Math.max(0, Math.min(1, caja.maxY - caja.minY)),
       ...this.orientacion(video, puntos),
       ojoIzq: valor('eyeBlinkLeft'),
       ojoDer: valor('eyeBlinkRight'),
+      caja,
     };
+  }
+
+  /**
+   * Busca caras en una imagen suelta (modo "Adjuntar").
+   *
+   * Devuelve null si el detector no está disponible: quien llama sigue sin
+   * él (recorte centrado y que decida la IA). Pide hasta DOS caras a
+   * propósito: con una sola, una foto de grupo pasaría como "hay una persona".
+   */
+  async detectarEnImagen(fuente: HTMLCanvasElement | HTMLImageElement | ImageBitmap): Promise<DeteccionImagen | null> {
+    if (!(await this.iniciarImagen())) return null;
+    let r: any;
+    try {
+      r = this.landmarkerImagen.detect(fuente);
+    } catch (e) {
+      console.warn('[rostro] Falló la detección sobre la imagen:', e);
+      return null;
+    }
+    const caras: Array<Array<{ x: number; y: number }>> = r?.faceLandmarks ?? [];
+    if (!caras.length) return { caras: 0, caja: null };
+
+    // La cara principal es la más grande: en un selfie con alguien al fondo,
+    // la del fondo sale pequeña y no es a quien se está registrando.
+    const cajas = caras.map(cajaDePuntos);
+    const area = (c: CajaRostro) => (c.maxX - c.minX) * (c.maxY - c.minY);
+    const principal = cajas.reduce((a, b) => (area(b) > area(a) ? b : a));
+    // Una segunda cara diminuta (un cartel, alguien muy al fondo) no cuenta.
+    const relevantes = cajas.filter((c) => area(c) >= area(principal) * 0.25).length;
+    return { caras: relevantes, caja: principal };
+  }
+
+  private async iniciarImagen(): Promise<boolean> {
+    if (this.landmarkerImagen) return true;
+    if (this.imposibleImagen) return false;
+    if (this.cargandoImagen) return this.cargandoImagen;
+
+    this.cargandoImagen = (async () => {
+      try {
+        const vision = await import('@mediapipe/tasks-vision');
+        const fileset = await vision.FilesetResolver.forVisionTasks('/mediapipe/wasm');
+        this.landmarkerImagen = await vision.FaceLandmarker.createFromOptions(fileset, {
+          baseOptions: { modelAssetPath: '/mediapipe/face_landmarker.task' },
+          runningMode: 'IMAGE',
+          numFaces: 2,
+        });
+        return true;
+      } catch (e) {
+        console.warn('[rostro] No se pudo cargar el detector para imágenes:', e);
+        this.imposibleImagen = true;
+        this.landmarkerImagen = null;
+        return false;
+      } finally {
+        this.cargandoImagen = null;
+      }
+    })();
+    return this.cargandoImagen;
   }
 
   /**

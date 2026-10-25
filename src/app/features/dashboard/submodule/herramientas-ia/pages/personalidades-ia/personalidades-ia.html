@@ -1,0 +1,174 @@
+<div class="aia">
+  <header class="aia-hero pia-hero">
+    <div class="aia-hero-txt">
+      <span class="aia-hero-ico"><mat-icon>psychology</mat-icon></span>
+      <div>
+        <h1>Personalidades IA</h1>
+        <p>Elige cómo te responde el Asistente IA: directo, analítico, ejecutivo, paso a paso… o crea las tuyas con tu tono,
+          tus indicaciones y su voz. La que dejes <b>por defecto</b> la usa siempre; en el asistente la cambias por conversación
+          con el selector «Respuesta».</p>
+      </div>
+    </div>
+    <div class="aia-hero-datos">
+      <div><b class="pia-activa">{{ nombreActiva() }}</b><small>por defecto</small></div>
+      <div><b>{{ catalogo()?.propias?.length ?? 0 }}</b><small>propias</small></div>
+    </div>
+    <button type="button" class="aia-primario" (click)="nueva()"><mat-icon>add</mat-icon> Nueva personalidad</button>
+  </header>
+
+  @if (aviso() && !borrador()) {
+    <div class="aia-aviso" role="status"><mat-icon>info</mat-icon><span>{{ aviso() }}</span>
+      <button type="button" class="aia-x" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></div>
+  }
+  @if (error()) {
+    <div class="aia-aviso error" role="alert"><mat-icon>error</mat-icon><span>{{ error() }}</span>
+      <button type="button" class="aia-secundario" (click)="cargar()">Reintentar</button></div>
+  }
+
+  <section class="aia-seccion">
+    <h2><mat-icon>face</mat-icon> Mis personalidades
+      <a class="aia-link" routerLink="/dashboard/herramientas-ia/automatizaciones">Ir a Automatizaciones IA</a>
+    </h2>
+    @if (cargando() && !catalogo()) {
+      <div class="aia-grid"><div class="aia-card esqueleto"></div><div class="aia-card esqueleto"></div></div>
+    } @else if (!catalogo()?.propias?.length) {
+      <div class="aia-vacio">
+        <mat-icon>auto_awesome</mat-icon>
+        <p>Aún no tienes personalidades propias. Crea una desde cero o parte de un estilo predefinido con «Personalizar».</p>
+        <button type="button" class="aia-primario" (click)="nueva()"><mat-icon>add</mat-icon> Crear la primera</button>
+      </div>
+    } @else {
+      <div class="aia-grid">
+        @for (p of catalogo()!.propias; track p.clave) {
+          <article class="aia-card pia-card" [class.pia-activa-card]="p.clave === activa()" [style.--pia-color]="p.color || '#7C3AED'">
+            <div class="aia-card-cab">
+              <span class="aia-card-ico pia-ico"><mat-icon>{{ p.icono || 'face' }}</mat-icon></span>
+              <div class="aia-card-tit"><b>{{ p.nombre }}</b><small>{{ resumen(p) }}@if (p.voz) { · voz {{ p.voz }} }</small></div>
+              @if (p.clave === activa()) { <span class="aia-estado">Por defecto</span> }
+            </div>
+            @if (p.descripcion) { <p class="aia-instr">{{ p.descripcion }}</p> }
+            @if (p.instrucciones) { <p class="aia-resultado">«{{ p.instrucciones }}»</p> }
+            <div class="aia-card-acc">
+              @if (p.clave !== activa()) { <button type="button" class="aia-btn" (click)="usarPorDefecto(p)"><mat-icon>push_pin</mat-icon> Usar por defecto</button> }
+              <span class="aia-sp"></span>
+              <button type="button" class="aia-ico" (click)="editar(p)" matTooltip="Editar" aria-label="Editar"><mat-icon>edit</mat-icon></button>
+              <button type="button" class="aia-ico peligro" (click)="eliminar(p)" matTooltip="Eliminar" aria-label="Eliminar"><mat-icon>delete</mat-icon></button>
+            </div>
+          </article>
+        }
+      </div>
+    }
+  </section>
+
+  <section class="aia-seccion">
+    <h2><mat-icon>style</mat-icon> Estilos predefinidos</h2>
+    <div class="aia-grid plantillas">
+      @for (p of catalogo()?.predefinidas ?? []; track p.clave) {
+        <article class="aia-plantilla pia-pre" [class.pia-activa-card]="p.clave === activa()" [style.--pia-color]="p.color || '#7C3AED'">
+          <span class="aia-plantilla-ico pia-ico-suave"><mat-icon>{{ p.icono || 'auto_awesome' }}</mat-icon></span>
+          <div class="aia-plantilla-txt">
+            <small>{{ p.clave === activa() ? 'Por defecto' : 'Predefinida' }}</small>
+            <b>{{ p.nombre }}</b>
+            <p>{{ p.descripcion }}</p>
+            <div class="aia-card-acc">
+              @if (p.clave !== activa()) { <button type="button" class="aia-btn" (click)="usarPorDefecto(p)">Usar por defecto</button> }
+              <button type="button" class="aia-secundario" (click)="nueva(p)"><mat-icon>tune</mat-icon> Personalizar</button>
+            </div>
+          </div>
+        </article>
+      }
+    </div>
+  </section>
+</div>
+
+@if (borrador(); as b) {
+  <div class="aia-fondo" (click)="borrador.set(null)" animate.enter="aia-fundir"></div>
+  <div class="aia-dialogo pia-dialogo" role="dialog" aria-modal="true" [attr.aria-label]="b.id ? 'Editar personalidad' : 'Nueva personalidad'" animate.enter="aia-surgir"
+       [style.--pia-color]="b.color || '#7C3AED'">
+    <header>
+      <mat-icon class="pia-dlg-ico">{{ b.icono || 'face' }}</mat-icon>
+      <div>
+        <h3>{{ b.id ? 'Editar personalidad' : 'Nueva personalidad' }}</h3>
+        <small>Cómo quieres que te hable el asistente.</small>
+      </div>
+      <button type="button" class="aia-ico" (click)="borrador.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+
+    <label>Nombre
+      <input type="text" [ngModel]="b.nombre" (ngModelChange)="cambiar('nombre', $event)" maxlength="80" placeholder="Mi analista, Coordinadora de tienda…" />
+    </label>
+    <label>Descripción (opcional)
+      <input type="text" [ngModel]="b.descripcion" (ngModelChange)="cambiar('descripcion', $event)" maxlength="300" placeholder="Para qué la uso" />
+    </label>
+
+    <div class="aia-cuando">
+      <span>Estilo de respuesta</span>
+      <div class="pia-segmentos">
+        @for (e of estilos; track e) {
+          <button type="button" [class.sel]="b.estilo === e" (click)="cambiar('estilo', e)" [attr.aria-pressed]="b.estilo === e">{{ nombreEstilo[e] }}</button>
+        }
+      </div>
+    </div>
+    <div class="pia-dos">
+      <label>Tono
+        <select [ngModel]="b.tono" (ngModelChange)="cambiar('tono', $event)">
+          @for (t of tonos; track t) { <option [value]="t">{{ nombreTono[t] }}</option> }
+        </select>
+      </label>
+      <label>Longitud
+        <select [ngModel]="b.longitud" (ngModelChange)="cambiar('longitud', $event)">
+          @for (l of longitudes; track l) { <option [value]="l">{{ nombreLongitud[l] }}</option> }
+        </select>
+      </label>
+    </div>
+
+    <label>Indicaciones propias (opcional)
+      <textarea rows="3" [ngModel]="b.instrucciones" (ngModelChange)="cambiar('instrucciones', $event)" maxlength="2000"
+                placeholder="Escríbele cómo quieres que se comporte."></textarea>
+    </label>
+    <div class="pia-ejemplos">
+      @for (t of ejemplos; track t) { <button type="button" class="aia-chip" (click)="agregarEjemplo(t)">+ {{ t }}</button> }
+    </div>
+
+    <div class="pia-dos">
+      <label>Voz
+        <select [ngModel]="b.voz ?? ''" (ngModelChange)="cambiar('voz', $event || null)">
+          <option value="">La del sistema</option>
+          @for (v of catalogo()?.voces ?? []; track v) { <option [value]="v">{{ v }}</option> }
+        </select>
+      </label>
+      <div class="pia-probar">
+        <button type="button" class="aia-secundario" (click)="probarVoz()"><mat-icon>volume_up</mat-icon> Probar voz</button>
+        <small class="aia-nota">Vista previa aproximada con la voz del navegador; la del asistente se genera en el servidor y suena distinta.</small>
+      </div>
+    </div>
+
+    <div class="aia-cuando">
+      <span>Ícono y color</span>
+      <div class="pia-iconos">
+        @for (i of iconos; track i) {
+          <button type="button" [class.sel]="b.icono === i" (click)="cambiar('icono', i)" [attr.aria-label]="i"><mat-icon>{{ i }}</mat-icon></button>
+        }
+      </div>
+      <div class="pia-colores">
+        @for (c of colores; track c) {
+          <button type="button" [class.sel]="b.color === c" [style.background]="c" (click)="cambiar('color', c)" [attr.aria-label]="'Color ' + c"></button>
+        }
+      </div>
+    </div>
+
+    <div class="pia-preview" aria-live="polite">
+      <span class="pia-preview-ico"><mat-icon>{{ b.icono || 'face' }}</mat-icon></span>
+      <div>
+        <small>Así respondería a «¿Cómo van las ventas de la semana?»</small>
+        <p>{{ muestra() }}</p>
+      </div>
+    </div>
+
+    @if (aviso()) { <p class="aia-dlg-aviso" role="alert">{{ aviso() }}</p> }
+    <footer>
+      <button type="button" class="aia-secundario" (click)="borrador.set(null)">Cancelar</button>
+      <button type="button" class="aia-primario" (click)="guardar()" [disabled]="guardando()"><mat-icon>check</mat-icon> {{ b.id ? 'Guardar cambios' : 'Crear' }}</button>
+    </footer>
+  </div>
+}

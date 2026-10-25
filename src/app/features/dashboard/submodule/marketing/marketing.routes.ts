@@ -63,6 +63,56 @@ export const routes: Routes = [
     data: { title: 'Carrusel del home' },
   },
   {
+    // Cumpleaños: la celebración que sale al primer ingreso del día. Antes era una pestaña del
+    // carrusel; ahora es módulo propio con sus secciones (calendario, IA, etiquetas, plantillas).
+    path: 'cumpleanos',
+    loadComponent: () =>
+      import('./pages/cumpleanos/cumpleanos-layout.component').then((m) => m.CumpleanosLayoutComponent),
+    data: { title: 'Cumpleaños' },
+    children: [
+      { path: '', redirectTo: 'tablero', pathMatch: 'full' },
+      {
+        path: 'tablero',
+        loadComponent: () =>
+          import('./pages/cumpleanos/cumpleanos-tablero.component').then((m) => m.CumpleanosTableroComponent),
+        data: { title: 'Cumpleaños · Tablero' },
+      },
+      {
+        path: 'calendario',
+        loadComponent: () =>
+          import('./pages/cumpleanos/cumpleanos-admin.component').then((m) => m.CumpleanosAdminComponent),
+        data: { title: 'Cumpleaños · Calendario', vista: 'calendario' },
+      },
+      {
+        path: 'ia',
+        loadComponent: () => import('./pages/cumpleanos/cumpleanos-ia.component').then((m) => m.CumpleanosIaComponent),
+        data: { title: 'Cumpleaños · Personalización con IA' },
+      },
+      {
+        path: 'etiquetas',
+        loadComponent: () =>
+          import('./pages/cumpleanos/cumpleanos-etiquetas.component').then((m) => m.CumpleanosEtiquetasComponent),
+        data: { title: 'Cumpleaños · Etiquetas del equipo' },
+      },
+      {
+        path: 'plantillas',
+        loadComponent: () =>
+          import('./pages/cumpleanos/cumpleanos-admin.component').then((m) => m.CumpleanosAdminComponent),
+        data: { title: 'Cumpleaños · Plantillas de animación', vista: 'plantillas' },
+      },
+      {
+        // El correo de felicitación (ms-payroll): la misma pantalla de Nómina, aquí sin su
+        // cabecera y cruzada con la celebración de cada día.
+        path: 'correos',
+        loadComponent: () =>
+          import('../nomina/pages/envio-correos-cumpleanos/envio-correos-cumpleanos.component')
+            .then((m) => m.EnvioCorreosCumpleanosComponent),
+        data: { title: 'Cumpleaños · Correos', incrustado: true },
+      },
+      { path: '**', redirectTo: 'tablero' },
+    ],
+  },
+  {
     // Ordenes de servicio: pedidos a marketing (videos, PDF, cursos, piezas, textos) con sus
     // versiones —hechas con IA o subidas a mano—, revisiones y evidencia de entrega.
     path: 'ordenes',

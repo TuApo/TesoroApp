@@ -1,0 +1,190 @@
+<h2 mat-dialog-title class="ct-titulo">
+  <mat-icon>cloud_upload</mat-icon>
+  Cargar tarjetas desde Excel
+</h2>
+
+<mat-dialog-content class="ct-contenido">
+
+  @if (cargando()) {
+    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+  }
+
+  @if (error()) {
+    <div class="ct-error" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      <div>
+        <p class="ct-error__texto">{{ error() }}</p>
+        @if (codigoError()) {
+          <p class="ct-error__codigo">Código: {{ codigoError() }}</p>
+        }
+      </div>
+    </div>
+  }
+
+  <!-- ── Paso 1: elegir archivo ─────────────────────────────────────────── -->
+  @if (paso() === 'archivo') {
+    <p class="ct-ayuda">
+      El archivo se lee y se valida primero. <strong>Nada se guarda</strong> hasta que
+      revises el resultado y confirmes.
+    </p>
+
+    <input type="file" #selector hidden [accept]="'.xls,.xlsx'" (change)="alElegirArchivo($event)">
+
+    <div class="ct-zona" (click)="selector.click()" (drop)="alSoltar($event)" (dragover)="alArrastrar($event)">
+      <mat-icon class="ct-zona__icono">upload_file</mat-icon>
+      @if (archivo(); as a) {
+        <p class="ct-zona__nombre">{{ a.name }}</p>
+        <p class="ct-zona__peso">{{ tamanoLegible(a.size) }}</p>
+      } @else {
+        <p>Arrastra el archivo aquí o haz clic para elegirlo ({{ extensionesTexto }})</p>
+      }
+    </div>
+
+    <button mat-button type="button" class="ct-enlace" (click)="alternarFormato()">
+      <mat-icon>{{ formatoVisible() ? 'expand_less' : 'expand_more' }}</mat-icon>
+      ¿Qué columnas debe tener el archivo?
+    </button>
+
+    @if (formatoVisible() && formato(); as f) {
+      <div class="ct-formato">
+        <table class="ct-formato__tabla">
+          <thead>
+            <tr><th>Columna</th><th>¿Obligatoria?</th><th>También se acepta</th></tr>
+          </thead>
+          <tbody>
+            @for (c of f.columnas; track c.campo) {
+              <tr>
+                <td><strong>{{ c.encabezado }}</strong></td>
+                <td>{{ c.obligatoria ? 'Sí' : 'No' }}</td>
+                <td class="ct-formato__alias">{{ c.alias.join(', ') }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <ul class="ct-formato__notas">
+          @for (n of f.notas; track n) { <li>{{ n }}</li> }
+          <li>Máximo {{ f.max_filas }} filas y {{ f.max_mb }} MB por archivo.</li>
+        </ul>
+      </div>
+    }
+  }
+
+  <!-- ── Paso 2: revisar la simulación ──────────────────────────────────── -->
+  @if (paso() === 'revision' && simulacion(); as s) {
+    <div class="ct-aviso ct-aviso--simulacion">
+      <mat-icon>visibility</mat-icon>
+      <span>{{ s.mensaje }}</span>
+    </div>
+
+    <div class="ct-totales">
+      <div class="ct-total"><span class="ct-total__n">{{ s.resumen.total_filas }}</span><span>Filas leídas</span></div>
+      <div class="ct-total ct-total--ok"><span class="ct-total__n">{{ s.resumen.filas_validas }}</span><span>Válidas</span></div>
+      <div class="ct-total ct-total--nuevo"><span class="ct-total__n">{{ s.resumen.registros_nuevos }}</span><span>Se crearían</span></div>
+      <div class="ct-total ct-total--upd"><span class="ct-total__n">{{ s.resumen.registros_actualizables }}</span><span>Se actualizarían</span></div>
+      <div class="ct-total"><span class="ct-total__n">{{ s.resumen.sin_cambios }}</span><span>Sin cambios</span></div>
+      <div class="ct-total ct-total--mal"><span class="ct-total__n">{{ s.resumen.filas_con_error }}</span><span>Rechazadas</span></div>
+    </div>
+
+    <ul class="ct-detalles">
+      <li>Duplicados dentro del archivo: <strong>{{ s.resumen.duplicados_archivo }}</strong></li>
+      <li>Rechazadas porque esa identificación ya tiene tarjeta: <strong>{{ s.resumen.alertas_documento_con_otra_tarjeta }}</strong></li>
+      <li>Filas vacías ignoradas: <strong>{{ s.resumen.filas_vacias_ignoradas }}</strong></li>
+      <li>Hoja leída: <strong>{{ s.resumen.hoja_leida }}</strong>
+        @if (s.resumen.hojas_del_archivo.length > 1) {
+          <span class="ct-detalles__extra">(el archivo trae {{ s.resumen.hojas_del_archivo.length }} hojas)</span>
+        }
+      </li>
+    </ul>
+
+    @if (s.resumen.columnas_desconocidas.length) {
+      <div class="ct-aviso ct-aviso--atencion">
+        <mat-icon>help_outline</mat-icon>
+        <span>
+          Columnas que el sistema no reconoce y por tanto <strong>no carga</strong>:
+          {{ s.resumen.columnas_desconocidas.join(', ') }}
+        </span>
+      </div>
+    }
+
+    @if (s.archivo_ya_cargado.length) {
+      <div class="ct-aviso ct-aviso--atencion">
+        <mat-icon>history</mat-icon>
+        <span>
+          Este mismo archivo ya se aplicó antes (lote {{ s.archivo_ya_cargado[0] }}).
+          Volver a aplicarlo no duplica nada.
+        </span>
+      </div>
+    }
+
+    <div class="ct-tabla">
+      <app-tabla-estandar
+        id="contratacion-tarjetas-simulacion"
+        titulo="Detalle por fila"
+        modulo="Contratación"
+        entidad="fila"
+        [datos]="s.filas"
+        [columnas]="columnas"
+        [filasPorPagina]="25">
+      </app-tabla-estandar>
+      @if (s.hay_mas_filas) {
+        <p class="ct-nota">
+          Se muestran {{ s.filas_devueltas }} filas de {{ s.resumen.total_filas }}
+          (primero las que necesitan revisión). El detalle completo está en el Excel de resultados.
+        </p>
+      }
+    </div>
+  }
+
+  <!-- ── Paso 3: resultado ──────────────────────────────────────────────── -->
+  @if (paso() === 'resultado' && aplicacion(); as r) {
+    <div class="ct-aviso" [class.ct-aviso--ok]="r.rechazadas === 0" [class.ct-aviso--atencion]="r.rechazadas > 0">
+      <mat-icon>{{ r.rechazadas === 0 ? 'check_circle' : 'report_problem' }}</mat-icon>
+      <span>{{ r.mensaje }}</span>
+    </div>
+
+    <div class="ct-totales">
+      <div class="ct-total ct-total--nuevo"><span class="ct-total__n">{{ r.creadas }}</span><span>Creadas</span></div>
+      <div class="ct-total ct-total--upd"><span class="ct-total__n">{{ r.actualizadas }}</span><span>Actualizadas</span></div>
+      <div class="ct-total"><span class="ct-total__n">{{ r.sin_cambios }}</span><span>Sin cambios</span></div>
+      <div class="ct-total ct-total--mal"><span class="ct-total__n">{{ r.rechazadas }}</span><span>Rechazadas</span></div>
+    </div>
+
+    <p class="ct-nota">
+      Lote <strong>{{ r.lote_id }}</strong> · estado <strong>{{ r.estado }}</strong>.
+      Queda registrado en «Historial de cargas» con el archivo, el usuario y la hora.
+    </p>
+  }
+
+</mat-dialog-content>
+
+<mat-dialog-actions class="ct-acciones">
+  @if (paso() !== 'archivo') {
+    <button mat-button type="button" (click)="descargarResultado(false)">
+      <mat-icon>download</mat-icon> Descargar resultado
+    </button>
+    <button mat-button type="button" (click)="descargarResultado(true)">
+      <mat-icon>rule</mat-icon> Solo las que fallan
+    </button>
+  }
+
+  <span class="ct-espacio"></span>
+
+  @if (paso() === 'archivo') {
+    <button mat-button type="button" (click)="cerrar()">Cancelar</button>
+    <button mat-raised-button color="primary" [disabled]="!archivo() || cargando()" (click)="simular()">
+      <mat-icon>fact_check</mat-icon> Validar archivo
+    </button>
+  }
+
+  @if (paso() === 'revision') {
+    <button mat-button type="button" (click)="volverAEmpezar()">Elegir otro archivo</button>
+    <button mat-raised-button color="primary" [disabled]="!puedeAplicar() || cargando()" (click)="aplicar()">
+      <mat-icon>save</mat-icon> Confirmar y aplicar
+    </button>
+  }
+
+  @if (paso() === 'resultado') {
+    <button mat-button type="button" (click)="volverAEmpezar()">Cargar otro archivo</button>
+    <button mat-raised-button color="primary" (click)="cerrar()">Cerrar</button>
+  }
+</mat-dialog-actions>

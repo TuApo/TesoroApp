@@ -1,0 +1,36 @@
+:host { display: block; min-width: 0; }
+.captura {
+  display: flex; flex-direction: column; gap: 12px; padding: 14px 16px; min-width: 0;
+  border: 1px solid var(--border); border-radius: var(--r-md, 14px); background: var(--surface);
+}
+.captura.activa { border-color: var(--danger-border); box-shadow: 0 0 0 3px var(--danger-bg); }
+.cab { display: flex; gap: 10px; align-items: flex-start; }
+.cab > mat-icon { color: var(--reu-primario); flex: none; }
+.captura.activa .cab > mat-icon { color: var(--danger-fg); animation: latido 1.4s ease-in-out infinite; }
+.cab h3 { margin: 0; font-size: 0.95rem; font-weight: 750; color: var(--text); }
+.cab p { margin: 2px 0 0; font-size: 0.82rem; color: var(--muted); line-height: 1.4; }
+.fuentes { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.fuente {
+  display: flex; gap: 10px; align-items: flex-start; text-align: left; padding: 10px 12px; min-width: 0;
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm, 10px); background: var(--surface);
+  color: var(--text); font: inherit; cursor: pointer;
+}
+.fuente.sel { border-color: var(--reu-primario); background: var(--info-bg); }
+.fuente:disabled { opacity: .5; cursor: default; }
+.fuente mat-icon { flex: none; color: var(--reu-primario); }
+.fuente span { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.fuente strong { font-size: 0.86rem; }
+.fuente small { font-size: 0.76rem; color: var(--muted); line-height: 1.35; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 0.84rem; color: var(--text-2); }
+.acciones { display: flex; gap: 8px; flex-wrap: wrap; }
+.vivo { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.medidor { flex: 1 1 140px; height: 10px; border-radius: 999px; background: var(--surface-3); overflow: hidden; min-width: 100px; }
+.medidor span { display: block; height: 100%; background: var(--ok-fg); transition: width .08s linear; }
+.cifras { display: flex; gap: 14px; margin: 0; }
+.cifras div { display: flex; flex-direction: column; }
+.cifras dt { font-size: 0.68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 700; }
+.cifras dd { margin: 0; font-weight: 750; font-variant-numeric: tabular-nums; color: var(--text); }
+.cifras dd.alto { color: var(--warn-fg); }
+.legal { margin: 0; font-size: 0.76rem; color: var(--muted); }
+@keyframes latido { 50% { opacity: .35; } }
+@media (prefers-reduced-motion: reduce) { .captura.activa .cab > mat-icon { animation: none; } }

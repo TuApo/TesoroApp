@@ -14,6 +14,11 @@ resuelve lo demás igual en todas partes:
 | Selección tipo Excel | Celda, rango (arrastre o Shift+clic), columna, fila, todo; flechas; auto-scroll. |
 | Copiar / Excel | Ctrl+C o botón (TSV + HTML); descarga `.xlsx` real con encabezado de marca. |
 | Detalle | Si la pantalla escucha `(filaClick)`: botón «Ver» y doble clic. |
+| Pantalla completa | Botón en la barra (Esc para salir). La tabla ocupa la ventana; las barras de herramientas y de lo marcado van en UNA línea arriba a la derecha y se desplazan de lado (rueda, dedo o arrastre). |
+| Marcar filas | Casillas por fila y «todas las filtradas». `[seleccion]` opcional: sin él la tabla usa el suyo. |
+| Pegar lista | Un bloque de Excel (cédulas, códigos…) marca las filas que existan y dice cuáles no. |
+| Revisar lo marcado | Ficha completa de cada registro (fotos, documentos, todos sus datos agrupados) con carrusel de nombre + id, mosaico para comparar, y «quitar de la selección». |
+| Acciones masivas | La pantalla las **declara** (`[accionesMasivas]`) y la tabla pone el botón, la confirmación con el carrusel, la ejecución uno a uno con avance y el cierre. |
 | Tema | Solo tokens (`--surface`, `--text`…): funciona en claro y oscuro sin más. |
 
 ## Uso mínimo
@@ -95,10 +100,14 @@ Para fechas, que `valor` devuelva un `Date` (o ISO) y `formato` el texto: así o
 | `vacio` | — | Texto sin filas (o plantilla `tablaVacio`). |
 | `filaClase` | — | Clases **de la tabla**: `te-fila--atenuada`, `te-fila--alerta`, `te-fila--peligro`, `te-fila--ok`, `te-fila--info`, `te-fila--destacada`. El CSS de la pantalla no llega a las filas. |
 | `pie` | — | `(filas) => ({ idColumna: total })` sobre lo filtrado. |
-| `seleccion` | — | `SelectionModel` de la pantalla → casillas para acciones masivas. |
+| `seleccion` | propio | `SelectionModel` de la pantalla, si necesita leerlo. Sin él la tabla usa el suyo. |
+| `seleccionable` | `true` | `false` quita las casillas (tablas donde marcar no significa nada). |
+| `accionesMasivas` | — | `AccionMasiva<T>[]`: lo que se puede hacer con lo marcado (ver abajo). |
+| `claveMasiva`, `pegable` | auto, `true` | Columna por la que casa «Pegar lista»; `false` lo apaga. |
 | `detalle` | auto | Fuerza/apaga el botón «Ver». |
 | `totalServidor` | `null` | **Modo servidor** (ver abajo). |
 | `paginaServidor` | `null` | Modo servidor: página (base 0) que pidió la pantalla; la tabla se sincroniza. |
+| `sugerencias` | `null` | `SugerenciaBusqueda[]` bajo el buscador (la pantalla las pide al backend en `busquedaCambio`, que con esto se emite también en modo cliente). Se eligen con clic o ↑ ↓ Enter → `(sugerenciaElegida)`. |
 | `opcionesPorPagina` | 25/50/100/250/Todas | Tamaños del paginador (p. ej. `[25, 50, 100, 200]` si el backend topa en 200). |
 | `minAnchoTarjeta`, `tarjetaSinMarco`, `textoDetalle`, `ayuda` | | Presentación. |
 
@@ -106,11 +115,62 @@ Para fechas, que `valor` devuelva un `Date` (o ISO) y `formato` el texto: así o
 |---|---|
 | `(filaClick)` | Botón «Ver», doble clic en fila o clic en tarjeta. |
 | `(ordenCambio)` | `{ columna, direccion } \| null`. Siempre se emite. |
-| `(paginaCambio)`, `(busquedaCambio)` | Solo en modo servidor. |
+| `(paginaCambio)`, `(busquedaCambio)` | Solo en modo servidor (`busquedaCambio` también si hay `sugerencias`). |
+| `(sugerenciaElegida)` | La sugerencia elegida bajo el buscador; la búsqueda se vacía sola. |
+| `(pegadoMasivo)` | Tras «Pegar lista»: cuántas se marcaron y qué no apareció. |
+| `(loteTerminado)` | Tras una acción masiva declarada: `{ accion, hechos, fallidos, cancelado }`. |
 
 Proyección: `<div tablaHerramientas>` (filtros de negocio dentro de la barra, a la izquierda),
-`<div tablaAccionesBarra>` (botones propios, a la derecha), plantillas `tablaCelda`,
-`tablaAcciones`, `tablaTarjeta`, `tablaEncabezado`, `tablaVacio`.
+`<div tablaAccionesBarra>` (botones propios, a la derecha), `<div tablaAccionesSeleccion>` (solo
+para lo que no quepa en `accionesMasivas`), plantillas `tablaCelda`, `tablaAcciones`,
+`tablaTarjeta`, `tablaEncabezado`, `tablaVacio`.
+
+## Acciones sobre lo marcado (`accionesMasivas`)
+
+Es el estándar para todo cambio en bloque. La pantalla **no monta botones, confirmaciones ni
+bucles**: declara qué hace con una fila y la tabla resuelve el resto igual en todas partes.
+
+```ts
+readonly accionesMasivas: AccionMasiva<CentroCosto>[] = [
+  {
+    id: 'desactivar', etiqueta: 'Desactivar', icono: 'block', tono: 'aviso',
+    aplicaA: (c) => c.activo,                       // el botón sale solo si hay alguna
+    confirmar: {
+      icono: 'warning',
+      texto: (cs) => `Ninguno se elimina. ${cs.filter(c => c.contratos > 0).length} tienen contratos.`,
+      nota: 'Motivo (queda en el historial de todos)', // opcional: pide un texto
+    },
+    ejecutar: (c, ctx) => this.api.desactivar(c.id, ctx.nota),   // Promise u Observable, UNA fila
+    etiquetaFila: (c) => c.nombre,                  // cómo se nombra al informar fallos
+    verbo: 'desactivado(s)',
+    alTerminar: () => this.cargar(),
+  },
+];
+```
+
+```html
+<app-tabla-estandar … [accionesMasivas]="accionesMasivas" />
+```
+
+Lo que hace la tabla con eso, siempre igual:
+
+1. **Botón** en la barra de lo marcado con el conteo real («Desactivar **3**»), agrupable con
+   `grupo` («Pasar a:» + un botón por estado).
+2. **`preparar`** (opcional): validar o recoger algo antes (que todo sea del mismo tipo, abrir un
+   selector propio). Devolver `undefined` cancela; lo demás llega en `contexto.datos`.
+3. **Confirmación**: título, explicación, el **carrusel de registros** (nombre + id, con ✕ para
+   dejar alguno fuera), `opciones` (un `<select>`, llega en `contexto.opcion`) y `nota`
+   (`contexto.nota`). `confirmar: false` la salta.
+4. **Ejecución uno a uno** con barra de avance, el registro en curso y botón «Detener». Un fallo
+   no arrastra a los demás.
+5. **Cierre**: cuántos salieron, cuáles no (con «Copiar») y «Dejar marcados los que fallaron»
+   para reintentar. Lo procesado sale de la selección; si se paró, lo que no se alcanzó sigue marcado.
+
+`Revisar N` abre la ficha de cada marcado (fotos, documentos, datos por tipo) y desde ahí se puede
+**aplicar** cualquiera de estas acciones sobre lo que quedó tras descartar.
+
+Para un botón propio que no quepa en el contrato, `tabla.correrAccionMasiva(accion, filas?)` corre
+el mismo flujo sobre lo marcado (o sobre las filas que se le pasen).
 
 ## Modo servidor
 
@@ -131,6 +191,8 @@ ordenar, quien escucha vuelve a la página 0 (la tabla no emite una página extr
 1. **Columnas**: por cada `matColumnDef`/`<th>`, una `ColumnaTabla` con el mismo `header`.
    `valor` = el dato plano que se pintaba; `formato`/`badge`/`tablaCelda` para lo visual.
 2. **Acciones**: los botones de la columna de acciones van a `<ng-template tablaAcciones>`.
+   Los cambios en bloque (desactivar varios, pasar de estado…) se declaran en `accionesMasivas`;
+   nada de `SelectionModel`, Swal ni bucles propios en la pantalla.
 3. **Se elimina**: `MatTableDataSource`, `MatSort`, `MatPaginator`, el buscador propio de la
    página (la tabla trae uno), el contador de filas, el spinner y el mensaje de vacío propios.
 4. **Se conserva**: filtros de negocio que consultan al backend (fechas, sede, estado…),

@@ -10,7 +10,7 @@
         @case ('RELOJ') {
           <div class="reloj">
             <span class="reloj__hora" [style.font-size]="tam(b, 4.2)">{{ formato(b) === '12h' ? hora12() : hora() }}</span>
-            @if (prop(b, 'mostrar_fecha', true)) { <span class="reloj__fecha" [style.font-size]="'calc(' + tam(b, 4.2) + ' * .45)'">{{ datos().ahora | date:'EEEE d MMMM':'':'es' }}</span> }
+            @if (prop(b, 'mostrar_fecha', true)) { <span class="reloj__fecha" [style.font-size]="'calc(' + tam(b, 4.2) + ' * .45)'">{{ datos().ahora | date:'EEEE d MMMM':'':'es-CO' }}</span> }
           </div>
         }
 
@@ -117,8 +117,10 @@
         }
 
         @case ('CROQUIS') {
-          @if (datos().croquis; as c) { <app-croquis-svg class="croquis" [croquis]="c" [resaltar]="areaResaltada()" /> }
-          @else { <div class="media__vacia"><mat-icon>map</mat-icon><span>Croquis publicado de la oficina</span></div> }
+          @if (datos().croquis; as c) {
+            <app-plano-oficina class="croquis" [croquis]="c" [turno]="turnoGrande()" [llamando]="llamando()" [modo]="modoPlano(b)" />
+          }
+          @else { <div class="media__vacia"><mat-icon>map</mat-icon><span>Plano de la oficina (active «Mostrar plano» en la pantalla)</span></div> }
         }
 
         @case ('NOTIFICACIONES') {

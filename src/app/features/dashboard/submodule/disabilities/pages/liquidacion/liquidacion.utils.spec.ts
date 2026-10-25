@@ -144,6 +144,11 @@ describe('liquidacion.utils', () => {
     expect(pagos[0]['Fila original']).toBe(7);
     expect(pagos[0]['Motivo']).toBe('Sin incapacidad con ese codigo');
     expect(String(pagos[0]['Sugerencias'])).toContain('TASB020 (02/08/2026 a 04/08/2026');
+    // V64_2: la causal de los dias no reconocidos va donde la pone la plantilla (para volver a subirla).
+    const columnasPagos = XLSX.utils.sheet_to_json<string[]>(libro.Sheets['Pagos'], { header: 1 })[0];
+    expect(columnasPagos.indexOf('Causal EPS (días no reconocidos)')).toBe(columnasPagos.indexOf('Soporte contable') + 1);
+    expect(columnasPagos.indexOf('Observaciones')).toBe(columnasPagos.indexOf('Soporte contable') + 2);
+    expect(libro.Sheets['Pagos']['!cols']?.length).toBe(columnasPagos.length);
     const negaciones = XLSX.utils.sheet_to_json<Record<string, unknown>>(libro.Sheets['Negaciones']);
     expect(negaciones[0]['Causal de negacion (EPS)']).toBe('CAUSAL 51');
     expect(negaciones[0]['Fecha de respuesta']).toBe('10/09/2026');

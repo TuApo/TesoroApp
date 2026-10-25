@@ -1,0 +1,86 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>fact_check</mat-icon> Arqueos de inventario</h1>
+      <p class="tienda-subtitulo">Cuente lo que hay en la tienda o la bodega sin ver lo que dice el sistema; con doble conteo y fotos. Al cerrar, el inventario queda ajustado con su motivo.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="rejilla" [class.con-detalle]="sel()">
+    <div class="columna">
+      <section class="tienda-tarjeta nuevo">
+        <h3>Nuevo arqueo</h3>
+        <div class="segmentos"><button type="button" [class.activo]="tipo() === 'TOTAL'" (click)="tipo.set('TOTAL')">Total</button><button type="button" [class.activo]="tipo() === 'CICLICO'" (click)="tipo.set('CICLICO')">Cíclico</button></div>
+        <label class="chk"><input type="checkbox" [checked]="doble()" (change)="doble.set($any($event.target).checked)" /> Doble conteo (dos personas cuentan)</label>
+        <label class="chk"><input type="checkbox" [checked]="congelar()" (change)="congelar.set($any($event.target).checked)" /> Congelar ventas del mostrador mientras se cuenta</label>
+        <button type="button" class="boton" (click)="nuevo()"><mat-icon>add</mat-icon> Abrir arqueo</button>
+      </section>
+      <ul class="lista">
+        @for (a of lista(); track a.id) {
+          <li [class.activa]="sel()?.id === a.id" (click)="abrir(a.id)">
+            <div class="fila"><b>{{ a.numero }}</b><span class="est" [attr.data-e]="a.estado">{{ ESTADOS[a.estado] || a.estado }}</span></div>
+            <small>{{ a.abierto_en | date:'short' }} · {{ a.tipo.toLowerCase() }} · {{ a.items_contados }}/{{ a.total_items }} contados</small>
+            @if (a.estado === 'CERRADO') { <small [class.rojo]="+a.valor_diferencia < 0">{{ a.items_con_diferencia }} con diferencia · {{ pesos(a.valor_diferencia) }}</small> }
+          </li>
+        } @empty { <li class="vacio">Sin arqueos en esta tienda.</li> }
+      </ul>
+    </div>
+
+    @if (sel(); as s) {
+      <section class="tienda-tarjeta detalle">
+        <div class="d-cab">
+          <button type="button" class="atras-movil" (click)="sel.set(null)"><mat-icon>arrow_back</mat-icon></button>
+          <div><h2>{{ s.numero }} <span class="est" [attr.data-e]="s.estado">{{ ESTADOS[s.estado] }}</span></h2>
+            <small>{{ s.doble_conteo ? 'Doble conteo' : 'Un conteo' }}{{ s.congelar_ventas ? ' · ventas congeladas' : '' }} · {{ lineas().length }} productos</small></div>
+        </div>
+        @if (contando()) { <div class="barra"><span [style.width.%]="avance()"></span></div><small class="muted">{{ avance() }}% contado. No se muestra lo que dice el sistema para no influir el conteo.</small> }
+
+        <div class="filtros">
+          <span class="con-escaner"><input class="campo-texto" placeholder="Buscar producto" [ngModel]="q()" (ngModelChange)="q.set($event)" />
+            @if (contando()) { <app-escaner-codigo modo="continuo" etiqueta="Contar" titulo="Contar escaneando" [procesar]="procesarConteo" /> }
+            @else { <app-escaner-codigo titulo="Buscar producto en el arqueo" (leido)="buscarPorCodigo($event)" /> }</span>
+          <div class="segmentos">
+            <button type="button" [class.activo]="filtro() === 'todas'" (click)="filtro.set('todas')">Todas</button>
+            <button type="button" [class.activo]="filtro() === 'sin_contar'" (click)="filtro.set('sin_contar')">Sin contar</button>
+            @if (!contando()) { <button type="button" [class.activo]="filtro() === 'diferencia'" (click)="filtro.set('diferencia')">Con diferencia</button> }
+          </div>
+        </div>
+
+        <ul class="lineas">
+          @for (l of visibles(); track l.id) {
+            <li [class.dif]="!contando() && difiere(l)">
+              <div class="l-cab"><b>{{ nombre(l) }}</b>
+                @if (!contando()) { <small>Sistema {{ +l.stock_sistema }} · contado {{ l.conteo1 ?? '—' }}@if (s.doble_conteo) { / {{ l.conteo2 ?? '—' }} }@if (l.cantidad_final != null) { · final {{ +l.cantidad_final }} } @if (l.valor_diferencia) { · {{ pesos(l.valor_diferencia) }} }</small> }
+                @else { <small>Conteo 1: {{ l.conteo1 ?? '—' }}@if (s.doble_conteo) { · Conteo 2: {{ l.conteo2 ?? '—' }} }</small> }
+              </div>
+              @if (contando() && numeroConteo(l); as n) {
+                <div class="l-in">
+                  <input class="campo-texto" type="number" min="0" [placeholder]="'Conteo ' + n" [ngModel]="entrada()[l.id]" (ngModelChange)="ponerEntrada(l.id, $event)" (keyup.enter)="contar(l)" />
+                  <button type="button" class="boton" (click)="contar(l)">Guardar conteo {{ n }}</button>
+                </div>
+              }
+              @if (revision() && difiere(l) && !l.motivo) {
+                <div class="l-in">
+                  <input class="campo-texto" type="number" min="0" placeholder="Cantidad final" [ngModel]="resolucion()[l.id]?.cantidad" (ngModelChange)="ponerRes(l.id, 'cantidad', $event)" />
+                  <input class="campo-texto" placeholder="Motivo (faltante, daño, error de registro…)" [ngModel]="resolucion()[l.id]?.motivo" (ngModelChange)="ponerRes(l.id, 'motivo', $event)" />
+                  <button type="button" class="boton secundario" (click)="resolver(l)">Resolver</button>
+                </div>
+              } @else if (l.motivo) { <small class="muted">Motivo: {{ l.motivo }}</small> }
+              <app-fotos-evidencia entidadTipo="ARQUEO_LINEA" [entidadId]="l.id" etiqueta="Foto" [soloVer]="s.estado === 'CERRADO' || s.estado === 'ANULADO'" />
+            </li>
+          } @empty { <li class="vacio">Nada con este filtro.</li> }
+        </ul>
+
+        <div class="pie">
+          @if (contando() || revision()) { <button type="button" class="boton peligro-suave" (click)="anular()">Anular</button> }
+          <span class="esp"></span>
+          @if (contando()) { <button type="button" class="boton" (click)="aRevision()"><mat-icon>rule</mat-icon> Terminar conteo y revisar</button> }
+          @if (revision()) { <button type="button" class="boton" (click)="cerrar()"><mat-icon>task_alt</mat-icon> Cerrar y ajustar inventario</button> }
+        </div>
+      </section>
+    }
+  </div>
+</div>

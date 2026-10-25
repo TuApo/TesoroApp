@@ -291,6 +291,8 @@ export interface FormPatchRequest {
 export interface SubmissionCreateRequest {
   status?: SubmissionStatus;
   payload: SubmissionPayload;
+  /** Id puesto por el teléfono a una respuesta llenada sin señal: el reenvío no duplica. */
+  client_request_id?: string;
 }
 
 export interface PublicLinkCreateRequest {

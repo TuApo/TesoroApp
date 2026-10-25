@@ -67,6 +67,13 @@ export class ConfiguracionShellComponent {
       soloAdmin: true,
     },
     {
+      ruta: 'interoperabilidad',
+      titulo: 'Interoperabilidad',
+      descripcion: 'IA, voz, video, YouTube y aulas en vivo',
+      icono: 'device_hub',
+      soloAdmin: true,
+    },
+    {
       ruta: 'acerca',
       titulo: 'Acerca de',
       descripcion: 'Versión y dispositivo',

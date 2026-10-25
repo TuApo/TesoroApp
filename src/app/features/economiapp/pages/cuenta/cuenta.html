@@ -1,0 +1,108 @@
+<div class="pagina">
+  <section class="perfil tarjeta">
+    <span class="avatar">{{ (usuario.primerNombre || '?').charAt(0) }}</span>
+    <div class="perfil-texto">
+      <h1>{{ usuario.nombre || 'Su cuenta' }}</h1>
+      <small>
+        @if (store.inicio()?.oficina) { Oficina {{ store.inicio()?.oficina }} }
+        @if (store.inicio()?.temporal) { · {{ store.inicio()?.temporal }} }
+      </small>
+    </div>
+  </section>
+
+  <section class="tarjeta cupo">
+    <h2><mat-icon>account_balance_wallet</mat-icon> Su bono mercado</h2>
+    @if (store.motivoSinCupo()) {
+      <p class="aviso warn"><mat-icon>info</mat-icon><span>{{ store.motivoSinCupo() }}. Puede seguir comprando y pagar en efectivo.</span></p>
+    } @else if (store.cupo(); as c) {
+      <div class="cupo-grande">
+        <small>Disponible para comprar</small>
+        <b>{{ pesos(c.disponible) }}</b>
+      </div>
+      <dl>
+        @if (c.comprometido) { <div><dt>Apartado en pedidos sin entregar</dt><dd>{{ pesos(c.comprometido) }}</dd></div> }
+        @if (c.saldo_pendiente != null) { <div><dt>Saldo pendiente por descontar</dt><dd>{{ pesos(c.saldo_pendiente) }}</dd></div> }
+        @if (c.tope_aplicado != null) { <div><dt>Tope de crédito</dt><dd>{{ pesos(c.tope_aplicado) }}</dd></div> }
+        @if (c.finca) { <div><dt>Finca</dt><dd>{{ c.finca }}</dd></div> }
+      </dl>
+      @for (a of c.advertencias; track $index) {
+        <p class="aviso warn"><mat-icon>warning</mat-icon><span>{{ a }}</span></p>
+      }
+      <p class="muted nota">Este valor lo calcula tesorería con sus reglas de crédito y ya descuenta lo que tiene apartado. Lo que compre se descuenta de su nómina solo cuando lo recibe.</p>
+    }
+  </section>
+
+  <section class="tarjeta">
+    <h2><mat-icon>history</mat-icon> Sus compras</h2>
+    <p class="muted sub">Lo que compró en la tienda y por EconomiAPP, y si ya se le descontó.</p>
+    @if (cargandoHistorial()) {
+      <div class="esqueleto corto"></div>
+    } @else if (!historial().length) {
+      <p class="muted vacio">Todavía no tiene compras.</p>
+    } @else {
+      <ul class="historial">
+        @for (m of historial(); track m.id) {
+          <li>
+            <button type="button" (click)="abrir(m)" [disabled]="m.origen !== 'PEDIDO'">
+              <span class="h-icono"><mat-icon>{{ m.origen === 'PEDIDO' ? 'phone_iphone' : 'point_of_sale' }}</mat-icon></span>
+              <span class="h-texto">
+                <b>{{ m.origen === 'PEDIDO' ? 'Pedido' : 'Compra en tienda' }} {{ m.numero }}</b>
+                <small>{{ m.fecha | date: 'd MMM y' : undefined : 'es-CO' }}
+                  @if (m.cupo_estado) { · {{ CUPO[m.cupo_estado] || m.cupo_estado }} }
+                  @if (m.estado_pago_temporal) { · descuento {{ m.estado_pago_temporal.toLowerCase() }} }
+                </small>
+              </span>
+              <span class="h-valor">
+                <b>{{ pesos(m.total) }}</b>
+                @if (m.ejecutado) { <i class="chip info">Descontado</i> }
+              </span>
+            </button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  @if (activos().length) {
+    <section class="tarjeta dirs">
+      <h2><mat-icon>devices_other</mat-icon> Equipos a mi cargo</h2>
+      <ul>
+        @for (a of activos(); track a.id) {
+          <li><mat-icon>inventory_2</mat-icon><span><b>{{ a.nombre }}</b><small>{{ a.codigo }}@if (a.serial) { · SN {{ a.serial }} } · desde {{ a.asignado_en | date:'mediumDate' }} · {{ a.tienda }}</small></span></li>
+        }
+      </ul>
+    </section>
+  }
+
+  @if (direcciones().length) {
+    <section class="tarjeta dirs">
+      <h2><mat-icon>home_pin</mat-icon> Mis direcciones</h2>
+      <ul>
+        @for (d of direcciones(); track d.id) {
+          <li>
+            <mat-icon>{{ +d.principal ? 'star' : 'place' }}</mat-icon>
+            <span><b>{{ d.nombre }}</b><small>{{ d.direccion }}@if (d.indicaciones) { · {{ d.indicaciones }} }</small></span>
+            @if (!+d.principal) { <button type="button" class="icono-btn" (click)="principal(d)" aria-label="Usar como principal"><mat-icon>star_outline</mat-icon></button> }
+            <button type="button" class="icono-btn" (click)="borrarDireccion(d)" aria-label="Borrar"><mat-icon>delete</mat-icon></button>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+
+  <section class="tarjeta enlaces">
+    <a routerLink="/economiapp/premios"><mat-icon>stars</mat-icon> Mis puntos y premios <mat-icon class="ir">chevron_right</mat-icon></a>
+    <a routerLink="/economiapp/juegos"><mat-icon>sports_esports</mat-icon> Juegos, ruleta y torneo <mat-icon class="ir">chevron_right</mat-icon></a>
+    <a routerLink="/economiapp/pedidos"><mat-icon>receipt_long</mat-icon> Mis pedidos <mat-icon class="ir">chevron_right</mat-icon></a>
+    <a routerLink="/economiapp/soporte"><mat-icon>support_agent</mat-icon> Ayuda y solicitudes <mat-icon class="ir">chevron_right</mat-icon></a>
+    <button type="button" data-sin-sonido (click)="sonidos.alternar()" role="switch" [attr.aria-checked]="sonidos.activo()">
+      <mat-icon>{{ sonidos.activo() ? 'volume_up' : 'volume_off' }}</mat-icon>
+      Sonidos de la app: {{ sonidos.activo() ? 'activados' : 'silenciados' }} <mat-icon class="ir">{{ sonidos.activo() ? 'toggle_on' : 'toggle_off' }}</mat-icon></button>
+    @if (temporada.activa(); as t) {
+      <button type="button" (click)="temporada.ponerAdornos(!temporada.adornos())">
+        <mat-icon>{{ temporada.adornos() ? 'visibility_off' : 'celebration' }}</mat-icon>
+        {{ temporada.adornos() ? 'Ocultar' : 'Mostrar' }} adornos de {{ t.nombre }} <mat-icon class="ir">chevron_right</mat-icon></button>
+    }
+    <button type="button" (click)="volver()"><mat-icon>arrow_back</mat-icon> Volver a Tu Apo <mat-icon class="ir">chevron_right</mat-icon></button>
+  </section>
+</div>

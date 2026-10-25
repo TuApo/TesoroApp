@@ -38,7 +38,8 @@
     [columnas]="columnas"
     [filaId]="idPlantilla"
     [filaClase]="claseFila"
-    [cargando]="cargando()">
+    [cargando]="cargando()"
+    [accionesMasivas]="accionesMasivas">
 
     <ng-template tablaCelda="epsNombre" let-p>
       <div class="eps-nombre">{{ p.epsNombre }}</div>
@@ -84,11 +85,11 @@
     <mat-card-content>
       <p><strong>¿Cómo funciona?</strong></p>
       <ol>
-        <li>Crea una plantilla para cada combinación EPS × Temporal (o "Todas") × Sexo (o "Ambos").</li>
-        <li>En la pestaña <em>Campos</em> define qué <code>{{'{{'}}Placeholder{{'}}'}}</code> tiene el HTML y de dónde viene cada dato.</li>
-        <li>En la pestaña <em>HTML Plantilla</em> pega el contenido HTML del formulario con los placeholders.</li>
-        <li>Desde la tabla de Confirmación de Ingresos, el botón <mat-icon class="icon-inline">picture_as_pdf</mat-icon> generará el PDF llenando automáticamente los placeholders.</li>
-        <li>Para campos de <strong>firma</strong> (tipo render = FIRMA) el texto se muestra en fuente cursiva. Para <strong>imagen</strong> se inserta el sello/firma configurado en <em>Config. Temporales</em>.</li>
+        <li>Hay una plantilla por EPS × Temporal (o "Todas") × Sexo (o "Ambos"). Los formularios de las EPS se cargan como <em>Editor Visual</em>: el formulario escaneado de fondo (A4) y cada dato en su casilla.</li>
+        <li>La EPS del contrato se reconoce aunque venga escrita distinto ("NUEVA EPS", "Nueva_EPS"…).</li>
+        <li><strong>Firma y huella</strong> (fuente "Firma / huella del trabajador"): se estampa la que el trabajador registró en contratación. Si no la registró, el recuadro sale en blanco para firmar a mano y se avisa antes de generar.</li>
+        <li>Desde Confirmación de Ingresos, el botón <mat-icon class="icon-inline">assignment</mat-icon> genera el documento de una persona y <em>Documento EPS</em> el de toda la selección. Si alguien no se puede generar, se muestra el motivo exacto (EPS sin plantilla, contrato sin EPS, plantilla desactivada, faltan datos…).</li>
+        <li>Una plantilla desactivada explica el porqué en sus notas (por ejemplo, un archivo que llegó dañado).</li>
       </ol>
     </mat-card-content>
   </mat-card>

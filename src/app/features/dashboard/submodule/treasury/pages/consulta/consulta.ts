@@ -6,6 +6,7 @@ import { BuscadorPersona } from '../../components/buscador-persona/buscador-pers
 import { FichaPersona } from '../../components/ficha-persona/ficha-persona';
 import { ResultadoBusqueda } from '../../service/tesoreria-api.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 
 /**
  * Consulta de persona: el buscador y la ficha completa, en una pantalla.
@@ -29,6 +30,7 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 export class ConsultaPersona {
 
   private utilidades = inject(UtilityServiceService);
+  private sedeScope = inject(SedeScopeService);
 
   readonly documento = signal<string | null>(null);
   readonly sede = signal<string | null>(null);
@@ -37,8 +39,10 @@ export class ConsultaPersona {
     // La sede del autorizador entra en la evaluación: hay ajustes de tope que dependen
     // de ella, y sin mandarla el cupo que se muestra aquí no sería el mismo que al
     // autorizar.
+    // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) no hay oficina propia que
+    // aplicar: la consulta muestra el cupo general y la oficina se elige al autorizar.
     const usuario = this.utilidades.getUser?.() ?? {};
-    this.sede.set(usuario?.sede?.nombre ?? null);
+    this.sede.set(this.sedeScope.trabajaDesdeTransversal() ? null : (usuario?.sede?.nombre ?? null));
   }
 
   alSeleccionar(p: ResultadoBusqueda): void {

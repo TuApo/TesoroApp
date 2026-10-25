@@ -437,6 +437,104 @@ export interface CentroVacante {
   /** Códigos de las áreas permitidas en este centro, ya formateados. */
   areas: string | null;
   configuraciones_activas?: number;
+  /** Oficina de la temporal que atiende el centro (catálogo de oficinas). */
+  oficina_responsable?: string | null;
+  /** Correos activos del centro (gestor y correos por rol). */
+  correos_activos?: number;
+}
+
+// ── Gestor y correos por rol del centro ─────────────────────────────────────
+
+/** Los 8 roles de la base de correos de fincas, en su orden. */
+export type RolContacto =
+  | 'GESTOR_TEMPORAL' | 'JEFE_GESTION_HUMANA' | 'EJECUTIVA' | 'ASISTENTE'
+  | 'SST' | 'AUXILIAR' | 'OTRO_1' | 'OTRO_2';
+
+export interface RolContactoInfo {
+  rol: RolContacto;
+  etiqueta: string;
+  orden: number;
+  /** Encabezado de la plantilla masiva: c1_gestor_temporal… */
+  columna: string;
+}
+
+export interface CorreoCentro {
+  id: number | null;
+  rol: RolContacto;
+  rol_etiqueta?: string;
+  orden?: number;
+  email: string;
+  fuente?: string | null;
+  updated_at?: string | null;
+}
+
+export interface ContactosCentro {
+  centro_costo_id: number;
+  finca: string | null;
+  ccostos: string | null;
+  nombre_gestor: string | null;
+  telefono_gestor: string | null;
+  /** Espejo del correo GESTOR_TEMPORAL; lo mantiene el backend. */
+  email_gestor: string | null;
+  oficina_responsable: string | null;
+  correos: CorreoCentro[];
+}
+
+/** PUT completo: la lista de correos SUSTITUYE a la activa. */
+export interface ContactosCentroRequest {
+  nombre_gestor: string | null;
+  telefono_gestor: string | null;
+  oficina_responsable: string | null;
+  correos: { rol: RolContacto; email: string }[];
+}
+
+export interface OficinaTemporal {
+  id: number;
+  nombre: string;
+  orden: number;
+  activo: boolean;
+}
+
+export type ModoCargaContactos = 'AGREGAR' | 'REEMPLAZAR';
+export type EstadoFilaCarga = 'NUEVO' | 'MODIFICADO' | 'SIN_CAMBIOS' | 'ERROR';
+
+export interface LoteContactos {
+  id: number;
+  estado: 'SIMULADO' | 'APLICADO' | 'REVERTIDO';
+  modo: ModoCargaContactos;
+  archivo_nombre: string | null;
+  fuente: string | null;
+  filas_total: number;
+  filas_nuevo: number;
+  filas_modificado: number;
+  filas_sin_cambios: number;
+  filas_error: number;
+  filas_con_advertencia: number;
+  centros_actualizados: number;
+  correos_creados: number;
+  correos_desactivados: number;
+  creado_por: string | null;
+  created_at: string;
+  aplicado_por: string | null;
+  aplicado_at: string | null;
+  revertido_por: string | null;
+  revertido_at: string | null;
+}
+
+export interface FilaLoteContactos {
+  fila: number;
+  centro_costo_id: number | null;
+  centro_nombre: string | null;
+  estado: EstadoFilaCarga;
+  aplicada: boolean;
+  cambios: string[];
+  errores: string[];
+  advertencias: string[];
+}
+
+export interface LoteContactosConFilas {
+  lote: LoteContactos;
+  filas: FilaLoteContactos[];
 }
 
 /** Conteos autoritativos de la cadena. Vienen del backend, no de listas ya cargadas. */
@@ -623,6 +721,7 @@ export interface DocumentoEmpresa {
   id: number | null;
   tipo: TipoDocumentalResumen;
   obligatorio: boolean | null;
+  requiere_firma_empleado: boolean | null;
   orden_archivo: number | null;
   bloque_archivo: number | null;
   version_listado: string | null;
@@ -661,6 +760,7 @@ export interface EmpresaDocumentos {
 export interface DocumentoEmpresaRequest {
   tipo_documental_id: number;
   obligatorio: boolean;
+  requiere_firma_empleado: boolean;
   orden_archivo: number | null;
   bloque_archivo: number | null;
   version_listado: string | null;
@@ -774,6 +874,65 @@ export class ParametrizacionVacantesService {
   actualizarCentro(id: number, body: Partial<CentroVacante>): Observable<CentroVacante> {
     return this.http.put<CentroVacante>(`${this.base}/centros/${id}`, body);
   }
+  // ── Gestor y correos del centro ───────────────────────────────────────────
+  contactosDeCentro(centroId: number): Observable<ContactosCentro> {
+    return this.http.get<ContactosCentro>(`${this.base}/centros/${centroId}/contactos`);
+  }
+  /** Guarda gestor, oficina y la lista COMPLETA de correos (los que falten quedan inactivos). */
+  guardarContactosDeCentro(centroId: number, body: ContactosCentroRequest): Observable<ContactosCentro> {
+    return this.http.put<ContactosCentro>(`${this.base}/centros/${centroId}/contactos`, body);
+  }
+  rolesContacto(): Observable<RolContactoInfo[]> {
+    return this.http.get<RolContactoInfo[]>(`${this.base}/contactos/roles`);
+  }
+  /** Si el usuario puede editar gestores y correos. El backend lo vuelve a exigir al guardar. */
+  permisosContactos(): Observable<{ puede_editar: boolean }> {
+    return this.http.get<{ puede_editar: boolean }>(`${this.base}/contactos/permisos`);
+  }
+  oficinas(activo?: boolean): Observable<OficinaTemporal[]> {
+    return this.http.get<OficinaTemporal[]>(`${this.base}/oficinas`, { params: this.params({ activo }) });
+  }
+  crearOficina(body: Partial<OficinaTemporal>): Observable<OficinaTemporal> {
+    return this.http.post<OficinaTemporal>(`${this.base}/oficinas`, body);
+  }
+  actualizarOficina(id: number, body: Partial<OficinaTemporal>): Observable<OficinaTemporal> {
+    return this.http.put<OficinaTemporal>(`${this.base}/oficinas/${id}`, body);
+  }
+
+  // ── Carga masiva de gestores y correos ────────────────────────────────────
+  /** Excel prellenado con los centros habilitados (filtrable por temporal y empresas). */
+  plantillaContactos(temporalConfigRef?: number | null, empresaUsuariaRef?: number[]): Observable<Blob> {
+    return this.http.get(`${this.base}/contactos/masivo/plantilla`, {
+      params: this.params({
+        temporalConfigRef: temporalConfigRef ?? undefined,
+        empresaUsuariaRef: empresaUsuariaRef?.length ? empresaUsuariaRef.join(',') : undefined,
+      }),
+      responseType: 'blob',
+    });
+  }
+  /** Valida el archivo SIN guardar nada y devuelve la vista previa por fila. */
+  simularContactos(archivo: File, modo: ModoCargaContactos): Observable<LoteContactosConFilas> {
+    const form = new FormData();
+    form.append('archivo', archivo, archivo.name);
+    form.append('modo', modo);
+    return this.http.post<LoteContactosConFilas>(`${this.base}/contactos/masivo/simular`, form);
+  }
+  aplicarLoteContactos(loteId: number): Observable<LoteContactosConFilas> {
+    return this.http.post<LoteContactosConFilas>(`${this.base}/contactos/masivo/lotes/${loteId}/aplicar`, {});
+  }
+  revertirLoteContactos(loteId: number): Observable<LoteContactosConFilas> {
+    return this.http.post<LoteContactosConFilas>(`${this.base}/contactos/masivo/lotes/${loteId}/revertir`, {});
+  }
+  lotesContactos(limite = 50): Observable<LoteContactos[]> {
+    return this.http.get<LoteContactos[]>(`${this.base}/contactos/masivo/lotes`, { params: this.params({ limite }) });
+  }
+  loteContactos(loteId: number): Observable<LoteContactosConFilas> {
+    return this.http.get<LoteContactosConFilas>(`${this.base}/contactos/masivo/lotes/${loteId}`);
+  }
+  resultadoLoteContactos(loteId: number): Observable<Blob> {
+    return this.http.get(`${this.base}/contactos/masivo/lotes/${loteId}/resultado.xlsx`, { responseType: 'blob' });
+  }
+
   /** Áreas del catálogo frente a un centro, marcando cuáles tiene permitidas. */
   areasDeCentro(centroId: number): Observable<CentroArea[]> {
     return this.http.get<CentroArea[]>(`${this.base}/centros/${centroId}/areas`);

@@ -3,6 +3,7 @@ import { HttpClient } from '@angular/common/http';
 import { environment } from '@/environments/environment';
 import { Observable, from, of } from 'rxjs';
 import { concatMap, map, startWith } from 'rxjs/operators';
+import { conAliasCamel } from './claves-api';
 
 /**
  * Servicio del CAMBIO MASIVO DE ESTADO POR PEGADO (Confirmación de ingresos).
@@ -94,12 +95,17 @@ export class AfiliacionesPegadoService {
   private static readonly LOTE_LOOKUP = 150;
   private static readonly LOTE_CONFIRMAR = 150;
 
+  /** Toda respuesta de ms-hr pasa por `conAliasCamel`; ver `claves-api.ts`. */
+  private apiPost<T>(url: string, body: any): Observable<T> {
+    return this.http.post<any>(url, body).pipe(map(v => conAliasCamel(v) as T));
+  }
+
   /**
    * Resuelve un lote de cédulas: quién es cada una y cómo están hoy sus 4 banderas.
    * No muta nada — es el insumo del preview.
    */
   lookup(cedulas: string[]): Observable<PegadoLookup> {
-    return this.http.post<any>(`${this.apiUrl}/casos/lookup-cedulas`, { cedulas }).pipe(
+    return this.apiPost<any>(`${this.apiUrl}/casos/lookup-cedulas`, { cedulas }).pipe(
       map(r => ({
         solicitadas: r?.solicitadas || 0,
         encontradas: r?.encontradas || 0,
@@ -115,8 +121,8 @@ export class AfiliacionesPegadoService {
    */
   confirmarMasivo(candidatoIds: number[], validador: ValidadorPegado,
                   canal: CanalPegado, nota?: string): Observable<PegadoMasivoResult> {
-    return this.http.post<any>(`${this.apiUrl}/casos/confirmar-masivo`,
-      { candidatoIds, validador, canal, nota: nota || null }).pipe(
+    return this.apiPost<any>(`${this.apiUrl}/casos/confirmar-masivo`,
+      { candidato_ids: candidatoIds, validador, canal, nota: nota || null }).pipe(
       map(r => ({
         solicitados: r?.solicitados || 0,
         procesados: r?.procesados || 0,

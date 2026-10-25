@@ -7,6 +7,8 @@ export type DocSeccion =
   | 'flores'
   | 'sagaro'
   | 'ipanema'
+  /** Antecedentes y consultas: los trae la flota de robots y también se pueden cargar a mano. */
+  | 'consultas'
   | 'subir-manual';
 
 export interface PerfilEmpresa {
@@ -388,6 +390,7 @@ export const SECCION_LABELS: { key: DocSeccion; label: string; icon: string }[] 
   { key: 'flores',          label: 'Operativos de finca',   icon: 'spa' },
   { key: 'sagaro',          label: 'Específicos Sagaro',    icon: 'lock' },
   { key: 'ipanema',         label: 'Específicos Ipanema',   icon: 'star' },
+  { key: 'consultas',       label: 'Antecedentes y consultas', icon: 'policy' },
   { key: 'subir-manual',    label: 'Documentos a subir',    icon: 'cloud_upload' },
 ];
 
@@ -403,7 +406,10 @@ const SECCION_BY_TITLE: Record<string, DocSeccion> = {
   'OTRO SI Jornada Laboral':                              'generales',
   'Carnet':                                               'generales',
   'Autorización Derechos de Imagen':                      'generales',
-  'Ficha Afiliación S.S.':                                'generales',
+  'Entrega de Documentos y Autorizaciones':               'entrega-empresa',
+  'Auxilio Extralegal de Alimentación y Hospedaje': 'generales',
+  'Programa Foráneos': 'generales',
+  'Cláusula Jornada Flexible':                            'generales',
   'Referenciación Trabajador en Misión':                  'generales',
   'Auxilio Alimentación':                                 'generales',
   'Autorización Daños Pérdidas':                          'generales',
@@ -561,6 +567,13 @@ const MINIMOS_KEYS = new Set(MINIMOS.map(normalizeTitle));
 const SOLO_POR_TEMPORAL = ['Autorización de Datos'];
 const SOLO_POR_TEMPORAL_KEYS = new Set(SOLO_POR_TEMPORAL.map(normalizeTitle));
 
+/**
+ * Documentos de TODAS las empresas usuarias de Tu Alianza (y solo de Tu Alianza), sea cual sea
+ * el perfil: plantillas HTML del grupo `alianza` de ms-templates.
+ */
+const SOLO_TU_ALIANZA: string[] = []; // Vacío hoy (la Cláusula Jornada Flexible es de Apoyo).
+const SOLO_TU_ALIANZA_KEYS = new Set(SOLO_TU_ALIANZA.map(normalizeTitle));
+
 /** ¿La temporal de la vacante es Apoyo Laboral o Tu Alianza? */
 export function esTemporalReconocida(temporal: string | null | undefined): boolean {
   const t = normalizeNombre(temporal);
@@ -574,6 +587,9 @@ export function isDocumentoVisible(titulo: string, ctx: FilterCtx): boolean {
   // poder esconder un documento que depende solo de la temporal.
   if (SOLO_POR_TEMPORAL_KEYS.has(k)) {
     return esTemporalReconocida(ctx.temporal);
+  }
+  if (SOLO_TU_ALIANZA_KEYS.has(k)) {
+    return normalizeNombre(ctx.temporal).includes('ALIANZA');
   }
 
   const perfil = resolverPerfil(ctx);

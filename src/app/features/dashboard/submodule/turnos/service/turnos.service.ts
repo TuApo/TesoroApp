@@ -66,20 +66,96 @@ export interface PuestoDeArea {
 /** Elemento decorativo del croquis (pared, puerta, sillas, texto, flecha…); vive en elementos_json. */
 export interface ElementoCroquis {
   id: string;
-  tipo: 'PARED' | 'PUERTA' | 'VENTANA' | 'SILLA' | 'TEXTO' | 'FLECHA' | 'ICONO' | 'MESA' | 'PLANTA' | 'MOSTRADOR';
+  tipo: 'PARED' | 'PUERTA' | 'VENTANA' | 'SILLA' | 'TEXTO' | 'FLECHA' | 'ICONO' | 'MESA' | 'PLANTA' | 'MOSTRADOR'
+    /** Cámara de vigilancia: posición en planta + orientación; su perspectiva se previsualiza en 3D. */
+    | 'CAMARA'
+    /** Objeto 3D arbitrario cargado por URL (glTF/GLB de APIs públicas CC0). El 2D lo dibuja como ICONO. */
+    | 'MODELO3D'
+    /** Equipo (computador/activo) colocado en el plano; se colorea por su estado en vivo (monitoreo). */
+    | 'EQUIPO'
+    /** Lámpara: ilumina en 3D y puede parpadear (también se enciende al llamar un turno en su área). */
+    | 'LUZ'
+    | 'ARCHIVADOR' | 'ESTANTE' | 'SOFA'
+    /** Televisor o pantalla (el turnero de la sala, por ejemplo). */
+    | 'PANTALLA';
   x: number; y: number; ancho: number; alto: number; rotacion: number;
   texto?: string; color?: string; grosor?: number; icono?: string; tamano?: number;
   /** Sillas: cuántas van pegadas en el módulo (1 a 4). */
   cantidad?: number;
+  // ── Campos 3D (opcionales; el dibujo 2D los ignora, el backend los guarda tal cual) ──
+  /** Altura real del objeto en metros (paredes, mostradores, modelos). Si falta, hay un valor por tipo. */
+  alto3d?: number;
+  /** Elevación de la base sobre el piso, en metros (para colgar cámaras o repisas). */
+  z?: number;
+  /** URL de un modelo glTF/GLB (APIs públicas CC0) para tipo MODELO3D. */
+  modelo?: string;
+  /** Clave del catálogo de objetos de oficina (escritorio, silla-giratoria, pc, impresora…). */
+  catalogo?: string;
+  /** Solo EQUIPO: id del endpoint de ms-assets al que está ligado este objeto (estado en vivo). */
+  ref?: string;
+  // ── Solo CAMARA ──
+  /** Campo de visión horizontal en grados (por defecto 70). */
+  fov?: number;
+  /** Alcance visible de la cámara en metros (por defecto 8). */
+  alcance?: number;
+  /** Inclinación vertical de la cámara en grados: 0 = horizontal, negativo = mirando al piso. */
+  inclinacion?: number;
+  // ── Muebles como activos ──
+  /** Ficha de activo fijo del mueble (código/placa, estado, responsable…). null/ausente = no es activo. */
+  activo?: ActivoCroquis | null;
+  // ── Solo LUZ ──
+  luz_modo?: ModoLuz;
+  /** Intensidad de 0 a 1 (por defecto 0,7). */
+  intensidad?: number;
+  /** No se mueve con el ratón (paredes ya ubicadas, por ejemplo). */
+  bloqueado?: boolean;
+}
+
+export type ModoLuz = 'FIJA' | 'PARPADEO' | 'RESPIRA' | 'APAGADA';
+export type EstadoActivo = 'BUENO' | 'REGULAR' | 'DANADO' | 'BAJA';
+
+/**
+ * Ficha de activo de un mueble del plano. Vive dentro del croquis (elementos_json): no depende
+ * de ningún otro servicio. `ref` queda para ligarlo al inventario corporativo (ms-assets)
+ * cuando exista; el código es el que se pega en la placa del mueble.
+ */
+export interface ActivoCroquis {
+  codigo: string;
+  categoria: string;
+  estado: EstadoActivo;
+  responsable?: string | null;
+  marca?: string | null;
+  serial?: string | null;
+  valor?: number | null;
+  fecha_compra?: string | null;
+  notas?: string | null;
+  ref?: string | null;
+}
+
+/**
+ * Datos de un área que el backend no tiene como columna y viajan en elementos_json
+ * (`areas_meta[id]`): hacia dónde va una escalera o un ascensor y si el área se ilumina en
+ * el televisor cuando llaman a alguien a ella.
+ */
+export interface MetaArea {
+  sentido?: 'SUBE' | 'BAJA' | 'AMBOS';
+  /** Piso al que lleva (id de PisoCroquis). */
+  conecta_piso?: string | null;
+  /** false = el turnero no la resalta con luz al llamar (por defecto sí). */
+  luz_llamado?: boolean;
 }
 
 /** Un piso del croquis: su propio lienzo y sus propios elementos. Las áreas llevan `piso`. */
 export interface PisoCroquis {
   id: string; nombre: string; ancho: number; alto: number; elementos: ElementoCroquis[];
+  /** Altura libre del piso en metros (para el 3D; por defecto 2.7). */
+  altura3d?: number;
+  /** Nivel del piso: 0 = planta baja, 1 = primer piso, -1 = sótano. Decide si una escalera sube o baja. */
+  nivel?: number;
 }
 
-/** Formato v2 de elementos_json. Un array plano (v1) equivale a un solo piso. */
-export interface ElementosJson { v: 2; pisos: PisoCroquis[]; }
+/** Formato de elementos_json. v1 = array plano (un piso). v2 = pisos. v3 = pisos con datos 3D. */
+export interface ElementosJson { v: 2 | 3; pisos: PisoCroquis[]; areas_meta?: Record<string, MetaArea>; }
 
 export interface Croquis {
   id: string; oficina_id: string; nombre: string; version: number;
@@ -227,6 +303,31 @@ export interface AtencionPersona {
   remoto: boolean; atendido_desde_oficina_nombre: string | null; atendido_por_nombre: string | null;
   iniciado_en: string | null; finalizado_en: string | null; video_estado: string | null;
 }
+
+// ── Transcripción en vivo de la atención remota (ms-turnos V12) ──
+/** Quién habla. No se adivina: sale del canal de audio (micrófono propio = asesor, audio de la llamada = persona). */
+export type Hablante = 'ASESOR' | 'PERSONA';
+/** Token de un solo uso para conectar el navegador al STT en tiempo real (la llave nunca sale del servidor). */
+export interface TokenTranscripcion { token: string; url: string; modelo: string; idioma: string; sample_rate: number; }
+/** Una frase confirmada, como se envía a guardar: `cliente_id` hace idempotente el reintento. */
+export interface LineaTranscripcionIn { cliente_id: string; hablante: Hablante; texto: string; inicio_ms: number; fin_ms: number | null; }
+/** Una frase guardada (tiempos en ms desde el inicio de la transcripción del turno). */
+export interface LineaTranscripcion { id: number; hablante: Hablante; texto: string; inicio_ms: number; fin_ms: number | null; cliente_id?: string | null; }
+export type TipoTema = 'DATO' | 'TRAMITE' | 'ALERTA' | 'PREGUNTA';
+/** Claves del catálogo de módulos que comparten backend y front (la ruta la resuelve el front). */
+export type ClaveModulo = 'pipeline' | 'formulario-vacantes' | 'documentos' | 'afiliaciones' | 'incapacidades' | 'nomina-formas-pago'
+  | 'nomina-desprendibles' | 'tesoreria' | 'carnet' | 'juridico' | 'soporte' | 'reuniones';
+/** Un tema que sale de lo conversado cruzado con la ficha de la persona. */
+export interface TemaConversacion {
+  clave: string; titulo: string; tipo: TipoTema; resumen: string | null;
+  campo?: string | null; valor_ficha?: string | null; valor_dicho?: string | null;
+  hablante?: Hablante | null; at_ms?: number | null; cita?: string | null;
+  modulo?: ClaveModulo | null; accion?: string | null;
+}
+export interface AnalisisConversacion {
+  resumen: string | null; temas: TemaConversacion[]; modelo?: string | null; actualizado_en: string | null; error?: string | null;
+}
+export interface TranscripcionTurno { lineas: LineaTranscripcion[]; analisis: AnalisisConversacion | null; }
 
 export type EstadoFormulario = 'NO_REGISTRADO' | 'SIN_LLENAR' | 'PARCIAL' | 'COMPLETO' | 'NO_APLICA' | 'DESCONOCIDO';
 
@@ -684,6 +785,23 @@ export class TurnosService {
   urlSenalesTurno(turnoId: string): string { return `${this.basePublica}/turno/${turnoId}/senales`; }
   publicoSenal(turnoId: string, senal: SenalVideo): Observable<{ ok: boolean }> { return this.http.post<{ ok: boolean }>(`${this.basePublica}/turno/${turnoId}/senal`, senal); }
   publicoIce(turnoId: string): Observable<IceConfig> { return this.http.get<IceConfig>(`${this.basePublica}/turno/${turnoId}/ice`); }
+
+  // ── Transcripción en vivo de la atención remota ──
+  /** Token de un solo uso para un canal (asesor o persona); se pide otro en cada reconexión. */
+  tokenTranscripcion(turnoId: string): Observable<TokenTranscripcion> {
+    return this.http.post<TokenTranscripcion>(`${this.base}/remoto/${turnoId}/transcripcion/token`, {});
+  }
+  /** Guarda frases confirmadas (máx. 50 por lote); repetir un `cliente_id` no duplica. */
+  guardarLineasTranscripcion(turnoId: string, lineas: LineaTranscripcionIn[]): Observable<{ guardadas: number }> {
+    return this.http.post<{ guardadas: number }>(`${this.base}/remoto/${turnoId}/transcripcion/lineas`, { lineas });
+  }
+  transcripcionDeTurno(turnoId: string): Observable<TranscripcionTurno> {
+    return this.http.get<TranscripcionTurno>(`${this.base}/remoto/${turnoId}/transcripcion`);
+  }
+  /** Temas de lo conversado hasta ahora, cruzados con la ficha que ve el asesor (≤ 8 KB). */
+  temasDeConversacion(turnoId: string, ficha: Record<string, unknown>): Observable<AnalisisConversacion> {
+    return this.http.post<AnalisisConversacion>(`${this.base}/remoto/${turnoId}/temas`, { ficha });
+  }
 
   // ── Procesos predeterminados (catálogo global) ──
   plantillasServicio(): Observable<ServicioPlantilla[]> { return this.http.get<ServicioPlantilla[]>(`${this.base}/servicios/plantillas`); }

@@ -381,15 +381,18 @@ export class PhotoFieldComponent implements OnChanges, OnDestroy {
   openCamera(): void {
     if (!this.uploadFn || this.atCapacity) return;
     this.dialog
-      .open<CameraDialogComponent, { initialPreviewUrl?: string | null }, CameraDialogResult>(
+      .open<CameraDialogComponent, { initialPreviewUrl?: string | null; fotoDocumento?: boolean }, CameraDialogResult>(
         CameraDialogComponent,
-        { width: '720px', maxWidth: '95vw', disableClose: true },
+        // Un campo foto de formulario no es la foto de carné: sin recorte,
+        // fondo blanco ni verificación por IA.
+        { width: '720px', maxWidth: '95vw', disableClose: true, data: { fotoDocumento: false } },
       )
       .afterClosed()
       .subscribe(result => {
         if (result?.file) {
-          // El diálogo cede la propiedad de previewUrl al confirmar: la revocamos nosotros.
-          void this.addFile(result.file, result.previewUrl ?? null, true);
+          // `result.previewUrl` NO sirve: el diálogo la revoca en su ngOnDestroy, que
+          // corre ANTES de afterClosed (la miniatura salía rota). addFile crea la suya.
+          void this.addFile(result.file, null, true);
         }
         this.cdr.markForCheck();
       });

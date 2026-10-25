@@ -1,5 +1,5 @@
 import {
-  ChangeDetectionStrategy, Component, EventEmitter, Input, Output,
+  ChangeDetectionStrategy, Component, EventEmitter, Input, OnChanges, Output, SimpleChanges,
   computed, inject, signal,
 } from '@angular/core';
 import { CommonModule } from '@angular/common';
@@ -11,6 +11,7 @@ import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/component
 import {
   ConceptoRegla, Ficha, SolicitudHistorica, TesoreriaApiService, VeredictoRegla,
 } from '../../service/tesoreria-api.service';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 
 /**
  * La ficha 360 de una persona: todo lo que hace falta para decidir si se le autoriza.
@@ -39,9 +40,17 @@ import {
   templateUrl: './ficha-persona.html',
   styleUrls: ['../../styles/tesoreria-comun.css', './ficha-persona.css'],
 })
-export class FichaPersona {
+export class FichaPersona implements OnChanges {
 
   private api = inject(TesoreriaApiService);
+  private sedeScope = inject(SedeScopeService);
+
+  /**
+   * La ficha también la ven roles de solo lectura (COORDINADOR en el mostrador): anular
+   * libera cupo, así que el botón es solo de ADMIN, GERENCIA y TESORERIA (el servidor lo exige igual).
+   */
+  readonly puedeAnular = this.sedeScope.tieneRol('ADMIN') || this.sedeScope.tieneRol('GERENCIA')
+    || this.sedeScope.tieneRol('TESORERIA');
 
   readonly ficha = signal<Ficha | null>(null);
   readonly cargando = signal(false);
@@ -54,14 +63,23 @@ export class FichaPersona {
   private documentoActual: string | null = null;
 
   /** Documento a mostrar. Cambiarlo recarga la ficha. */
-  @Input() set documento(doc: string | null) {
+  @Input() documento: string | null = null;
+
+  /** Sede del autorizador, para que la evaluación la tenga en cuenta. Cambiarla recarga. */
+  @Input() sede: string | null = null;
+
+  /**
+   * Se carga aquí, con las dos entradas ya puestas. Antes el setter de `documento`
+   * cargaba en cuanto llegaba el documento, que se asigna ANTES que la sede: la ficha
+   * evaluaba siempre sin sede y los ajustes de tope por oficina no se veían.
+   */
+  ngOnChanges(cambios: SimpleChanges): void {
+    if (!cambios['documento'] && !cambios['sede']) return;
+    const doc = this.documento;
     if (!doc) { this.ficha.set(null); this.documentoActual = null; return; }
     this.documentoActual = doc;
     this.cargar();
   }
-
-  /** Sede del autorizador, para que la evaluación la tenga en cuenta. */
-  @Input() sede: string | null = null;
 
   /** Se emite cuando algo cambia y el contenedor debería refrescar sus propios datos. */
   @Output() cambio = new EventEmitter<void>();
@@ -173,7 +191,8 @@ export class FichaPersona {
         this.cambio.emit();
       },
       error: e => Swal.fire({ icon: 'error', title: 'No se pudo anular',
-        text: e?.error?.error ?? 'Intenta de nuevo.' }),
+        // El 403 de commons trae {ok:false, message:'Acceso denegado'}, no `error`.
+        text: e?.error?.error ?? e?.error?.message ?? 'Intenta de nuevo.' }),
     });
   }
 

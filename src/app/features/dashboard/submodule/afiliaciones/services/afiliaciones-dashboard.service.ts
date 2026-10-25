@@ -4,6 +4,7 @@ import { environment } from '@/environments/environment';
 import { Observable, BehaviorSubject, combineLatest, of } from 'rxjs';
 import { map, shareReplay, switchMap, catchError, debounceTime, distinctUntilChanged, finalize } from 'rxjs/operators';
 import * as _moment from 'moment';
+import { conAliasCamel } from './claves-api';
 // @ts-ignore
 const moment = _moment.default || _moment;
 
@@ -112,6 +113,20 @@ export class AfiliacionesDashboardService {
     shareReplay(1)
   );
 
+
+  /**
+   * Toda respuesta de ms-hr pasa por `conAliasCamel`: ver `claves-api.ts`. El servicio lee los
+   * campos en camelCase y ms-hr los entrega en snake_case, asi que sin este paso cada campo de
+   * mas de una palabra llega vacio.
+   */
+  private apiGet<T>(url: string, options?: any): Observable<T> {
+    return this.http.get<any>(url, options).pipe(map(v => conAliasCamel(v) as T));
+  }
+
+  private apiPost<T>(url: string, body: any, options?: any): Observable<T> {
+    return this.http.post<any>(url, body, options).pipe(map(v => conAliasCamel(v) as T));
+  }
+
   private toParams(f: any): HttpParams {
     let p = new HttpParams()
       .set('desde', moment(f.range.start).format('YYYY-MM-DD'))
@@ -147,7 +162,7 @@ export class AfiliacionesDashboardService {
   private resumen$: Observable<ResumenApi> = this.filters$.pipe(
     switchMap(f => {
       this.cargandoResumenSubject.next(true);
-      return this.http.get<ResumenApi>(`${this.apiUrl}/contratos/resumen`, { params: this.toParams(f) }).pipe(
+      return this.apiGet<ResumenApi>(`${this.apiUrl}/contratos/resumen`, { params: this.toParams(f) }).pipe(
         catchError(() => of({ kpis: EMPTY_KPIS, porOficina: [], porEmpresa: [] } as ResumenApi)),
         finalize(() => this.cargandoResumenSubject.next(false))
       );
@@ -227,7 +242,7 @@ export class AfiliacionesDashboardService {
         if (f.responsable) params = params.set('responsable', f.responsable);
         const term = (f.search || '').trim();
         if (term) params = params.set('q', term);
-        return this.http.get<TimelinePoint[]>(`${this.apiUrl}/contratos/timeline`, { params }).pipe(
+        return this.apiGet<TimelinePoint[]>(`${this.apiUrl}/contratos/timeline`, { params }).pipe(
           // La dimensión 'empresa' llega como código (APOYO_LABORAL/TU_ALIANZA/SIN_EMPRESA);
           // la traducimos a etiqueta legible para la leyenda de la gráfica.
           map(points => dim === 'empresa'
@@ -258,7 +273,7 @@ export class AfiliacionesDashboardService {
         .set('base', base);
       if (empresa) params = params.set('empresa', empresa);
       if (oficina) params = params.set('oficina', oficina);
-      return this.http.get<{ oficinas: string[]; responsables: string[] }>(
+      return this.apiGet<{ oficinas: string[]; responsables: string[] }>(
         `${this.apiUrl}/contratos/catalogos`, { params }).pipe(
         catchError(() => of({ oficinas: [] as string[], responsables: [] as string[] }))
       );
@@ -279,7 +294,7 @@ export class AfiliacionesDashboardService {
       const params = this.toParams(f)
         .set('page', String(pg.page))
         .set('size', String(pg.size));
-      return this.http.get<any>(`${this.apiUrl}/contratos`, { params }).pipe(
+      return this.apiGet<any>(`${this.apiUrl}/contratos`, { params }).pipe(
         map(res => ({
           rows: (res?.results || []).map((r: any) => this.mapRow(r)),
           total: res?.total || 0
@@ -406,6 +421,7 @@ export class AfiliacionesDashboardService {
       salario: r.salario,
       adres_estado: r.adresEstado,
       adres_eps: r.adresEps,
+      adres_regimen: r.adresRegimen ?? r.adres_regimen,
       adres_fecha: this.toIso(r.adresFecha)
     };
   }

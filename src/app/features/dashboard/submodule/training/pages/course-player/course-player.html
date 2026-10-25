@@ -1,6 +1,6 @@
-<section class="pantalla">
+<section class="cp">
   @if (cargando()) {
-    <p class="cargando">Abriendo el curso…</p>
+    <div class="cp-cargando"><mat-icon>hourglass_top</mat-icon><p>Abriendo el curso…</p></div>
   } @else if (error()) {
     <div class="aviso aviso-error">
       <mat-icon>error_outline</mat-icon>
@@ -8,19 +8,49 @@
       <button type="button" class="boton-principal" (click)="cargar()">Reintentar</button>
     </div>
   } @else if (paquete(); as curso) {
-    <header class="cabecera">
-      <button type="button" class="boton-icono" (click)="volver()" aria-label="Volver a mis cursos">
+
+    <!-- ── Barra superior ──────────────────────────────────────────────────
+         Siempre a la vista: dónde estoy, cuánto llevo y el botón que me lleva a lo
+         que sigue. Es lo que un curso en línea pone arriba en cualquier plataforma. -->
+    <header class="cp-barra">
+      <button type="button" class="boton-icono" (click)="volver()"
+              [attr.aria-label]="preview() ? 'Volver al curso' : 'Volver a mis cursos'">
         <mat-icon>arrow_back</mat-icon>
       </button>
-      <h1>{{ curso.curso_nombre }}</h1>
+      <div class="cp-barra__titulo">
+        <p class="cp-barra__eyebrow">{{ preview() ? 'Vista previa · versión ' + curso.version : 'Capacitación' }}</p>
+        <h1>{{ curso.curso_nombre }}</h1>
+      </div>
+
+      <div class="cp-progreso" [attr.aria-label]="'Avance ' + porcentajeCurso() + ' %'">
+        <svg viewBox="0 0 36 36" class="cp-anillo">
+          <path class="cp-anillo__fondo" d="M18 2.5a15.5 15.5 0 1 1 0 31 15.5 15.5 0 1 1 0-31" />
+          <path class="cp-anillo__valor" [attr.stroke-dasharray]="porcentajeCurso() + ', 100'"
+                d="M18 2.5a15.5 15.5 0 1 1 0 31 15.5 15.5 0 1 1 0-31" />
+        </svg>
+        <div class="cp-progreso__texto">
+          <strong>{{ porcentajeCurso() }}%</strong>
+          <span>{{ completadas() }} de {{ lecciones().length }}</span>
+        </div>
+      </div>
+
+      <button type="button" class="boton-secundario solo-movil cp-barra__temario"
+              (click)="indiceAbierto.set(true)">
+        <mat-icon>menu_book</mat-icon> Temario
+      </button>
+      @if (!preview()) {
+        <button type="button" class="boton-secundario cp-barra__nota" (click)="alternarBoletin()">
+          <mat-icon>grading</mat-icon> <span>Mi calificación</span>
+        </button>
+      }
     </header>
 
-    <div class="avance-global">
-      <mat-progress-bar mode="determinate"
-        [value]="completadas() / (lecciones().length || 1) * 100"></mat-progress-bar>
-      <p>{{ completadas() }} de {{ lecciones().length }} lecciones</p>
-    </div>
-
+    @if (preview()) {
+      <p class="aviso aviso-preview">
+        <mat-icon>visibility</mat-icon>
+        <span><strong>Vista previa.</strong> Así lo verá quien lo curse. Nada se guarda: ni avance, ni intentos, ni entregas.</span>
+      </p>
+    }
     @if (!offline.enLinea) {
       <p class="aviso aviso-offline">
         <mat-icon>cloud_off</mat-icon>
@@ -28,126 +58,431 @@
       </p>
     }
 
-    <button type="button" class="boton-secundario boton-indice"
-            (click)="indiceAbierto.set(!indiceAbierto())">
-      <mat-icon>list</mat-icon>
-      {{ indiceAbierto() ? 'Ocultar' : 'Ver' }} el temario
-    </button>
+    <div class="cp-cuerpo">
 
-    @if (indiceAbierto()) {
-      <nav class="indice">
-        @for (modulo of curso.modulos; track modulo.id) {
-          <h2>{{ modulo.nombre }}</h2>
-          <ul>
-            @for (l of modulo.lecciones; track l.id) {
-              <li>
-                <button type="button" class="item-indice"
-                        [class.activa]="l.id === leccion()?.id"
-                        (click)="seleccionar(l)">
-                  <mat-icon>{{ l.estado === 'COMPLETADA' ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
-                  <span>{{ l.nombre }}</span>
-                </button>
+      <!-- ── Temario ─────────────────────────────────────────────────────────
+           Lateral y fijo en pantalla ancha; en el celular es un panel que se abre desde
+           la barra. Cada módulo dice cuántas lecciones lleva hechas. -->
+      @if (indiceAbierto()) {
+        <div class="cp-velo solo-movil" (click)="indiceAbierto.set(false)"></div>
+      }
+      <aside class="cp-temario" [class.cp-temario--abierto]="indiceAbierto()">
+        <div class="cp-temario__cab">
+          <div>
+            <h2>Contenido del curso</h2>
+            <p>{{ curso.modulos.length }} módulo(s) · {{ lecciones().length }} lecciones</p>
+          </div>
+          <button type="button" class="boton-icono solo-movil" (click)="indiceAbierto.set(false)" aria-label="Cerrar el temario">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+        <div class="cp-temario__barra">
+          <span class="cp-temario__barra-valor" [style.width.%]="porcentajeCurso()"></span>
+        </div>
+
+        @for (modulo of curso.modulos; track modulo.id; let mi = $index) {
+          <div class="cp-modulo" [class.cp-modulo--plegado]="moduloPlegado(modulo.id)"
+               [class.cp-modulo--listo]="progresoModulo(modulo).pct === 100">
+            <button type="button" class="cp-modulo__cab" (click)="alternarModulo(modulo.id)"
+                    [attr.aria-expanded]="!moduloPlegado(modulo.id)">
+              <span class="cp-modulo__num">
+                @if (progresoModulo(modulo).pct === 100) { <mat-icon>check</mat-icon> } @else { {{ mi + 1 }} }
+              </span>
+              <span class="cp-modulo__texto">
+                <strong>{{ modulo.nombre }}</strong>
+                <small>{{ progresoModulo(modulo).hechas }} de {{ progresoModulo(modulo).total }} lecciones</small>
+              </span>
+              <mat-icon class="cp-modulo__flecha">{{ moduloPlegado(modulo.id) ? 'expand_more' : 'expand_less' }}</mat-icon>
+            </button>
+            <div class="cp-modulo__barra"><span [style.width.%]="progresoModulo(modulo).pct"></span></div>
+
+            @if (!moduloPlegado(modulo.id)) {
+              <ol class="cp-lecciones">
+                @for (l of modulo.lecciones; track l.id; let li = $index) {
+                  <li>
+                    <button type="button" class="cp-leccion-item"
+                            [class.actual]="l.id === leccion()?.id"
+                            [class.hecha]="l.estado === 'COMPLETADA'"
+                            (click)="seleccionar(l); indiceAbierto.set(false)">
+                      <mat-icon class="cp-leccion-item__estado">
+                        {{ l.estado === 'COMPLETADA' ? 'check_circle' : (l.id === leccion()?.id ? 'play_circle' : 'radio_button_unchecked') }}
+                      </mat-icon>
+                      <span class="cp-leccion-item__texto">
+                        <span>{{ mi + 1 }}.{{ li + 1 }} {{ l.nombre }}</span>
+                        @if (resumenDe(l); as r) { <small>{{ r }}</small> }
+                      </span>
+                    </button>
+                  </li>
+                }
+              </ol>
+            }
+          </div>
+        }
+      </aside>
+
+      <!-- ── Contenido ───────────────────────────────────────────────────── -->
+      <main class="cp-contenido">
+
+    @if (boletinAbierto()) {
+      <section class="boletin">
+        @if (cargandoBoletin()) {
+          <p class="cargando">Calculando tu nota…</p>
+        } @else if (boletin(); as b) {
+          <div class="boletin-cab">
+            <div class="boletin-nota" [class.boletin-nota--ok]="b.aprobado" [class.boletin-nota--pendiente]="!b.nota_definitiva">
+              <strong>{{ b.nota != null ? b.nota : '—' }}</strong>
+              <span>{{ b.nota_minima != null ? 'mínimo ' + b.nota_minima : 'sin nota mínima' }}</span>
+            </div>
+            <div class="boletin-estado">
+              @if (b.estado_matricula === 'APROBADO') {
+                <strong>Curso aprobado</strong>
+              } @else if (b.aprobado) {
+                <strong>Cumples todo: el curso queda aprobado en cuanto se sincronice.</strong>
+              } @else if (!b.nota_definitiva) {
+                <strong>Nota parcial</strong>
+                <span>Lo que no has presentado cuenta como cero.</span>
+              } @else {
+                <strong>Todavía no cumples todo</strong>
+              }
+              @if (b.asistencia != null) {
+                <span>Asistencia: {{ b.asistencia }} %{{ b.asistencia_minima != null ? ' (mínimo ' + b.asistencia_minima + ' %)' : '' }}</span>
+              }
+            </div>
+          </div>
+
+          <ul class="boletin-requisitos">
+            @for (r of requisitosQueAplican(b); track r.clave) {
+              <li [class.ok]="r.cumplido">
+                <mat-icon>{{ r.cumplido ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                <span>{{ r.descripcion }}</span>
+                <em>{{ r.valor }}{{ r.requerido && r.requerido !== '—' ? ' · pide ' + r.requerido : '' }}</em>
               </li>
             }
           </ul>
-        }
-      </nav>
-    }
 
-    @if (leccion(); as l) {
-      <article class="leccion">
-        <h2>{{ l.nombre }}</h2>
-        @if (l.duracion_min) {
-          <p class="duracion"><mat-icon>schedule</mat-icon> {{ l.duracion_min }} min</p>
-        }
-
-        <!-- ── El recorrido de la lección ────────────────────────────────────
-             Los bloques se pintan EN EL ORDEN en que los armó formación: "lee esto,
-             mira el video, responde, ahora descarga el formato". Antes eran tres
-             listas fijas —archivos, tareas y el quiz al final— y daba igual cómo se
-             hubiera pensado la clase. -->
-        @for (b of bloquesDe(l); track b.id) {
-          <section class="bloque" [attr.data-bloque]="b.id">
-            <!-- Título y descripción del bloque. No se pintan para TEXTO: ahí el
-                 contenido ya es el texto, y encabezarlo lo repetiría. -->
-            @if (b.tipo !== 'TEXTO' && (b.titulo || b.descripcion)) {
-              <header class="bloque-cab">
-                @if (b.titulo) { <h3>{{ b.titulo }}</h3> }
-                @if (b.descripcion) { <p class="bloque-desc">{{ b.descripcion }}</p> }
-              </header>
-            }
-            @switch (b.tipo) {
-
-              @case ('TEXTO') {
-                <div class="contenido-texto" [innerHTML]="b.contenido"></div>
-              }
-
-              @case ('ENLACE') {
-                <a class="recurso" [href]="b.recurso?.url" target="_blank" rel="noopener">
-                  <mat-icon>link</mat-icon>
-                  <span>{{ b.titulo || b.recurso?.nombre || 'Abrir el material' }}</span>
-                </a>
-              }
-
-              @case ('ACTIVIDAD') {
-                @if (b.actividad; as a) {
-                  <div class="actividad">
-                    <h3><mat-icon>assignment_turned_in</mat-icon> {{ a.titulo }}</h3>
-                    @if (a.instrucciones) { <p>{{ a.instrucciones }}</p> }
-                  </div>
-                }
-              }
-
-              @case ('QUIZ') {
-                <ng-container [ngTemplateOutlet]="bloqueQuiz"></ng-container>
-              }
-
-              <!-- VIDEO, DOCUMENTO, PRESENTACION e IMAGEN: todos son un archivo servido
-                   por learning-ms con el JWT de la sesión. El vídeo se ve aquí; el resto
-                   se abre aparte, que es lo que la gente espera de un PDF. -->
-              @default {
-                @if (b.recurso; as r) {
-                  <button type="button" class="recurso recurso-boton"
-                          [disabled]="descargandoMaterial() === r.id"
-                          (click)="abrirMaterial(r)">
-                    <mat-icon>{{ iconoBloque(b.tipo) }}</mat-icon>
-                    <span>
-                      {{ b.titulo || r.nombre || 'Material de la lección' }}
-                      @if (descargandoMaterial() === r.id) { — abriendo… }
-                    </span>
-                  </button>
-
-                  @if (b.tipo === 'VIDEO' && urlMaterial(r.id); as fuente) {
-                    <video class="video" controls [attr.preload]="precargaDe(r.id)"
-                           [attr.data-recurso]="r.id" [src]="fuente"></video>
+          @for (m of b.modulos; track m.module_id) {
+            @if (m.tiene_calificables) {
+              <div class="boletin-modulo">
+                <div class="boletin-modulo__cab">
+                  <strong>{{ m.nombre }}</strong>
+                  <span>
+                    {{ m.nota != null ? m.nota : '—' }}
+                    @if (m.peso != null) { · {{ m.peso }} % del curso }
+                  </span>
+                </div>
+                <ul>
+                  @for (it of m.items; track it.id) {
+                    @if (it.calificable) {
+                      <li>
+                        <mat-icon>{{ it.tipo_item === 'QUIZ' ? 'quiz' : 'assignment_turned_in' }}</mat-icon>
+                        <span class="boletin-item__tit">{{ it.titulo }}</span>
+                        <em>{{ etiquetaItem(it) }}</em>
+                        <strong>{{ it.nota != null ? it.nota : '—' }}</strong>
+                      </li>
+                    }
                   }
-                }
-              }
+                </ul>
+              </div>
             }
-          </section>
-        } @empty {
-          <p class="sin-material">Esta lección no tiene material adjunto.</p>
-        }
-
-        <div class="acciones">
-          @if (l.estado === 'COMPLETADA') {
-            <p class="hecho"><mat-icon>check_circle</mat-icon> Lección completada</p>
-          } @else {
-            <button type="button" class="boton-principal boton-grande"
-                    [disabled]="guardando()" (click)="completar(l)">
-              Marcar como vista
-            </button>
           }
-        </div>
-      </article>
+        } @else {
+          <p class="aviso aviso-offline">
+            <mat-icon>cloud_off</mat-icon>
+            La calificación se calcula en el servidor: hace falta conexión para verla.
+          </p>
+        }
+      </section>
     }
 
-    @if (curso.requiere_evaluacion && completadas() === lecciones().length) {
-      <div class="aviso aviso-pendiente">
-        <mat-icon>assignment_turned_in</mat-icon>
-        Terminaste el contenido. La evaluación final se presenta con conexión a internet.
-      </div>
-    }
+
+        @if (leccion(); as l) {
+          <article class="cp-leccion">
+
+            <!-- Cabecera de la lección: módulo, número, título, duración y estado. -->
+            <header class="cp-leccion__cab">
+              <p class="cp-leccion__eyebrow">
+                Módulo {{ numeroModuloDe(l) }} · {{ moduloDe(l)?.nombre }}
+                · Lección {{ indiceLeccion() + 1 }} de {{ lecciones().length }}
+              </p>
+              <div class="cp-leccion__titulo">
+                <h2>{{ l.nombre }}</h2>
+                <div class="cp-leccion__chips">
+                  @if (l.duracion_min) { <span class="chip"><mat-icon>schedule</mat-icon>{{ l.duracion_min }} min</span> }
+                  @if (l.estado === 'COMPLETADA') { <span class="chip chip--ok"><mat-icon>check_circle</mat-icon>Completada</span> }
+                  @else if (l.obligatoria) { <span class="chip chip--gris">Obligatoria</span> }
+                </div>
+              </div>
+
+              <!-- El recorrido de la lección en pasos: se ve de un vistazo qué trae y
+                   se puede saltar a cualquiera. -->
+              @if (bloquesDe(l).length > 1) {
+                <ol class="cp-pasos">
+                  @for (b of bloquesDe(l); track b.id; let bi = $index) {
+                    <li>
+                      <button type="button" class="cp-paso-chip" (click)="irAlBloque(b.id)" [title]="b.titulo || nombreBloque(b.tipo)">
+                        <span class="cp-paso-chip__num">{{ bi + 1 }}</span>
+                        <mat-icon>{{ iconoBloque(b.tipo) }}</mat-icon>
+                        <span class="cp-paso-chip__texto">{{ b.titulo || nombreBloque(b.tipo) }}</span>
+                      </button>
+                    </li>
+                  }
+                </ol>
+              }
+            </header>
+
+            <!-- ── El recorrido de la lección ────────────────────────────────
+                 Los bloques se pintan EN EL ORDEN en que los armó formación, cada uno
+                 como un paso numerado: "lee esto, mira el video, responde, descarga". -->
+            @for (b of bloquesDe(l); track b.id; let bi = $index) {
+              <section class="cp-paso" [attr.data-bloque]="b.id" [class.cp-paso--quiz]="b.tipo === 'QUIZ'">
+                <div class="cp-paso__guia">
+                  <span class="cp-paso__num">{{ bi + 1 }}</span>
+                  <span class="cp-paso__linea"></span>
+                </div>
+                <div class="cp-paso__tarjeta">
+                  <!-- Título y descripción del bloque. No se pintan para TEXTO: ahí el
+                       contenido ya es el texto, y encabezarlo lo repetiría. -->
+                  @if (b.tipo !== 'TEXTO' && b.tipo !== 'QUIZ') {
+                    <header class="bloque-cab">
+                      <mat-icon class="bloque-cab__icono">{{ iconoBloque(b.tipo) }}</mat-icon>
+                      <div>
+                        <h3>{{ b.titulo || nombreBloque(b.tipo) }}</h3>
+                        @if (b.descripcion) { <p class="bloque-desc">{{ b.descripcion }}</p> }
+                      </div>
+                    </header>
+                  }
+                  @switch (b.tipo) {
+
+                    @case ('TEXTO') {
+                      <div class="contenido-texto" [innerHTML]="b.contenido"></div>
+                    }
+
+                    @case ('ENLACE') {
+                      <a class="recurso" [href]="b.recurso?.url" target="_blank" rel="noopener">
+                        <mat-icon>open_in_new</mat-icon>
+                        <span>{{ b.titulo || b.recurso?.nombre || 'Abrir el material' }}</span>
+                      </a>
+                    }
+
+                    @case ('ACTIVIDAD') {
+                      @if (b.actividad; as a) {
+                        <div class="actividad">
+                          @if (a.instrucciones) { <p>{{ a.instrucciones }}</p> }
+                          @if (a.tipo === 'CODIGO' && a.ejercicio) {
+                            @if (entregaDe(a.id); as e) {
+                              @if (!e.calificando && e.nota != null) {
+                                <p class="actividad__nota" [class.actividad__nota--ok]="e.estado === 'APROBADA'">
+                                  <mat-icon>{{ e.estado === 'APROBADA' ? 'verified' : 'replay' }}</mat-icon>
+                                  Tu nota: <strong>{{ e.nota }}</strong> de {{ a.puntaje_max ?? 100 }}.
+                                  @if (a.puntaje_max && e.nota < a.puntaje_max) { Puedes volver a entregar para subirla. }
+                                </p>
+                              }
+                            }
+                            <app-resolver-ejercicio [ejercicio]="a.ejercicio" origen="ACTIVIDAD" [origenId]="a.id" modo="entrega"
+                                                    textoEntregar="Entregar actividad" [valor]="entregaDe(a.id)?.texto ?? null"
+                                                    [resultado]="entregaDe(a.id)?.resultado ?? null"
+                                                    [calificando]="!!entregaDe(a.id)?.calificando || entregando() === a.id"
+                                                    [deshabilitado]="preview()" (entregar)="entregarCodigo(a, $event)" />
+                            <p class="ayuda">
+                              @if (a.puntaje_max) { Vale hasta {{ a.puntaje_max }} puntos: la nota es el porcentaje de pruebas que pasa tu código. }
+                              @if (a.obligatoria) { Es obligatoria para terminar el curso. }
+                            </p>
+                          } @else {
+                            <p class="ayuda">
+                              @if (a.puntaje_max) { Vale hasta {{ a.puntaje_max }} puntos. }
+                              @if (a.obligatoria) { Es obligatoria para terminar el curso. }
+                              Se entrega desde la app en el celular.
+                            </p>
+                          }
+                        </div>
+                      }
+                    }
+
+                    @case ('FICHA') {
+                      <app-bloque-ficha [contenido]="b.contenido" />
+                    }
+
+                    @case ('YOUTUBE') {
+                      @if (offline.enLinea) {
+                        <app-bloque-youtube [contenido]="b.contenido" />
+                      } @else {
+                        <p class="ayuda">Este video de YouTube necesita conexión.</p>
+                      }
+                    }
+
+                    @case ('QUIZ') {
+                      <!-- Cada bloque pinta SU quiz: una lección puede tener varios. -->
+                      <ng-container [ngTemplateOutlet]="bloqueQuiz"
+                                    [ngTemplateOutletContext]="{ quiz: b.quiz }"></ng-container>
+                    }
+
+                    <!-- VIDEO, DOCUMENTO, PRESENTACION e IMAGEN: todos son un archivo servido
+                         por learning-ms con el JWT de la sesión. El vídeo se ve aquí; el resto
+                         se abre aparte, que es lo que la gente espera de un PDF. -->
+                    @default {
+                      @if (b.recurso; as r) {
+                        @if (b.tipo === 'VIDEO' && urlMaterial(r.id); as fuente) {
+                          <video class="video" controls [attr.preload]="precargaDe(r.id)"
+                                 [attr.data-recurso]="r.id" [src]="fuente"></video>
+                        } @else if (b.tipo === 'AUDIO' && urlMaterial(r.id); as fuente) {
+                          <audio class="audio" controls [src]="fuente" [attr.data-recurso]="r.id"></audio>
+                        } @else {
+                          <button type="button" class="recurso recurso-boton" [class.recurso--video]="b.tipo === 'VIDEO'"
+                                  [disabled]="descargandoMaterial() === r.id"
+                                  (click)="abrirMaterial(r)">
+                            <mat-icon>{{ b.tipo === 'VIDEO' ? 'play_circle' : b.tipo === 'AUDIO' ? 'headphones' : 'download' }}</mat-icon>
+                            <span>
+                              {{ b.tipo === 'VIDEO' ? 'Reproducir el vídeo' : b.tipo === 'AUDIO' ? 'Escuchar' : 'Abrir ' + (b.titulo || r.nombre || 'el material') }}
+                              @if (descargandoMaterial() === r.id) { — abriendo… }
+                            </span>
+                          </button>
+                        }
+                      }
+                    }
+                  }
+                </div>
+              </section>
+            } @empty {
+              <p class="sin-material">Esta lección no tiene material todavía.</p>
+            }
+
+            <!-- ── Cerrar la lección y seguir ──────────────────────────────────
+                 Un solo botón grande hace las dos cosas: marca la lección y abre la que
+                 sigue. Es el gesto que define un curso: terminar y pasar a lo siguiente. -->
+            <footer class="cp-acciones">
+              @if (anteriorLeccion; as ant) {
+                <button type="button" class="boton-secundario" (click)="seleccionar(ant)">
+                  <mat-icon>chevron_left</mat-icon> Anterior
+                </button>
+              } @else { <span></span> }
+
+              <div class="cp-acciones__derecha">
+                @if (l.estado === 'COMPLETADA') {
+                  <span class="hecho"><mat-icon>check_circle</mat-icon> Lección completada</span>
+                  @if (siguienteLeccion; as sig) {
+                    <button type="button" class="boton-principal" (click)="seleccionar(sig)">
+                      Siguiente lección <mat-icon>arrow_forward</mat-icon>
+                    </button>
+                  } @else {
+                    <button type="button" class="boton-principal" (click)="terminarCurso()">
+                      <mat-icon>flag</mat-icon> Terminar el curso
+                    </button>
+                  }
+                } @else {
+                  <button type="button" class="boton-principal boton-grande"
+                          [disabled]="guardando()" (click)="completarYContinuar(l)">
+                    <mat-icon>task_alt</mat-icon>
+                    {{ siguienteLeccion ? 'Marcar completada y continuar' : 'Marcar completada y terminar' }}
+                  </button>
+                }
+              </div>
+            </footer>
+          </article>
+
+          <section class="cp-tarjeta cp-comentarios">
+        <!-- ── Comentarios de la clase ───────────────────────────────────────
+             Necesitan conexión y siguen a la clase de versión en versión. Se pliegan por
+             defecto: la clase es lo primero; la conversación, después. -->
+        @if (offline.enLinea) {
+          <div class="comentarios">
+            <button type="button" class="comentarios-cab" (click)="comentariosAbiertos.set(!comentariosAbiertos())">
+              <mat-icon>forum</mat-icon>
+              <span>Comentarios y preguntas</span>
+              <span class="comentarios-cuenta">{{ totalComentarios() }}</span>
+              <mat-icon class="comentarios-flecha">{{ comentariosAbiertos() ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+
+            @if (comentariosAbiertos()) {
+              <div class="comentarios-cuerpo">
+                <div class="comentario-nuevo">
+                  <textarea rows="2" [value]="nuevoComentario()"
+                            (input)="nuevoComentario.set($any($event.target).value)"
+                            placeholder="Pregunta o comenta algo sobre esta clase…" maxlength="2000"></textarea>
+                  <button type="button" class="boton-principal"
+                          [disabled]="!nuevoComentario().trim() || enviandoComentario()" (click)="comentar()">
+                    <mat-icon>send</mat-icon> Comentar
+                  </button>
+                </div>
+
+                @if (cargandoComentarios()) {
+                  <p class="ayuda">Cargando comentarios…</p>
+                }
+                <ul class="hilos">
+                  @for (c of comentarios(); track c.id) {
+                    <li class="hilo">
+                      <div class="comentario">
+                        <div class="comentario-cab">
+                          <span class="avatar">{{ (c.autor_nombre || '?').charAt(0) }}</span>
+                          <div>
+                            <strong>{{ c.autor_nombre || 'Alguien' }}</strong>
+                            <small>
+                              {{ c.created_at | date:'d MMM y, HH:mm' }}
+                              @if (c.escrito_en_version && c.escrito_en_version !== curso.version) {
+                                · en la versión {{ c.escrito_en_version }}
+                              }
+                            </small>
+                          </div>
+                          @if (c.puede_borrar) {
+                            <button type="button" class="boton-icono pequeno" title="Borrar" (click)="borrarComentario(c)">
+                              <mat-icon>delete_outline</mat-icon>
+                            </button>
+                          }
+                        </div>
+                        <p class="comentario-texto">{{ c.texto }}</p>
+                        <button type="button" class="enlace-responder" (click)="abrirRespuesta(c)">
+                          <mat-icon>reply</mat-icon>
+                          {{ respondiendoA() === c.id ? 'Cancelar' : 'Responder' }}
+                        </button>
+                      </div>
+
+                      @if (c.respuestas?.length) {
+                        <ul class="respuestas">
+                          @for (r of c.respuestas; track r.id) {
+                            <li class="comentario respuesta">
+                              <div class="comentario-cab">
+                                <span class="avatar">{{ (r.autor_nombre || '?').charAt(0) }}</span>
+                                <div>
+                                  <strong>{{ r.autor_nombre || 'Alguien' }}</strong>
+                                  <small>{{ r.created_at | date:'d MMM y, HH:mm' }}</small>
+                                </div>
+                                @if (r.puede_borrar) {
+                                  <button type="button" class="boton-icono pequeno" title="Borrar" (click)="borrarComentario(r)">
+                                    <mat-icon>delete_outline</mat-icon>
+                                  </button>
+                                }
+                              </div>
+                              <p class="comentario-texto">{{ r.texto }}</p>
+                            </li>
+                          }
+                        </ul>
+                      }
+
+                      @if (respondiendoA() === c.id) {
+                        <div class="comentario-nuevo respuesta-nueva">
+                          <textarea rows="2" [value]="textoRespuesta()"
+                                    (input)="textoRespuesta.set($any($event.target).value)"
+                                    placeholder="Tu respuesta…" maxlength="2000"></textarea>
+                          <button type="button" class="boton-principal"
+                                  [disabled]="!textoRespuesta().trim() || enviandoComentario()" (click)="responder(c)">
+                            <mat-icon>send</mat-icon> Responder
+                          </button>
+                        </div>
+                      }
+                    </li>
+                  } @empty {
+                    @if (!cargandoComentarios()) {
+                      <li class="ayuda">Nadie ha comentado todavía. Sé la primera persona en preguntar.</li>
+                    }
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+        }
+          </section>
+        }
+      </main>
+    </div>
   }
 </section>
 
@@ -155,25 +490,130 @@
      Va en una plantilla con nombre y no suelto al final porque ahora su sitio lo
      decide el bloque QUIZ: puede ir después del vídeo y antes del formato. Es UNO
      por lección, así que una sola plantilla basta. -->
-<ng-template #bloqueQuiz>
-        <!-- `leccion()` y no `l`: la plantilla vive fuera del @if que declaraba `l`. -->
-        @if (leccion()?.quiz; as quiz) {
-          <div class="quiz">
-            <h3>Comprueba lo que entendiste</h3>
-
-            @if (resultadoQuiz(); as res) {
-              <div class="quiz-resultado">
-                <mat-icon>{{ res.correctas === res.total ? 'celebration' : 'menu_book' }}</mat-icon>
-                <p>Acertaste {{ res.correctas }} de {{ res.total }} ({{ res.nota }}%).</p>
+<ng-template #bloqueQuiz let-quiz="quiz">
+        @if (quiz) {
+          <div class="quiz" [class.quiz--examen]="quiz.bloquea_pegado">
+            <header class="quiz-cab">
+              <mat-icon class="quiz-cab__icono">{{ quiz.tipo === 'EXAMEN_FINAL' ? 'workspace_premium' : 'quiz' }}</mat-icon>
+              <div>
+                <h3>{{ quiz.titulo || 'Comprueba lo que entendiste' }}</h3>
+                <p class="quiz-cab__meta">{{ quiz.preguntas.length }} pregunta(s)</p>
               </div>
+            </header>
+            <!-- Qué es y cuánto vale, ANTES de responder: un examen final con nota mínima no
+                 se afronta igual que una práctica. -->
+            <div class="quiz-ficha">
+              <span class="quiz-chip" [class]="'quiz-chip quiz-chip--' + (quiz.tipo || 'ACTIVIDAD').toLowerCase()">
+                {{ quiz.tipo === 'EXAMEN_FINAL' ? 'Examen final' : quiz.tipo === 'PRACTICA' ? 'Práctica' : 'Quiz' }}
+              </span>
+              @if (quiz.tipo !== 'PRACTICA' && quiz.calificable !== false) {
+                <span class="quiz-chip">
+                  {{ quiz.peso != null ? 'vale el ' + quiz.peso + ' % del módulo' : 'cuenta en la nota' }}
+                </span>
+                @if (quiz.nota_minima != null) {
+                  <span class="quiz-chip quiz-chip--minimo">se aprueba con {{ quiz.nota_minima }}</span>
+                }
+              } @else {
+                <span class="quiz-chip quiz-chip--gris">no cuenta en la nota</span>
+              }
+              @if (quiz.intentos_max > 0) {
+                <span class="quiz-chip quiz-chip--gris">{{ quiz.intentos_max }} intento(s)</span>
+              }
+              @if (quiz.bloquea_pegado) {
+                <span class="quiz-chip quiz-chip--examen"><mat-icon>lock</mat-icon>Modo examen · todo se escribe, no se puede pegar</span>
+              }
+            </div>
+
+            @if (resultadoDe(quiz); as res) {
+              <div class="quiz-resultado" [class.quiz-resultado--mal]="quiz.nota_minima != null && res.nota < quiz.nota_minima">
+                <div class="quiz-resultado__nota">
+                  <strong>{{ res.nota }}</strong><small>/100</small>
+                </div>
+                <p>
+                  <mat-icon>{{ res.correctas === res.total ? 'celebration' : 'menu_book' }}</mat-icon>
+                  Acertaste {{ res.correctas }} de {{ res.total }}.
+                  @if (res.calificando) {
+                    <span class="calificando"><span class="calificando__punto"></span> Calificando tu código: la nota puede subir.</span>
+                  }
+                  @if (quiz.nota_minima != null) {
+                    @if (res.nota >= quiz.nota_minima) {
+                      <strong>Alcanzaste el mínimo de {{ quiz.nota_minima }}.</strong>
+                    } @else {
+                      <strong>Te falta para el mínimo de {{ quiz.nota_minima }}: cuenta el mejor intento.</strong>
+                    }
+                  }
+                </p>
+              </div>
+
+              <!-- ── Revisión: qué acertó y qué falló ──────────────────────────
+                   Pregunta por pregunta: lo que contestó, si estuvo bien, la correcta cuando
+                   el quiz la revela, el porqué del analizador y a dónde volver a mirar. -->
+              <ol class="quiz-revision">
+                @for (p of quiz.preguntas; track p.id; let i = $index) {
+                  @if (detalleDe(quiz, p); as d) {
+                    <li class="rev" [class.rev--ok]="d.correcta" [class.rev--mal]="!d.correcta && !d.pendiente">
+                      <mat-icon class="rev__icono">{{ d.pendiente ? 'hourglass_top' : d.correcta ? 'check_circle' : 'cancel' }}</mat-icon>
+                      <div class="rev__cuerpo">
+                        <strong class="rev__enunciado">{{ i + 1 }}. {{ p.enunciado }}</strong>
+                        <p class="rev__linea"><span>Tu respuesta:</span> {{ respuestaTexto(p) }}</p>
+                        @if (!d.correcta && correctasTexto(p); as ok) {
+                          <p class="rev__linea rev__correcta"><span>Correcta:</span> {{ ok }}</p>
+                        }
+                        @if (d.motivo && esAbierta(p)) {
+                          <p class="rev__linea"><span>Por qué:</span> {{ d.motivo }}</p>
+                        }
+                        @if (esCodigo(p)) {
+                          @if (d.pendiente) {
+                            <p class="rev__linea calificando"><span class="calificando__punto"></span> Calificando tu código con todas las pruebas…</p>
+                          } @else if (d.codigo) {
+                            <app-resultado-pruebas [resultado]="d.codigo" />
+                          }
+                        }
+                        @if (p.explicacion && (!d.correcta || quiz.mostrar_respuesta_correcta)) {
+                          <p class="rev__exp"><mat-icon>lightbulb</mat-icon>{{ p.explicacion }}</p>
+                        }
+                        @if (!d.correcta) {
+                          @if (p.bloque_id) {
+                            <button type="button" class="enlace-repaso" (click)="verDondeSeExplica(p)">
+                              <mat-icon>replay</mat-icon> Ver dónde se explica
+                              @if (p.segundo) { (minuto {{ minuto(p.segundo) }}) }
+                            </button>
+                          } @else if (citasDe(p.id); as citas) {
+                            @if (citas.length) {
+                              <ul class="citas">
+                                @for (c of citas; track c.lesson_id + '-' + c.segundos) {
+                                  <li>
+                                    <button type="button" class="cita" (click)="irALaCita(c)">
+                                      <mat-icon>play_circle</mat-icon>
+                                      <span><strong>{{ c.lesson_nombre }} · minuto {{ minuto(c.segundos) }}</strong><em>«{{ c.extracto }}»</em></span>
+                                    </button>
+                                  </li>
+                                }
+                              </ul>
+                            } @else {
+                              <p class="ayuda">No encontramos dónde se explica esto en lo que ya viste.</p>
+                            }
+                          } @else {
+                            <button type="button" class="enlace-repaso" [disabled]="buscandoCitas() === p.id"
+                                    (click)="buscarDondeSeExplica(p)">
+                              <mat-icon>search</mat-icon>
+                              {{ buscandoCitas() === p.id ? 'Buscando en el material…' : 'Buscar dónde se explica' }}
+                            </button>
+                          }
+                        }
+                      </div>
+                    </li>
+                  }
+                }
+              </ol>
             } @else {
-              @if (unaPorUna) {
+              @if (unaPorUna(quiz)) {
                 <p class="quiz-avance">
-                  Pregunta {{ indicePregunta() + 1 }} de {{ quiz.preguntas.length }}
+                  Pregunta {{ indiceDe(quiz) + 1 }} de {{ quiz.preguntas.length }}
                 </p>
               }
 
-              @for (p of preguntasVisibles; track p.id) {
+              @for (p of preguntasVisibles(quiz); track p.id) {
                 <fieldset class="pregunta" [class.pregunta-confirmada]="confirmada(p)">
                   <legend>{{ p.enunciado }}</legend>
 
@@ -219,15 +659,32 @@
                       <input class="respuesta-abierta" type="number" inputmode="decimal"
                              [value]="escrito(p.id)" [disabled]="confirmada(p)"
                              placeholder="Escribe el número"
+                             (paste)="bloquearPegado($event, quiz)" (drop)="bloquearPegado($event, quiz)"
                              (input)="escribir(p, $any($event.target).value)" />
                     } @else {
                       <textarea class="respuesta-abierta" rows="4"
                                 [value]="escrito(p.id)" [disabled]="confirmada(p)"
                                 placeholder="Escribe tu respuesta"
+                                [attr.autocomplete]="quiz.bloquea_pegado ? 'off' : null"
+                                (paste)="bloquearPegado($event, quiz)" (drop)="bloquearPegado($event, quiz)"
                                 (input)="escribir(p, $any($event.target).value)"></textarea>
                     }
                     @if (!confirmada(p)) {
                       <p class="ayuda">Se revisa al enviar el quiz.</p>
+                    }
+                  }
+
+                  <!-- Las de programación: se prueban con los ejemplos visibles y, al enviar el
+                       quiz, las califican TODAS sus pruebas en el servidor (nota parcial). -->
+                  @if (esCodigo(p)) {
+                    @if (preview()) {
+                      <p class="ayuda">En la vista previa no se ejecuta código: pruébalo presentando el curso.</p>
+                    }
+                    <app-resolver-ejercicio [ejercicio]="p.ejercicio ?? null" origen="PREGUNTA" [origenId]="p.id"
+                                            [valor]="escrito(p.id)" (valorChange)="escribirCodigo(p, $event)"
+                                            [deshabilitado]="confirmada(p)" [bloqueaPegado]="quiz.bloquea_pegado" />
+                    @if (!confirmada(p)) {
+                      <p class="ayuda">Prueba tu código con los ejemplos. Al enviar el quiz se califica con todas las pruebas, también las ocultas.</p>
                     }
                   }
 
@@ -378,28 +835,28 @@
                 </fieldset>
               }
 
-              @if (unaPorUna) {
+              @if (unaPorUna(quiz)) {
                 <div class="quiz-navegacion">
                   @if (quiz.permite_volver) {
                     <button type="button" class="boton-secundario"
-                            [disabled]="!puedeVolver" (click)="preguntaAnterior()">
+                            [disabled]="!puedeVolver(quiz)" (click)="preguntaAnterior(quiz)">
                       <mat-icon>arrow_back</mat-icon> Anterior
                     </button>
                   }
-                  @for (p of preguntasVisibles; track p.id) {
+                  @for (p of preguntasVisibles(quiz); track p.id) {
                     @if (!confirmada(p)) {
                       <button type="button" class="boton-principal"
                               [disabled]="!respondida(p)"
                               (click)="confirmar(p)">
                         Confirmar
                       </button>
-                    } @else if (!esUltimaPregunta) {
-                      <button type="button" class="boton-principal" (click)="siguientePregunta(p)">
+                    } @else if (!esUltimaPregunta(quiz)) {
+                      <button type="button" class="boton-principal" (click)="siguientePregunta(quiz, p)">
                         Siguiente <mat-icon>arrow_forward</mat-icon>
                       </button>
                     } @else {
                       <button type="button" class="boton-principal"
-                              [disabled]="!quizCompleto || guardando()" (click)="enviarQuiz()">
+                              [disabled]="!quizCompleto(quiz) || guardando()" (click)="enviarQuiz(quiz)">
                         Enviar respuestas
                       </button>
                     }
@@ -407,8 +864,8 @@
                 </div>
               } @else {
                 <button type="button" class="boton-principal boton-grande"
-                        [disabled]="!quizCompleto || guardando()"
-                        (click)="enviarQuiz()">
+                        [disabled]="!quizCompleto(quiz) || guardando()"
+                        (click)="enviarQuiz(quiz)">
                   Enviar respuestas
                 </button>
               }

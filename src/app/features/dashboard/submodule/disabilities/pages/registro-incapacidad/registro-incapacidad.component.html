@@ -12,7 +12,7 @@
   <div class="reg-pagina-contenido">
     <mat-card class="disab-card">
       <!-- ── Hero ────────────────────────────────────────────────────── -->
-      <div class="disab-hero">
+      <div class="disab-hero" data-acciones="propias">
         <div class="disab-hero-icon">
           <mat-icon>assignment_add</mat-icon>
         </div>
@@ -50,8 +50,18 @@
             </div>
           }
 
+          @if (alcanceFinca) {
+            <div class="reg-aviso reg-aviso--info reg-aviso--compacto" role="status">
+              <mat-icon aria-hidden="true">filter_alt</mat-icon>
+              <div class="reg-aviso-texto">
+                <strong>Tu usuario trabaja solo con {{ alcanceFinca }}</strong>
+                <p>El buscador solo muestra trabajadores de esos centros de costo.</p>
+              </div>
+            </div>
+          }
+
           <!-- Reunion 2026-10-05: primero el tipo de documento (obligatorio), luego la busqueda -->
-          <div class="reg-busqueda-fila">
+          <div class="reg-busqueda-fila" data-guia="busqueda" [attr.data-guia-persona]="personaCargada() ? '' : null">
             <mat-form-field appearance="outline" class="reg-tipo-busqueda">
               <mat-label>Tipo de documento</mat-label>
               <mat-icon matPrefix aria-hidden="true">fact_check</mat-icon>
@@ -177,10 +187,10 @@
         <mat-divider class="disab-divider" />
 
         <!-- ═══ LAYOUT: formulario + panel de validacion ══════════════ -->
-        <div class="reg-layout" [formGroup]="form">
+        <div class="reg-layout" [class.reg-layout--sin-panel]="simplificado" [formGroup]="form" [attr.data-guia-con-datos]="personaCargada() ? '' : null">
           <div class="reg-principal">
             <!-- ═══ B) DATOS DE LA OFICINA ═══════════════════════════ -->
-            <section class="disab-section" formGroupName="oficina">
+            <section class="disab-section" formGroupName="oficina" data-guia="oficina">
               <header class="disab-section-header">
                 <mat-icon class="disab-section-icon">store</mat-icon>
                 <h2 class="disab-section-title">Datos de la oficina</h2>
@@ -216,7 +226,15 @@
                         </mat-option>
                       }
                     </mat-select>
-                    <mat-hint>Tu usuario no tiene sede: eligela manualmente</mat-hint>
+                    <mat-hint>
+                      @if (desdeTransversal) {
+                        Elige la oficina a la que pertenece la incapacidad
+                      } @else if (usuario.sedes.length > 1) {
+                        Elige con cuál de tus sedes queda registrada
+                      } @else {
+                        Tu usuario no tiene sede: eligela manualmente
+                      }
+                    </mat-hint>
                     @if (form.controls.oficina.controls.oficina.hasError('required')) {
                       <mat-error>La oficina es obligatoria</mat-error>
                     }
@@ -262,7 +280,7 @@
             <mat-divider class="disab-divider" />
 
             <!-- ═══ C) INFORMACION PERSONAL ══════════════════════════ -->
-            <section class="disab-section" formGroupName="personal">
+            <section class="disab-section" formGroupName="personal" data-guia="personal">
               <header class="disab-section-header">
                 <mat-icon class="disab-section-icon">account_circle</mat-icon>
                 <h2 class="disab-section-title">Informacion personal</h2>
@@ -294,6 +312,7 @@
                   </mat-form-field>
                 }
 
+                @if (!simplificado) {
                 <!-- Numero de documento -->
                 <mat-form-field
                   appearance="outline"
@@ -316,7 +335,43 @@
                     <mat-error>La cedula es obligatoria</mat-error>
                   }
                 </mat-form-field>
+                }
 
+                @if (simplificado) {
+                  <!-- Reunion 2026-10-20 (nivel 1): apellidos y nombres en UN solo campo -->
+                  <mat-form-field
+                    appearance="outline"
+                    class="reg-campo reg-campo--doble"
+                    [class.reg-campo--auto]="nombreUnificadoSoloLectura()"
+                    [class.reg-campo--manual]="!nombreUnificadoSoloLectura()"
+                  >
+                    <mat-label>Apellidos y nombres</mat-label>
+                    <mat-icon matPrefix aria-hidden="true">badge</mat-icon>
+                    <input
+                      matInput
+                      [value]="nombreUnificado()"
+                      [readonly]="nombreUnificadoSoloLectura()"
+                      (change)="alCambiarNombreUnificado($any($event.target).value)"
+                      placeholder="PRIMER APELLIDO  SEGUNDO APELLIDO  NOMBRES"
+                      autocomplete="off"
+                      aria-label="Apellidos y nombres del trabajador"
+                    />
+                    @if (nombreUnificadoSoloLectura()) {
+                      <mat-icon matSuffix class="reg-icono-candado" matTooltip="Dato de contratacion"
+                        >lock</mat-icon
+                      >
+                    } @else {
+                      <mat-hint>Primero los apellidos y luego los nombres</mat-hint>
+                    }
+                    @if (
+                      form.controls.personal.controls.primerApellido.touched &&
+                      (form.controls.personal.controls.primerApellido.invalid ||
+                        form.controls.personal.controls.primerNombre.invalid)
+                    ) {
+                      <mat-error>Escribe al menos un apellido y un nombre</mat-error>
+                    }
+                  </mat-form-field>
+                } @else {
                 <!-- Primer apellido (los apellidos VAN ANTES que los nombres) -->
                 <mat-form-field
                   appearance="outline"
@@ -393,7 +448,9 @@
                     <mat-hint>Completar manualmente</mat-hint>
                   }
                 </mat-form-field>
+                }
 
+                @if (!simplificado) {
                 <!-- EDAD: campo calculado desde fecha_nacimiento -->
                 <div class="reg-calculado reg-calculado--edad">
                   <div class="reg-calculado-cabecera">
@@ -466,6 +523,7 @@
                       >lock</mat-icon
                     >
                   </mat-form-field>
+                }
                 }
 
                 <mat-form-field
@@ -653,7 +711,7 @@
                 </div>
               }
 
-              <div class="disab-grid reg-grid-3">
+              <div class="disab-grid reg-grid-3" data-guia="tipo-fechas">
                 <!-- 1. Tipo de incapacidad -->
                 <mat-form-field appearance="outline" class="reg-campo reg-campo--ancho">
                   <mat-label>Tipo de incapacidad</mat-label>
@@ -781,7 +839,7 @@
 
               <div class="disab-grid reg-grid-2">
                 <!-- 7. Codigo de diagnostico: NUNCA texto libre -->
-                <div class="reg-campo-buscador">
+                <div class="reg-campo-buscador" data-guia="diagnostico" [attr.data-guia-diagnostico]="valores().incapacidad.codigoDiagnostico ? '' : null">
                   <app-buscador-remoto
                     [buscar]="buscarCie10"
                     [mostrar]="mostrarCie10"
@@ -817,13 +875,30 @@
                   >
                 </mat-form-field>
 
+                <!-- 9. Entidad a quien se cobra (reunion 2026-10-20): con accidente de trabajo o
+                     enfermedad laboral es la ARL, no la EPS -->
+                @if (cobraArl()) {
+                  <mat-form-field appearance="outline" class="reg-campo reg-campo--auto reg-campo--arl" data-guia="entidad">
+                    <mat-label>ARL (a quien se cobra)</mat-label>
+                    <mat-icon matPrefix aria-hidden="true">health_and_safety</mat-icon>
+                    <input matInput [value]="valores().personal.arl || 'ARL SURA'" readonly />
+                    <mat-icon
+                      matSuffix
+                      class="reg-icono-candado"
+                      matTooltip="Los accidentes de trabajo y las enfermedades laborales se cobran a la ARL"
+                      >lock</mat-icon
+                    >
+                    <mat-hint>Accidente de trabajo: se cobra SIEMPRE a la ARL, no a la EPS</mat-hint>
+                  </mat-form-field>
+                } @else {
                 <!-- 9. EPS: desplegable con buscador incorporado -->
-                <mat-form-field appearance="outline" class="reg-campo">
+                <mat-form-field appearance="outline" class="reg-campo" data-guia="entidad">
                   <mat-label>EPS</mat-label>
                   <mat-icon matPrefix aria-hidden="true">local_hospital</mat-icon>
+                  <!-- Sin el atributo `required`: lo pone/quita el control segun el tipo (con un
+                       accidente de trabajo se cobra a la ARL y la EPS deja de ser obligatoria). -->
                   <mat-select
                     formControlName="eps"
-                    required
                     panelClass="reg-panel-eps"
                     (openedChange)="alAbrirEps($event)"
                   >
@@ -854,9 +929,10 @@
                     <mat-error>Elige la EPS</mat-error>
                   }
                 </mat-form-field>
+                }
 
                 <!-- 10. NIT / IPS -->
-                <div class="reg-campo-buscador">
+                <div class="reg-campo-buscador" data-guia="ips" [attr.data-guia-ips]="valores().incapacidad.nombreIps ? '' : null">
                   <app-buscador-remoto
                     [buscar]="buscarIps"
                     [mostrar]="mostrarIps"
@@ -975,7 +1051,7 @@
               </div>
 
               <!-- 15. Observaciones -->
-              <mat-form-field appearance="outline" class="reg-campo reg-campo--completo">
+              <mat-form-field appearance="outline" class="reg-campo reg-campo--completo" data-guia="observaciones">
                 <mat-label>Observaciones</mat-label>
                 <textarea
                   matInput
@@ -989,7 +1065,7 @@
             <mat-divider class="disab-divider" />
 
             <!-- ═══ F) SOPORTES ══════════════════════════════════════ -->
-            <section class="disab-section">
+            <section class="disab-section" data-guia="soportes">
               <header class="disab-section-header">
                 <mat-icon class="disab-section-icon">attach_file</mat-icon>
                 <h2 class="disab-section-title">Soportes de la incapacidad</h2>
@@ -1192,8 +1268,9 @@
             </section>
           </div>
 
+          @if (!simplificado) {
           <!-- ═══ E) PANEL DE VALIDACION EN VIVO ═════════════════════ -->
-          <aside class="reg-panel" aria-label="Validacion en vivo">
+          <aside class="reg-panel" aria-label="Validacion en vivo" data-guia="validacion">
             <div class="reg-panel-sticky">
               <header class="reg-panel-cabecera">
                 <mat-icon aria-hidden="true">policy</mat-icon>
@@ -1351,29 +1428,10 @@
               </div>
             </div>
           </aside>
+          }
         </div>
 
-        <!-- Resultado del guardado -->
-        @if (resultado(); as r) {
-          <div class="reg-exito" role="status">
-            <mat-icon aria-hidden="true">check_circle</mat-icon>
-            <div class="reg-exito-texto">
-              <strong>
-                {{ esEdicion() ? 'Cambios guardados' : 'Incapacidad guardada' }}
-                @if (r.incapacidad.codigoUnico) {
-                  · {{ sinGuion(r.incapacidad.codigoUnico) }}
-                }
-              </strong>
-              <p>
-                {{
-                  r.validada
-                    ? 'Quedo en estado VALIDADA.'
-                    : 'Quedo en estado RECIBIDA. Puedes validarla mas adelante.'
-                }}
-              </p>
-            </div>
-          </div>
-        }
+        <!-- Resultado del guardado: ventana central con el radicado (reunion 2026-10-20) -->
 
         @if (errorGuardado()) {
           <div class="reg-aviso reg-aviso--critico" role="alert">
@@ -1405,7 +1463,11 @@
         } @else if (camposFaltantes().length) {
           <span class="reg-acciones-estado reg-acciones-estado--alerta">
             <mat-icon aria-hidden="true">info</mat-icon>
-            Faltan {{ camposFaltantes().length }} datos obligatorios
+            @if (simplificado && intentoGuardar()) {
+              Falta: {{ resumenFaltantes() }}
+            } @else {
+              Faltan {{ camposFaltantes().length }} datos obligatorios
+            }
           </span>
         } @else if (validacion(); as v) {
           <span class="reg-acciones-estado reg-acciones-estado--ok">
@@ -1416,7 +1478,7 @@
         }
       </div>
 
-      <div class="reg-acciones-botones">
+      <div class="reg-acciones-botones" data-guia="guardar">
         <button
           mat-stroked-button
           type="button"
@@ -1528,3 +1590,6 @@
     </button>
   </mat-dialog-actions>
 </ng-template>
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

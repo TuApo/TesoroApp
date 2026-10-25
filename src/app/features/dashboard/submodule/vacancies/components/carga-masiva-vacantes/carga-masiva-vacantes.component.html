@@ -1,0 +1,158 @@
+<div class="cmv-hero">
+  <div class="cmv-hero-icono"><mat-icon>upload_file</mat-icon></div>
+  <div class="cmv-hero-textos">
+    <h2 class="cmv-titulo" mat-dialog-title>Carga masiva de vacantes</h2>
+    <p class="cmv-sub">Crea varias vacantes a la vez desde un Excel</p>
+  </div>
+  <button type="button" mat-icon-button class="cmv-cerrar" (click)="cerrar()" aria-label="Cerrar"
+    [disabled]="paso() === 'creando'">
+    <mat-icon>close</mat-icon>
+  </button>
+</div>
+
+<mat-dialog-content class="cmv-cuerpo">
+
+  @if (paso() === 'inicio' || paso() === 'validando') {
+    <section class="cmv-bloque">
+      <header class="cmv-bloque-cab"><span class="cmv-paso">1</span><h3>Descarga la plantilla</h3></header>
+      <p class="cmv-nota">
+        Trae los centros habilitados, los cargos autorizados por centro, productos de finca, oficinas,
+        grupos de pago y municipios <strong>de hoy</strong>, con listas desplegables.
+        Lee la hoja «Instrucciones» y mira la hoja «Ejemplo».
+      </p>
+      <button type="button" mat-stroked-button (click)="descargarPlantilla()" [disabled]="descargando() || paso() === 'validando'">
+        <mat-icon>download</mat-icon>
+        <span>{{ descargando() ? 'Generando plantilla…' : 'Descargar plantilla' }}</span>
+      </button>
+    </section>
+
+    <section class="cmv-bloque">
+      <header class="cmv-bloque-cab"><span class="cmv-paso">2</span><h3>Sube el archivo diligenciado</h3></header>
+      <p class="cmv-nota">
+        Máximo {{ MAX_FILAS }} vacantes por archivo. Antes de crear nada verás cada fila validada.
+      </p>
+      <input #archivoInput type="file" accept=".xlsx" hidden (change)="onArchivo($event)" />
+      <button type="button" mat-flat-button color="primary" (click)="archivoInput.click()" [disabled]="paso() === 'validando'">
+        <mat-icon>upload</mat-icon>
+        <span>Elegir archivo .xlsx</span>
+      </button>
+      @if (archivo()) { <span class="cmv-archivo">{{ archivo() }}</span> }
+
+      @if (paso() === 'validando') {
+        <div class="cmv-progreso">
+          <mat-progress-bar mode="determinate" [value]="porcentaje()"></mat-progress-bar>
+          <span>Validando {{ hechas() }} de {{ total() }} filas contra el parametrizador…</span>
+        </div>
+      }
+    </section>
+  }
+
+  @if (error()) {
+    <div class="cmv-alerta cmv-alerta-error"><mat-icon>error</mat-icon><span>{{ error() }}</span></div>
+  }
+
+  @if (paso() === 'revision' || paso() === 'creando') {
+    <div class="cmv-resumen">
+      <div class="cmv-chip"><strong>{{ filas().length }}</strong> filas</div>
+      <div class="cmv-chip cmv-chip-ok"><strong>{{ validas() }}</strong> listas</div>
+      <div class="cmv-chip cmv-chip-aviso"><strong>{{ conAviso() }}</strong> con avisos</div>
+      <div class="cmv-chip cmv-chip-error"><strong>{{ conError() }}</strong> con errores</div>
+      <div class="cmv-chip"><strong>{{ personas() }}</strong> personas solicitadas</div>
+      <span class="cmv-flex"></span>
+      <label class="cmv-filtro">
+        <input type="checkbox" [checked]="soloProblemas()" (change)="soloProblemas.set(!soloProblemas())" />
+        Solo filas con errores o avisos
+      </label>
+    </div>
+
+    @if (conError()) {
+      <div class="cmv-alerta cmv-alerta-error">
+        <mat-icon>block</mat-icon>
+        <span>Hay {{ conError() }} fila(s) con errores. Corrígelas en el Excel y vuelve a subirlo: no se crea ninguna vacante mientras haya errores.</span>
+      </div>
+    }
+
+    @if (paso() === 'creando') {
+      <div class="cmv-progreso">
+        <mat-progress-bar mode="determinate" [value]="porcentaje()"></mat-progress-bar>
+        <span>Creando {{ hechas() }} de {{ total() }} vacantes… no cierres esta ventana.</span>
+      </div>
+    }
+
+    <div class="cmv-tabla-wrap">
+      <table class="cmv-tabla">
+        <thead>
+          <tr>
+            <th>Fila</th>
+            <th>Estado</th>
+            <th>Centro de costo</th>
+            <th>Cargo</th>
+            <th>Pers.</th>
+            <th>Vinculación / fechas</th>
+            <th>Labor · grupo de pago</th>
+            <th>Observaciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (f of visibles(); track f.fila) {
+            <tr [class]="'cmv-fila-' + f.estado">
+              <td class="cmv-num">{{ f.fila }}</td>
+              <td><mat-icon [class]="'cmv-ico-' + f.estado">{{ iconoEstado(f) }}</mat-icon></td>
+              <td>{{ f.resumen.centro }}</td>
+              <td>{{ f.resumen.cargo }}</td>
+              <td class="cmv-num">{{ f.resumen.personas }}</td>
+              <td>{{ f.resumen.vinculacion }}<br /><small>{{ f.resumen.fecha }}</small></td>
+              <td>
+                <small>{{ f.resumen.labor || '—' }}</small>
+                @if (f.resumen.grupoPago) { <br /><small><strong>{{ f.resumen.grupoPago }}</strong></small> }
+              </td>
+              <td class="cmv-obs">
+                @for (e of f.errores; track $index) { <div class="cmv-err">{{ e }}</div> }
+                @for (a of f.advertencias; track $index) { <div class="cmv-avi">{{ a }}</div> }
+              </td>
+            </tr>
+          } @empty {
+            <tr><td colspan="8" class="cmv-vacio">Ninguna fila con errores ni avisos.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  @if (paso() === 'fin' && resultado(); as r) {
+    @if (r.ok) {
+      <div class="cmv-alerta cmv-alerta-ok">
+        <mat-icon>check_circle</mat-icon>
+        <span>Se crearon <strong>{{ r.creadas }}</strong> vacantes.</span>
+      </div>
+    } @else {
+      <div class="cmv-alerta cmv-alerta-error">
+        <mat-icon>error</mat-icon>
+        <span>
+          Falló la fila {{ r.filaFallida }}: {{ r.mensaje }}.
+          @if (r.sinDeshacer?.length) {
+            Se intentó deshacer la carga, pero estas vacantes NO se pudieron borrar y quedaron creadas:
+            {{ r.sinDeshacer!.join(', ') }}. Revísalas en el listado.
+          } @else {
+            Se deshicieron las vacantes creadas en esta carga: no quedó ninguna.
+          }
+        </span>
+      </div>
+    }
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  @if (paso() === 'revision') {
+    <button mat-button type="button" (click)="otraCarga()">Subir otro archivo</button>
+    <button mat-flat-button color="primary" type="button" (click)="crear()" [disabled]="conError() > 0 || validas() === 0">
+      <mat-icon>playlist_add_check</mat-icon>
+      Crear {{ validas() }} vacante(s)
+    </button>
+  } @else if (paso() === 'fin') {
+    <button mat-button type="button" (click)="otraCarga()">Otra carga</button>
+    <button mat-flat-button color="primary" type="button" (click)="cerrar()">Cerrar</button>
+  } @else {
+    <button mat-button type="button" (click)="cerrar()" [disabled]="paso() === 'creando'">Cerrar</button>
+  }
+</mat-dialog-actions>

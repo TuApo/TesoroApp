@@ -181,6 +181,7 @@ export class ReproductorVoz {
 /** Lo que se lee en voz alta: sin tablas, gráficas ni marcas de formato. */
 export function textoParaVoz(t: string): string {
   return (t || '')
+    .replace(/\[\[[a-z0-9._-]{1,40}\]\]\s*/g, '')
     .replace(/```echarts[\s\S]*?```/g, ' (Le dejé una gráfica en el chat.) ')
     .replace(/```[\s\S]*?```/g, ' ')
     .replace(/^\s*\|.*\|\s*$/gm, '§T§')

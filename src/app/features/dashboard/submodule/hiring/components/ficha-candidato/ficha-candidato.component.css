@@ -622,6 +622,64 @@
 .ficha-corregir:hover { background: var(--surface-4); color: var(--navy-ink); }
 .ficha-corregir mat-icon { font-size: 15px; width: 15px; height: 15px; }
 
+/* Nadie seleccionado: la lupa crece a "Buscar persona" en lima y late (un
+   anillo que se expande y la lupa que se mece) hasta que se trae a alguien.
+   Con persona en pantalla vuelve a ser el icono discreto de arriba. */
+.ficha-corregir.ficha-llamado,
+.ficha-head-buscar.ficha-llamado {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  width: auto;
+  height: 30px;
+  padding: 0 12px 0 9px;
+  border: 0;
+  border-radius: 999px;
+  background: var(--lime);
+  color: var(--navy);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 800;
+  white-space: nowrap;
+  cursor: pointer;
+  animation: ficha-llamado-pulso 1.8s ease-out infinite;
+}
+.ficha-corregir.ficha-llamado:hover,
+.ficha-head-buscar.ficha-llamado:hover {
+  background: #9FE82A;
+  color: var(--navy);
+}
+.ficha-corregir.ficha-llamado:focus-visible,
+.ficha-head-buscar.ficha-llamado:focus-visible {
+  outline: 2px solid var(--navy);
+  outline-offset: 2px;
+}
+.ficha-corregir.ficha-llamado mat-icon,
+.ficha-head-buscar.ficha-llamado mat-icon {
+  font-size: 17px; width: 17px; height: 17px;
+  animation: ficha-llamado-lupa 1.8s ease-in-out infinite;
+}
+
+@keyframes ficha-llamado-pulso {
+  0%   { box-shadow: 0 0 0 0 rgba(140, 213, 10, .6); }
+  70%  { box-shadow: 0 0 0 12px rgba(140, 213, 10, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(140, 213, 10, 0); }
+}
+
+@keyframes ficha-llamado-lupa {
+  0%, 55%, 100% { transform: none; }
+  65% { transform: rotate(-14deg) scale(1.12); }
+  75% { transform: rotate(10deg) scale(1.12); }
+  85% { transform: rotate(-4deg); }
+}
+
+/* Quien pidió menos movimiento conserva el realce, sin la animación. */
+@media (prefers-reduced-motion: reduce) {
+  .ficha-llamado,
+  .ficha-llamado mat-icon { animation: none !important; }
+  .ficha-llamado { box-shadow: 0 0 0 3px rgba(140, 213, 10, .35); }
+}
+
 /* Se buscó un documento y salió otro: casi siempre es una cédula mal digitada
    al registrar, así que se avisa en vez de dejarlo pasar callando. */
 .ficha-aviso-doc {
@@ -636,16 +694,23 @@
 }
 .ficha-aviso-doc mat-icon { flex: none; font-size: 14px; width: 14px; height: 14px; }
 
+/* Es un botón: tocar el aviso también abre la búsqueda. */
 .ficha-sin {
+  display: block;
+  width: 100%;
   margin: 0;
   padding: 18px 14px;
   text-align: center;
+  font: inherit;
   font-size: .82rem;
   color: var(--text-faint);
   background: var(--surface);
   border: 1px dashed var(--border-strong);
   border-radius: var(--r-md);
+  cursor: pointer;
+  transition: color .14s ease, border-color .14s ease;
 }
+.ficha-sin:hover { color: var(--text-2); border-color: var(--lime); }
 
 /* El lápiz por bloque: abre el diálogo en esa sección. */
 .fblock-lapiz {
@@ -765,4 +830,272 @@
   margin-left: auto;
   font-weight: 500;
   opacity: .8;
+}
+
+/* ==========================================================================
+   AJUSTES DE TAMAÑO
+   ========================================================================== */
+
+/* `styles.css` sube todo <button> a 48px de alto (objetivo táctil). Estos son
+   iconos de 26–30px dentro de una fila: con 48px quedaban como columnas altas
+   descuadradas del chip del documento y de la cabecera. */
+.ficha-head-editar,
+.ficha-corregir,
+.ficha-head-buscar,
+.ficha-sin {
+  min-height: 0 !important;
+}
+
+/* El rótulo en una sola línea: partido en dos empujaba el anillo y los
+   botones y la cabecera crecía sin necesidad. La cabecera aprieta un poco su
+   relleno para que quepa entero en la columna de un portátil (~280px). */
+.ficha-head {
+  padding: 10px 10px 10px 12px;
+  gap: 8px;
+}
+
+.ficha-head-title {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: .72rem;
+  letter-spacing: .06em;
+}
+
+.ficha-head-hint {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+/* La cifra y el % en la misma línea: con `display: grid` cada uno era una
+   celda y el "%" caía debajo del número. */
+.ficha-head-anillo-centro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Solo existen en pantallas angostas (ver abajo). */
+.ficha-head-quien,
+.ficha-head-plegar,
+.ficha-head-buscar.ficha-llamado {
+  display: none;
+}
+
+/* En la cabecera navy el foco en navy no se vería. */
+.ficha-head-buscar.ficha-llamado:focus-visible { outline-color: #fff; }
+
+/* ==========================================================================
+   PANTALLAS ANGOSTAS (o bajas)
+   Mismo corte que el pipeline: ahí la ficha deja de ser columna y va encima
+   del panel de trabajo. Plegada muestra solo su cabecera, con el nombre y el
+   documento; desplegada reparte los bloques en columnas para aprovechar el
+   ancho en vez de hacer una tira larguísima.
+   ========================================================================== */
+@media (max-width: 1100px), (max-height: 640px) {
+  .ficha-head {
+    padding: 8px 10px;
+  }
+
+  .ficha-head-hint { display: none; }
+
+  .ficha-head-quien {
+    display: block;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: .86rem;
+    font-weight: 700;
+    color: #fff;
+  }
+
+  .ficha-head-doc {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: .74rem;
+    font-weight: 600;
+    color: rgba(255, 255, 255, .68);
+  }
+
+  .ficha-head-plegar { display: grid; }
+
+  /* Plegada, la lupa de la identidad no se ve: el llamado va en la cabecera.
+     Desplegada ya se ve la de abajo y sobra. */
+  .ficha-head-buscar.ficha-llamado { display: inline-flex; flex: none; }
+  .ficha.ficha-abierta .ficha-head-buscar.ficha-llamado { display: none; }
+
+  /* La ficha quedó solo con la identidad: sin cabecera ni bloques, no hay
+     nada que plegar y la identidad se ve siempre. */
+
+  .ficha.ficha-abierta {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
+    align-items: start;
+    padding-bottom: 8px;
+  }
+
+  .ficha.ficha-abierta > .ficha-head,
+  .ficha.ficha-abierta > .ficha-id,
+  .ficha.ficha-abierta > .ficha-sin,
+  .ficha.ficha-abierta > .fvacante {
+    grid-column: 1 / -1;
+  }
+
+  /* Identidad en fila: foto a la izquierda, datos y estado a la derecha. */
+  .ficha-id {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 14px;
+    padding: 12px;
+  }
+
+  .ficha-id-text {
+    align-items: flex-start;
+    text-align: left;
+  }
+
+  :host ::ng-deep .ficha-estado {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  :host ::ng-deep .ficha-estado .pill {
+    width: auto;
+  }
+}
+
+@media (max-width: 600px) {
+  .ficha-head-title { font-size: .7rem; }
+
+  .ficha-id { gap: 10px; padding: 10px; }
+
+  .ficha-foto { width: 60px; height: 60px; }
+}
+
+/* ==========================================================================
+   LÍNEA DE TIEMPO (pedido #13)
+   Botón con texto, no solo ícono: es una puerta nueva y tiene que verse.
+   ========================================================================== */
+.ficha-linea-tiempo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 30px;
+  min-height: 0 !important;
+  margin-top: 2px;
+  padding: 0 12px 0 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 999px;
+  background: var(--surface-2);
+  color: var(--text-2);
+  font: inherit;
+  font-size: .76rem;
+  font-weight: 700;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: border-color .15s ease, color .15s ease, background .15s ease;
+}
+
+.ficha-linea-tiempo mat-icon {
+  font-size: 17px; width: 17px; height: 17px;
+  color: var(--info-fg);
+}
+
+.ficha-linea-tiempo:hover {
+  border-color: var(--primary);
+  background: var(--surface);
+  color: var(--primary);
+}
+
+.ficha-linea-tiempo:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+@media (pointer: coarse) {
+  .ficha-linea-tiempo { height: 40px; }
+}
+
+
+/* ==========================================================================
+   BARRA SUPERIOR
+   La ficha dejó de ser columna: va arriba del pipeline, a lo ancho, en una
+   sola fila. Va al final para ganarle por orden a las reglas de columna y a
+   los cortes responsivos de arriba.
+   ========================================================================== */
+.ficha-barra .ficha-id {
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 14px;
+}
+
+.ficha-barra .ficha-foto {
+  width: 52px;
+  height: 52px;
+}
+
+.ficha-barra .ficha-foto-iniciales { font-size: 1.1rem; }
+
+.ficha-barra .ficha-foto-badge {
+  width: 20px;
+  height: 20px;
+}
+
+.ficha-barra .ficha-foto-badge mat-icon {
+  font-size: 11px;
+  width: 11px;
+  height: 11px;
+}
+
+.ficha-barra .ficha-id-text {
+  flex: 1 1 220px;
+  width: auto;
+  align-items: flex-start;
+  gap: 4px;
+  text-align: left;
+}
+
+.ficha-nombre-linea {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+
+.ficha-barra .ficha-doc-linea { justify-content: flex-start; }
+
+/* Estado y línea de tiempo, a la derecha y en fila. */
+.ficha-id-estado {
+  flex: 0 1 auto;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+
+.ficha-barra .ficha-linea-tiempo { margin-top: 0; }
+
+:host ::ng-deep .ficha-barra .ficha-estado {
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  width: auto;
+  margin-top: 0;
+}
+
+:host ::ng-deep .ficha-barra .ficha-estado .pill {
+  width: auto;
+  white-space: nowrap;
+}
+
+/* Teléfono: el estado baja a su propio renglón, a lo ancho. */
+@media (max-width: 600px) {
+  .ficha-barra .ficha-id { flex-wrap: wrap; gap: 10px; padding: 8px 10px; }
+  .ficha-barra .ficha-foto { width: 44px; height: 44px; }
+  .ficha-id-estado { flex-basis: 100%; justify-content: flex-start; }
+  :host ::ng-deep .ficha-barra .ficha-estado { justify-content: flex-start; }
 }

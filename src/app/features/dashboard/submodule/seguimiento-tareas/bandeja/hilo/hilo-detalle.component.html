@@ -1,0 +1,245 @@
+@if (cargando() && !d()) {
+  <div class="centro"><mat-spinner diameter="36" /></div>
+} @else if (error()) {
+  <div class="error"><mat-icon>error</mat-icon>{{ error() }}</div>
+} @else if (d(); as det) {
+  @let hilo = det.hilo;
+  <article class="hd">
+    <header class="hd-cab tarjeta">
+      <button mat-icon-button class="hd-volver" (click)="cerrar.emit()" aria-label="Volver a la lista"><mat-icon>arrow_back</mat-icon></button>
+      <span class="hd-avatar" [attr.data-canal]="hilo.canal"><mat-icon>{{ hilo.es_grupo ? 'groups' : iconoCanal(hilo.canal) }}</mat-icon></span>
+      <div class="hd-tit">
+        <h2>{{ titulo() }}</h2>
+        <p class="muted ellipsis">
+          @if (det.contacto) {
+            <a [routerLink]="['/dashboard/tareas/bandeja/contactos', det.contacto.id]" queryParamsHandling="preserve">{{ det.contacto.nombre }}</a>
+            @if (det.contacto.organizacion) { · {{ det.contacto.organizacion }} }
+          }
+          @if (hilo.asunto && hilo.canal === 'CORREO') { · {{ hilo.asunto }} }
+          · {{ hilo.cuenta_etiqueta || hilo.cuenta_direccion }}
+        </p>
+        <div class="hd-chips">
+          <span class="chip" [attr.data-tono]="ESTADOS[hilo.estado].tono"><mat-icon>{{ ESTADOS[hilo.estado].icono }}</mat-icon>{{ ESTADOS[hilo.estado].texto }}</span>
+          @if (hilo.prioridad) {
+            <span class="chip" [attr.data-tono]="hilo.prioridad === 'ALTA' ? 'peligro' : hilo.prioridad === 'MEDIA' ? 'aviso' : 'neutro'">Prioridad {{ hilo.prioridad | lowercase }}</span>
+          }
+          @if (hilo.categoria) { <span class="chip">{{ hilo.categoria | lowercase }}</span> }
+          @if (hilo.sentimiento === 'NEGATIVO') { <span class="chip" data-tono="peligro"><mat-icon>sentiment_dissatisfied</mat-icon>Molesto</span> }
+          @if (hilo.ignorado) { <span class="chip" data-tono="neutro"><mat-icon>visibility_off</mat-icon>No se sigue</span> }
+        </div>
+      </div>
+      @if (dueno()) {
+        <div class="hd-acc">
+          @if (hilo.estado === 'RESUELTO' || hilo.estado === 'ARCHIVADO') {
+            <button mat-stroked-button class="btn-chico" (click)="estado('ABIERTO')" [disabled]="ocupado()"><mat-icon>undo</mat-icon>Reabrir</button>
+          } @else {
+            <button mat-flat-button class="btn-chico" (click)="estado('RESUELTO')" [disabled]="ocupado()"><mat-icon>task_alt</mat-icon>Resuelto</button>
+          }
+          <button mat-stroked-button class="btn-chico" (click)="crearTarea()"><mat-icon>add_task</mat-icon>Crear tarea</button>
+          <button mat-icon-button [matMenuTriggerFor]="mas" aria-label="Más acciones"><mat-icon>more_vert</mat-icon></button>
+          <mat-menu #mas="matMenu">
+            <button mat-menu-item (click)="analizar()" [disabled]="ocupado() === 'analizar'"><mat-icon>auto_awesome</mat-icon>Volver a analizar con IA</button>
+            <button mat-menu-item (click)="marcar({ fijado: !hilo.fijado })"><mat-icon>push_pin</mat-icon>{{ hilo.fijado ? 'Desfijar' : 'Fijar arriba' }}</button>
+            <button mat-menu-item [matMenuTriggerFor]="prio"><mat-icon>flag</mat-icon>Prioridad</button>
+            <button mat-menu-item (click)="estado('ARCHIVADO')"><mat-icon>archive</mat-icon>Archivar</button>
+            <button mat-menu-item (click)="confirmarIgnorar()"><mat-icon>{{ hilo.ignorado ? 'visibility' : 'visibility_off' }}</mat-icon>{{ hilo.ignorado ? 'Volver a seguir' : 'Dejar de seguir (personal)' }}</button>
+            <button mat-menu-item (click)="abrirNuevo()"><mat-icon>handshake</mat-icon>Anotar compromiso</button>
+          </mat-menu>
+          <mat-menu #prio="matMenu">
+            <button mat-menu-item (click)="marcar({ prioridad: 'ALTA' })">Alta</button>
+            <button mat-menu-item (click)="marcar({ prioridad: 'MEDIA' })">Media</button>
+            <button mat-menu-item (click)="marcar({ prioridad: 'BAJA' })">Baja</button>
+          </mat-menu>
+        </div>
+      }
+    </header>
+
+    <div class="hd-cuerpo">
+      <section class="hd-chat tarjeta" aria-label="Mensajes">
+        <div class="hd-mensajes" #mensajesEl>
+          @if (det.hay_mas) {
+            <button mat-stroked-button class="btn-chico hd-anteriores" (click)="anteriores()"><mat-icon>expand_less</mat-icon>Mensajes anteriores</button>
+          }
+          @for (m of det.mensajes; track m.id) {
+            <div class="msj" [class.msj--yo]="m.direccion === 'SALIENTE'">
+              <div class="msj-burbuja">
+                <div class="msj-cab">
+                  <b>{{ m.direccion === 'SALIENTE' ? 'Tú' : (m.remitente_nombre || m.remitente) }}</b>
+                  <time [title]="m.enviado_en">{{ fechaHora(m.enviado_en) }}</time>
+                </div>
+                @if (hilo.canal === 'CORREO' && destinatarios(m)) { <div class="msj-para">Para: {{ destinatarios(m) }}</div> }
+                @if (m.texto) { <div class="msj-texto">{{ m.texto }}</div> }
+                @if (m.transcripcion) {
+                  <div class="msj-voz"><mat-icon>graphic_eq</mat-icon><span><i>Nota de voz:</i> {{ m.transcripcion }}</span></div>
+                } @else if (!m.texto && m.tipo !== 'TEXTO') {
+                  <div class="msj-voz"><mat-icon>attachment</mat-icon><span>{{ m.tipo | lowercase }}</span></div>
+                }
+                @if (m.adjuntos.length) {
+                  <div class="msj-adj">
+                    @for (a of m.adjuntos; track a.id) {
+                      <button type="button" class="msj-archivo" [class.msj-archivo--no]="!a.disponible" (click)="verAdjunto(m, a)">
+                        <mat-icon>{{ a.mime?.startsWith('image/') ? 'image' : a.mime?.startsWith('audio/') ? 'audio_file' : 'description' }}</mat-icon>
+                        <span class="ellipsis">{{ a.nombre || 'archivo' }}</span>
+                      </button>
+                    }
+                  </div>
+                }
+                <div class="msj-pie">
+                  @if (m.tiene_html) {
+                    <button type="button" class="msj-link" (click)="verHtml(m)">{{ htmlAbierto()?.id === m.id ? 'Ocultar original' : 'Ver como llegó' }}</button>
+                  }
+                  @if (m.direccion === 'SALIENTE' && m.estado_envio) {
+                    <span class="msj-estado" [class.msj-estado--leido]="m.estado_envio === 'LEIDO'">
+                      <mat-icon>{{ m.estado_envio === 'ENVIADO' ? 'done' : 'done_all' }}</mat-icon>{{ etiquetaEstadoEnvio(m.estado_envio) }}
+                    </span>
+                  }
+                </div>
+                @if (htmlAbierto()?.id === m.id && htmlSeguro()) {
+                  <iframe class="msj-html" [src]="htmlSeguro()!" sandbox="" referrerpolicy="no-referrer" title="Correo original"></iframe>
+                }
+              </div>
+            </div>
+          } @empty {
+            <p class="muted">Sin mensajes.</p>
+          }
+        </div>
+        @if (dueno()) {
+          <footer class="hd-responder">
+            <mat-icon>info</mat-icon>
+            <span>Responde desde tu {{ hilo.canal === 'CORREO' ? 'correo' : 'WhatsApp' }}: la respuesta llega sola a esta conversación.</span>
+            @if (enlace(); as url) {
+              <a mat-flat-button class="btn-chico" [href]="url" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon>Responder</a>
+            }
+          </footer>
+        }
+      </section>
+
+      <aside class="hd-lado">
+        <section class="tarjeta hd-ia">
+          <h3><mat-icon>auto_awesome</mat-icon>Lo que leyó la IA
+            @if (hilo.analisis_pendiente) { <span class="chip" data-tono="info">analizando…</span> }
+          </h3>
+          @if (hilo.resumen) {
+            <p class="hd-resumen">{{ hilo.resumen }}</p>
+            @if (hilo.requiere_respuesta !== null) {
+              <p class="hd-motivo" [class.hd-motivo--si]="hilo.requiere_respuesta">
+                <mat-icon>{{ hilo.requiere_respuesta ? 'reply' : 'check' }}</mat-icon>
+                {{ hilo.requiere_respuesta ? 'Espera tu respuesta' : 'No hace falta responder' }}@if (hilo.motivo_respuesta) {: {{ hilo.motivo_respuesta }}}
+              </p>
+            }
+            @if (dueno() && sugerida()) {
+              <label class="hd-sug">
+                <span>Respuesta sugerida (edítala, cópiala o ábrela en tu app)</span>
+                <textarea rows="4" [ngModel]="sugerida()" (ngModelChange)="sugerida.set($event)"></textarea>
+              </label>
+              <div class="acciones">
+                <button mat-stroked-button class="btn-chico" (click)="copiar()"><mat-icon>content_copy</mat-icon>Copiar</button>
+                @if (enlace(); as url) {
+                  <a mat-flat-button class="btn-chico" [href]="url" target="_blank" rel="noopener">
+                    <mat-icon>{{ hilo.canal === 'WHATSAPP' ? 'chat' : 'mail' }}</mat-icon>Abrir en {{ hilo.canal === 'WHATSAPP' ? 'WhatsApp' : 'mi correo' }}
+                  </a>
+                }
+              </div>
+            }
+          } @else {
+            <p class="muted">{{ hilo.es_masivo ? 'Los boletines no se analizan.' : hilo.ignorado ? 'Las conversaciones que no sigues no se analizan.' : 'Aún sin analizar.' }}</p>
+          }
+        </section>
+
+        <section class="tarjeta">
+          <h3><mat-icon>handshake</mat-icon>Compromisos
+            @if (dueno()) { <button mat-icon-button class="hd-mas" (click)="abrirNuevo()" matTooltip="Anotar compromiso" aria-label="Anotar compromiso"><mat-icon>add</mat-icon></button> }
+          </h3>
+          @if (nuevo(); as n) {
+            <form class="hd-nuevo" (submit)="$event.preventDefault(); guardarNuevo()">
+              <select [ngModel]="n.tipo" (ngModelChange)="actualizarNuevo('tipo', $event)" name="tipo" aria-label="Tipo">
+                @for (t of tipos; track t) { <option [value]="t">{{ TIPOS[t].texto }}</option> }
+              </select>
+              <input name="desc" placeholder="¿Qué hay que hacer?" [ngModel]="n.descripcion" (ngModelChange)="actualizarNuevo('descripcion', $event)" required />
+              <input name="vence" type="date" [ngModel]="n.vence_en" (ngModelChange)="actualizarNuevo('vence_en', $event)" aria-label="Vence" />
+              <div class="acciones">
+                <button mat-flat-button class="btn-chico" type="submit" [disabled]="!n.descripcion.trim() || ocupado() === 'nuevo'">Guardar</button>
+                <button mat-button class="btn-chico" type="button" (click)="nuevo.set(null)">Cancelar</button>
+              </div>
+            </form>
+          }
+          @for (c of abiertos(); track c.id) {
+            <div class="comp">
+              <mat-icon class="comp-ico" [attr.data-tipo]="c.tipo">{{ TIPOS[c.tipo].icono }}</mat-icon>
+              <div class="comp-cuerpo">
+                <span class="comp-tipo">{{ TIPOS[c.tipo].texto }}@if (c.quien) { · {{ c.quien }}}</span>
+                <span class="comp-desc">{{ c.descripcion }}</span>
+                @if (c.evidencia) { <q class="comp-cita">{{ c.evidencia }}</q> }
+                <span class="hd-chips">
+                  @let v = venceTexto(c.vence_en);
+                  <span class="chip" [attr.data-tono]="v.tono">{{ v.texto }}</span>
+                  @if (c.estado === 'EN_CURSO') { <span class="chip" data-tono="violeta">En curso</span> }
+                  @if (c.origen === 'IA') { <span class="chip" data-tono="neutro" matTooltip="Lo detectó la IA">IA</span> }
+                </span>
+                @if (dueno()) {
+                  <div class="acciones comp-acc">
+                    <button mat-stroked-button class="btn-chico" (click)="compromisoEstado(c, 'CUMPLIDO')"><mat-icon>check</mat-icon>Cumplido</button>
+                    @if (!tieneTarea(c)) {
+                      <button mat-stroked-button class="btn-chico" (click)="crearTarea(c)"><mat-icon>add_task</mat-icon>Tarea</button>
+                    }
+                    <label class="comp-fecha" matTooltip="Cambiar fecha"><mat-icon>event</mat-icon>
+                      <input type="date" [value]="c.vence_en ?? ''" (change)="compromisoFecha(c, $any($event.target).value)" aria-label="Vence" />
+                    </label>
+                    <button mat-icon-button (click)="compromisoEstado(c, 'DESCARTADO')" matTooltip="Descartar (no era un compromiso)" aria-label="Descartar"><mat-icon>close</mat-icon></button>
+                  </div>
+                }
+              </div>
+            </div>
+          } @empty {
+            @if (!nuevo()) { <p class="muted">Sin compromisos abiertos.</p> }
+          }
+          @if (cerrados().length) {
+            <details class="comp-cerrados">
+              <summary>{{ cerrados().length }} cerrado(s)</summary>
+              @for (c of cerrados(); track c.id) {
+                <div class="comp comp--cerrado">
+                  <mat-icon class="comp-ico">{{ c.estado === 'CUMPLIDO' ? 'task_alt' : 'block' }}</mat-icon>
+                  <div class="comp-cuerpo">
+                    <span class="comp-desc">{{ c.descripcion }}</span>
+                    <span class="muted comp-tipo">{{ c.estado === 'CUMPLIDO' ? 'Cumplido' : 'Descartado' }}
+                      @if (c.cumplido_por === 'TAREA') { al completar la tarea } @else if (c.cumplido_por === 'IA') { (lo mostró la conversación) }
+                      · {{ cuando(c.cumplido_en || c.creado_en) }}</span>
+                    @if (dueno()) { <button mat-button class="btn-chico" (click)="compromisoEstado(c, 'PENDIENTE')">Reabrir</button> }
+                  </div>
+                </div>
+              }
+            </details>
+          }
+        </section>
+
+        <section class="tarjeta">
+          <h3><mat-icon>task</mat-icon>Tareas en Seguimiento Tareas</h3>
+          @for (t of det.tareas; track t.tarea_id) {
+            <button type="button" class="tarea" (click)="abrirTarea(t.tarea_id)" [disabled]="t.estado === 'ELIMINADA'">
+              <mat-icon>{{ t.estado === 'DONE' ? 'task_alt' : t.estado === 'ELIMINADA' ? 'delete' : 'radio_button_unchecked' }}</mat-icon>
+              <span class="ellipsis">{{ t.titulo }}</span>
+              <span class="chip" [attr.data-tono]="t.estado === 'DONE' ? 'ok' : t.estado === 'BLOCKED' ? 'peligro' : 'violeta'">{{ ESTADOS_TAREA[t.estado ?? ''] || t.estado }}</span>
+            </button>
+          } @empty {
+            <p class="muted">Ninguna tarea ligada.</p>
+          }
+          @if (dueno()) {
+            <button mat-stroked-button class="btn-chico" (click)="crearTarea()"><mat-icon>add_task</mat-icon>Crear tarea de esta conversación</button>
+          }
+        </section>
+
+        <section class="tarjeta">
+          <h3 class="hd-hist" (click)="verHistorial.set(!verHistorial())"><mat-icon>history</mat-icon>Histórico
+            <mat-icon class="hd-flecha">{{ verHistorial() ? 'expand_less' : 'expand_more' }}</mat-icon></h3>
+          @if (verHistorial()) {
+            <ol class="hist">
+              @for (e of det.eventos; track e.id) {
+                <li><time>{{ fechaHora(e.creado_en) }}</time><span>{{ e.descripcion }}</span>@if (e.actor_nombre) {<i>{{ e.actor_nombre }}</i>}</li>
+              } @empty { <li class="muted">Sin movimientos todavía.</li> }
+            </ol>
+          }
+        </section>
+      </aside>
+    </div>
+  </article>
+}

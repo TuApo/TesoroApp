@@ -17,6 +17,7 @@ import { TareasDialogosService } from '../../services/tareas-dialogos.service';
 import { TareasEventosService } from '../../services/tareas-eventos.service';
 import { MesaSoporteService, TicketMesa, prioridadTicket } from '../../services/mesa-soporte.service';
 import { PermissionsService } from '@/app/core/services/permissions.service';
+import { HerramientasPantallaService } from '@/app/core/services/operador/herramientas-pantalla.service';
 import { Alcance, Estado, Tarea } from '../../models/tareas.models';
 import {
   ESTADOS, GRUPOS_VENCIMIENTO, PRIORIDADES, RUTA_TICKETS, compararTareas, estadoInfo, etiquetaOrigen, grupoVencimiento, hace, mensajeError,
@@ -67,6 +68,7 @@ export class MisTareasComponent implements OnInit {
   private readonly route = inject(ActivatedRoute);
   private readonly router = inject(Router);
   private readonly destroyRef = inject(DestroyRef);
+  private readonly herramientas = inject(HerramientasPantallaService);
 
   readonly alcances = ALCANCES;
   readonly prioridades = PRIORIDADES;
@@ -224,7 +226,73 @@ export class MisTareasComponent implements OnInit {
     });
   }
 
-  ngOnInit(): void { this.cargar(); }
+  ngOnInit(): void {
+    this.cargar();
+    this.ofrecerHerramientas();
+  }
+
+  /**
+   * Herramientas de pantalla (estilo WebMCP) para el asistente IA: cambiar de vista y listar son
+   * de solo lectura; marcar una tarea como hecha cambia datos y pide confirmación a la persona.
+   */
+  private ofrecerHerramientas(): void {
+    const vistas = ['asignadas', 'delegadas', 'sigo', 'areas'];
+    const resumen = (t: Tarea) => ({
+      id: t.id, titulo: t.title, estado: estadoInfo(t.status).etiqueta, prioridad: t.priority,
+      vence: t.due_at, responsable: t.assignee_name ?? t.assignee_group_name ?? null, tablero: t.board_name ?? null,
+    });
+    this.herramientas.registrarEnPantalla(this.destroyRef, [
+      {
+        name: 'tareas_cambiar_vista', title: 'Cambiar la vista de Mis tareas', annotations: { readOnlyHint: true },
+        description: 'Muestra otra vista de Mis tareas: asignadas (a mí), delegadas (las que asigné a otros), sigo (las que sigo) o areas (las de mis espacios).',
+        inputSchema: { type: 'object', properties: { alcance: { type: 'string', enum: vistas } }, required: ['alcance'] },
+        execute: (i) => {
+          const a = String(i['alcance'] ?? '');
+          if (!vistas.includes(a)) throw new Error('Vista inválida: use asignadas, delegadas, sigo o areas.');
+          this.elegirAlcance(a as Vista);
+          return { ok: true, vista: a, abiertas: this.tareas().filter(t => t.status !== 'DONE').length };
+        },
+      },
+      {
+        name: 'tareas_listar', title: 'Listar Mis tareas', annotations: { readOnlyHint: true },
+        description: 'Lista las tareas de la vista actual de Mis tareas (id, título, estado, prioridad, vencimiento, responsable). Con texto, además filtra la pantalla por ese texto.',
+        inputSchema: { type: 'object', properties: {
+          texto: { type: 'string', description: 'Filtra por título, tablero o espacio (opcional)' },
+          incluir_hechas: { type: 'boolean', description: 'Incluir las completadas (por defecto no)' },
+        } },
+        execute: (i) => {
+          if (typeof i['texto'] === 'string') this.busqueda.set(i['texto']);
+          const todas = this.filtradas();
+          const lista = (i['incluir_hechas'] ? todas : todas.filter(t => t.status !== 'DONE')).slice(0, 40);
+          return { vista: this.alcance(), total: todas.length, tareas: lista.map(resumen) };
+        },
+      },
+      {
+        name: 'tareas_marcar_hecha', title: 'Marcar tarea como hecha', annotations: { consequentialHint: true },
+        description: 'Marca como completada una tarea de Mis tareas (por su id, de tareas_listar). Cambia datos: la persona lo confirma en pantalla.',
+        inputSchema: { type: 'object', properties: { tarea_id: { type: 'integer', description: 'Id de la tarea' } }, required: ['tarea_id'] },
+        execute: async (i) => {
+          const id = Number(i['tarea_id']);
+          const t = Object.values(this.datos()).flat().find(x => x.id === id);
+          if (!t) throw new Error(`No encuentro la tarea ${id} en Mis tareas.`);
+          if (t.status === 'DONE') return { ok: true, nota: 'Ya estaba completada.', tarea: resumen(t) };
+          await this.cambiarEstado({ tarea: t, estado: 'DONE' });
+          return { ok: true, tarea: { ...resumen(t), estado: estadoInfo('DONE').etiqueta } };
+        },
+      },
+    ]);
+    // Contexto de pantalla: la vista, los filtros y las tareas abiertas que se ven.
+    this.herramientas.contextoEnPantalla(this.destroyRef, 'mis_tareas', () => {
+      const todas = this.filtradas();
+      const abiertas = todas.filter(t => t.status !== 'DONE');
+      return {
+        vista: this.alcance(),
+        filtros: { texto: this.busqueda() || null, espacio: this.espacio(), prioridad: this.prioridad(), solo_casos: this.soloCasos() || null },
+        total: todas.length, abiertas: abiertas.length,
+        tareas: abiertas.slice(0, 15).map(resumen),
+      };
+    });
+  }
 
   async cargar(silencioso = false): Promise<void> {
     if (!silencioso) this.cargando.set(true);

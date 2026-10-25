@@ -1,7 +1,7 @@
 <div class="ges-contenedor">
   <div class="ges-contenido">
     <mat-card class="disab-card">
-      <div class="disab-hero disab-hero-sst">
+      <div class="disab-hero disab-hero-sst" data-acciones="propias">
         <div class="disab-hero-icon"><mat-icon>health_and_safety</mat-icon></div>
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">Seguridad y salud en el trabajo</h1>
@@ -17,7 +17,7 @@
       </div>
 
       @if (resumen(); as r) {
-        <div class="kpi-fila">
+        <div class="kpi-fila" data-guia="kpis">
           <button type="button" class="kpi-tarjeta kpi-clic" [class.kpi-activo]="filtros.estado === ''" (click)="filtroRapido('')"><span class="kpi-icono"><mat-icon>healing</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.total | number }}</span><span class="kpi-etiqueta">Incapacidades ARL</span></span></button>
           <button type="button" class="kpi-tarjeta kpi-ok kpi-clic" [class.kpi-activo]="filtros.estado === 'COMPLETA'" (click)="filtroRapido('COMPLETA')"><span class="kpi-icono"><mat-icon>task_alt</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.conInvestigacion | number }}</span><span class="kpi-etiqueta">Con investigacion</span></span></button>
           <button type="button" class="kpi-tarjeta kpi-aviso kpi-clic" [class.kpi-activo]="filtros.estado === 'PENDIENTE'" (click)="filtroRapido('PENDIENTE')"><span class="kpi-icono"><mat-icon>pending_actions</mat-icon></span><span class="kpi-textos"><span class="kpi-valor">{{ r.sinInvestigacion | number }}</span><span class="kpi-etiqueta">Sin investigacion</span></span></button>
@@ -26,7 +26,7 @@
         </div>
       }
 
-      <div class="ges-filtros">
+      <div class="ges-filtros" data-guia="filtros">
         <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Desde (inicio)</mat-label><input matInput type="date" [(ngModel)]="filtros.desde" (change)="filtrar()" /></mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic"><mat-label>Hasta</mat-label><input matInput type="date" [(ngModel)]="filtros.hasta" (change)="filtrar()" /></mat-form-field>
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
@@ -44,6 +44,7 @@
         }
         <!-- Modo servidor: la pagina y la busqueda (cedula, nombre, finca) van al backend. -->
         <app-tabla-estandar
+          data-guia="tabla"
           id="incapacidades-sst"
           titulo="Incapacidades ARL - investigacion SST"
           modulo="Incapacidades"
@@ -123,3 +124,6 @@
   </div>
 </div>
 <input #entradaArchivo type="file" accept="application/pdf,image/jpeg,image/png" hidden (change)="archivoElegido($event)" />
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

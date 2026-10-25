@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { SelectorTienda } from '../../components/selector-tienda/selector-tienda';
 import { ContextoTiendaService } from '../../service/contexto-tienda.service';
 import { Negocio, TiendaService } from '../../service/tienda.service';
@@ -133,6 +133,32 @@ export class Promociones implements OnInit {
       },
     });
   }
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): encender o apagar
+   * varias promociones a la vez. Cada una actúa sobre las que están en el
+   * estado contrario.
+   */
+  readonly accionesMasivas: AccionMasiva<Record<string, unknown>>[] = [
+    {
+      id: 'desactivar', etiqueta: 'Desactivar', icono: 'pause_circle', tono: 'aviso',
+      aplicaA: (p) => !!p['activa'],
+      confirmar: { texto: 'Dejan de aplicarse en la tienda. Se pueden volver a activar cuando quieras.' },
+      ejecutar: (p) => this.api.cambiarEstadoPromocion(String(p['id']), false),
+      etiquetaFila: (p) => String(p['nombre'] ?? p['codigo'] ?? p['id']),
+      verbo: 'desactivada(s)',
+      alTerminar: () => this.cargarPromociones(this.nueva.negocio_id),
+    },
+    {
+      id: 'activar', etiqueta: 'Activar', icono: 'play_circle', tono: 'primario',
+      aplicaA: (p) => !p['activa'],
+      confirmar: { texto: 'Vuelven a aplicarse en la tienda desde ya.' },
+      ejecutar: (p) => this.api.cambiarEstadoPromocion(String(p['id']), true),
+      etiquetaFila: (p) => String(p['nombre'] ?? p['codigo'] ?? p['id']),
+      verbo: 'activada(s)',
+      alTerminar: () => this.cargarPromociones(this.nueva.negocio_id),
+    },
+  ];
 
   cambiarEstado(p: Record<string, unknown>, activa: boolean): void {
     this.api.cambiarEstadoPromocion(String(p['id']), activa).subscribe({

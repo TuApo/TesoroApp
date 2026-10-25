@@ -1,0 +1,591 @@
+@if (visible()) {
+  <!-- Resultado de una automatización que corrió sola (gancho) -->
+  @if (avisoGancho(); as g) {
+    <div class="op-gancho" [class.error]="g.error" [class.en-dock]="!conOrbe()" role="status">
+      <button type="button" class="op-gancho-cuerpo" (click)="verAvisoGancho()">
+        <mat-icon>{{ g.error ? 'error' : 'bolt' }}</mat-icon>
+        <span><b>{{ g.titulo }}</b><small>{{ g.texto }}</small></span>
+      </button>
+      <button type="button" class="op-x" (click)="avisoGancho.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  <!-- Confirmaciones de herramientas de pantalla cuando el chat no se ve (cápsula o minimizado) -->
+  @if (confirmaciones().length && (!op.abierto() || vista() === 'compacto')) {
+    <div class="op-avisos op-confirmaciones" [class.sobre-capsula]="op.abierto()" [class.en-dock]="!op.abierto() && !conOrbe()" aria-live="assertive">
+      @for (c of confirmaciones(); track c.id) {
+        <div class="op-confirma flotante" role="alertdialog" [attr.aria-label]="'Confirmar: ' + c.titulo" animate.enter="op-aviso-entrar">
+          <span class="op-confirma-ico"><mat-icon>gpp_maybe</mat-icon></span>
+          <span class="op-confirma-txt"><b>¿Confirmo: {{ c.titulo }}?</b>@if (c.resumen) {<small>{{ c.resumen }}</small>}<em>La IA quiere hacerlo en esta pantalla · di «sí» o «no»</em></span>
+          <span class="op-confirma-btns">
+            <button type="button" class="si" (click)="confirmarHerramienta(c)"><mat-icon>check</mat-icon> Confirmar</button>
+            <button type="button" class="no" (click)="cancelarHerramienta(c)">Cancelar</button>
+          </span>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- Avisos del modo agente: la IA generó un archivo o respondió sin que el chat se vea -->
+  @if (avisos().length && (!op.abierto() || vista() === 'compacto') && !vistazo()) {
+    <div class="op-avisos" [class.sobre-capsula]="op.abierto()" [class.en-dock]="!op.abierto() && !conOrbe()" aria-live="polite">
+      @if (avisosPlegados()) {
+        <button type="button" class="op-avisos-plegados" (click)="desplegarAvisos()" aria-label="Ver avisos de la IA">
+          <mat-icon>notifications_active</mat-icon> {{ avisos().length }} {{ avisos().length === 1 ? 'aviso' : 'avisos' }} de la IA
+        </button>
+      } @else {
+        @for (a of avisos(); track a.clave) {
+          <div class="op-aviso-ia" [class.archivo]="a.tipo === 'archivo'" role="status" animate.enter="op-aviso-entrar">
+            <button type="button" class="op-aviso-ia-cuerpo" (click)="abrirVistazo(a)" [attr.aria-label]="a.titulo + ': ' + a.texto">
+              <span class="op-aviso-ia-ico" [attr.data-formato]="a.archivo ? etiquetaFormato(a.archivo) : null"><mat-icon>{{ a.icono }}</mat-icon></span>
+              <span class="op-aviso-ia-txt"><b>{{ a.titulo }}</b><small>{{ a.texto }}</small><em>{{ a.hora | date: 'h:mm a' }} · Toca para ver el chat</em></span>
+            </button>
+            <button type="button" class="op-x" (click)="cerrarAviso(a, $event)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+          </div>
+        }
+      }
+    </div>
+  }
+
+  @if (!op.abierto()) {
+    @if (conOrbe()) {
+      <button type="button" class="op-orbe" [class]="'op-orbe voz-' + estadoVoz()" (click)="op.abrir()"
+              matTooltip="Asistente IA (Alt+A)" matTooltipPosition="left" aria-label="Abrir el asistente IA">
+        <span class="op-orbe-onda" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+        @if (op.noLeidos()) { <span class="op-badge">{{ op.noLeidos() }}</span> }
+      </button>
+    }
+  } @else if (vista() === 'compacto') {
+    <!-- Cápsula de voz: lo mínimo mientras el asistente opera, para ver la pantalla -->
+    <div class="op-capsula" [class]="'op-capsula voz-' + estadoVoz()" [style.--nivel]="nivelVoz()" role="region" aria-label="Asistente IA"
+         animate.enter="op-cap-entrar" animate.leave="op-cap-salir" (paste)="alPegar($event)">
+      @if (vistazo(); as vz) {
+        <div class="op-vistazo" #panelVistazo animate.enter="op-desplegar" role="dialog" aria-label="Chat del asistente (vistazo)">
+          <header>
+            <mat-icon>forum</mat-icon><b>Chat del asistente</b><small>El modo agente sigue activo</small>
+            <button type="button" class="op-cap-btn" (click)="expandir(); cerrarVistazo()" matTooltip="Abrir el chat completo" aria-label="Abrir el chat completo"><mat-icon>open_in_full</mat-icon></button>
+            <button type="button" class="op-cap-btn" (click)="cerrarVistazo()" matTooltip="Cerrar y volver a la cápsula" aria-label="Cerrar vistazo"><mat-icon>close</mat-icon></button>
+          </header>
+          <div class="op-vistazo-lista">
+            @for (m of vistazoMensajes(); track m.id) {
+              <div class="op-vz-msg" [class.yo]="m.rol === 'user'" [class.destacado]="m.id === vz.mensajeId && !vz.archivoId">
+                @if (m.rol === 'user') {
+                  <p>{{ m.contenido || 'Nota de voz' }}</p>
+                } @else if (m.estado === 'PENDIENTE') {
+                  <p class="pend">{{ narraciones(m).at(-1) || m.progreso || 'Pensando…' }}</p>
+                } @else if (m.estado === 'ERROR') {
+                  <p class="err">{{ m.error || 'No se pudo completar.' }}</p>
+                } @else {
+                  <app-respuesta-avatares [contenido]="m.contenido" [principal]="m.personaje" [conNombre]="false" />
+                }
+                @for (a of (m.estado === 'LISTO' ? m.archivos : archivosEnCurso(m)); track a.id) {
+                  <div class="op-archivo" [class.destacado]="a.id === vz.archivoId" [attr.data-formato]="etiquetaFormato(a)">
+                    <span class="op-archivo-ico"><mat-icon>{{ iconoArchivo(a) }}</mat-icon></span>
+                    <span class="op-archivo-txt"><b>{{ a.nombre }}</b><small>{{ etiquetaFormato(a) }} · {{ tamanoLegible(a.tamano) }}</small></span>
+                    <button type="button" class="op-ico chico" (click)="descargar(a)" matTooltip="Descargar" aria-label="Descargar"><mat-icon>download</mat-icon></button>
+                  </div>
+                }
+              </div>
+            }
+          </div>
+        </div>
+      }
+      @if (verTranscripcion()) {
+        <div class="op-transcripcion" #panelTranscripcion animate.enter="op-desplegar" aria-label="Transcripción de la conversación">
+          @if (!transcripcion().length) { <p class="op-vacio">Aún no hay nada dicho en esta conversación.</p> }
+          @for (t of transcripcion(); track t.id) {
+            <p class="op-tr" [class.yo]="t.yo" [class.pend]="t.pendiente"><b>{{ t.yo ? 'Tú' : 'IA' }}</b><span>{{ t.texto }}</span></p>
+          }
+        </div>
+      }
+      <button type="button" class="op-cap-orbe" (click)="alternarVoz()" [disabled]="!puedeGrabar || (ocupado() && !escuchando() && !grabadora.grabando())"
+              [attr.aria-label]="escuchando() || grabadora.grabando() ? 'Terminar de hablar' : 'Hablar'">
+        <span class="op-cap-anillo" aria-hidden="true"></span>
+        <span class="op-orbe-onda" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+      </button>
+      <div class="op-cap-texto" aria-live="polite">
+        <small>{{ estadoVoz() === 'escuchando' ? 'Te escucho' : estadoVoz() === 'pensando' ? 'Trabajando' : estadoVoz() === 'hablando' ? 'Hablando' : 'Asistente IA' }}
+          @if (compartirPantalla()) { <span class="op-cap-viendo" [matTooltip]="'El asistente ve esta pantalla: ' + viendo()">· <mat-icon>visibility</mat-icon> {{ viendo() }}</span> }
+        </small>
+        <span>{{ lineaCapsula() }}</span>
+      </div>
+      @if (atenta.activa() && !atenta.interrumpida()) {
+        <span class="op-te-oigo" [style.--mic]="atenta.nivel()" matTooltip="Te oigo mientras hablo: interrúmpeme cuando quieras" aria-label="Escuchando mientras habla">
+          <mat-icon>hearing</mat-icon>
+        </span>
+      }
+      @if (reconocimiento) {
+        <button type="button" class="op-cap-btn" [class.on]="manosLibres()" (click)="alternarManosLibres()"
+                [matTooltip]="manosLibres() ? 'Manos libres: activo' : 'Manos libres'" aria-label="Manos libres" [attr.aria-pressed]="manosLibres()">
+          <mat-icon>all_inclusive</mat-icon>
+        </button>
+      }
+      <button type="button" class="op-cap-btn" [class.on]="verTranscripcion()" (click)="alternarTranscripcion()"
+              [matTooltip]="verTranscripcion() ? 'Ocultar transcripción' : 'Ver transcripción'" aria-label="Transcripción" [attr.aria-pressed]="verTranscripcion()">
+        <mat-icon>subject</mat-icon>
+      </button>
+      <button type="button" class="op-cap-btn" (click)="expandir()" matTooltip="Ver la conversación" aria-label="Ver la conversación"><mat-icon>open_in_full</mat-icon></button>
+      <button type="button" class="op-cap-btn" (click)="op.minimizar()" matTooltip="Minimizar" aria-label="Minimizar"><mat-icon>remove</mat-icon></button>
+    </div>
+  } @else {
+    @let flot = vista() === 'flotante' && !celular();
+    <section class="op-ventana" [class.flotante]="flot" [class.acoplado]="vista() === 'acoplado' && !celular()" [class.celular]="celular()"
+             [class.moviendo]="ventana.moviendo()"
+             [style.left.px]="flot ? ventana.x() : null" [style.top.px]="flot ? ventana.y() : null"
+             [style.width.px]="flot ? ventana.w() : null" [style.height.px]="flot ? ventana.h() : null"
+             role="dialog" aria-label="Asistente IA" animate.enter="op-abrir" animate.leave="op-cerrar"
+             (paste)="alPegar($event)" (dragover)="alArrastrar($event)" (dragleave)="alSalirArrastre($event)" (drop)="alSoltar($event)">
+      <header class="op-cabeza" [class.agarrable]="flot"
+              (pointerdown)="arrastrar($event, 'mover')" (pointermove)="moverVentana($event)" (pointerup)="soltarVentana()" (pointercancel)="soltarVentana()"
+              (dblclick)="flot && ventana.restablecer()">
+        <div class="op-titulo">
+          <span class="op-logo" [class]="'op-logo voz-' + estadoVoz()" [style.--nivel]="nivelVoz()">
+            <span class="op-orbe-onda" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>
+          </span>
+          <app-avatar-agente class="op-director" [personaje]="director()" [tam]="34" [insignia]="true"
+                             [estado]="estadoVoz() === 'pensando' ? 'pensando' : 'reposo'" />
+          <div>
+            <strong>{{ director().nombre }} <span class="op-director-cargo">· {{ director().cargo }}</span></strong>
+            <small>{{ modoDev() ? 'Modo desarrollador activo' : estadoVoz() === 'pensando' ? 'Trabajando…' : 'Te llevo, consulto y hago tareas por ti' }}</small>
+          </div>
+        </div>
+        <div class="op-cabeza-acc">
+          <button type="button" class="op-ico" (click)="alternarRecientes()" [class.on]="verRecientes()" matTooltip="Conversaciones" aria-label="Conversaciones"><mat-icon>history</mat-icon></button>
+          <button type="button" class="op-ico" (click)="cambiarVista('compacto')" matTooltip="Modo voz (no tapa la pantalla)" aria-label="Modo voz compacto"><mat-icon>graphic_eq</mat-icon></button>
+          @if (!celular()) {
+            <button type="button" class="op-ico" (click)="alternarAcople()" [matTooltip]="vista() === 'acoplado' ? 'Ventana flotante' : 'Acoplar a la derecha (modo chat)'"
+                    [attr.aria-label]="vista() === 'acoplado' ? 'Ventana flotante' : 'Acoplar a la derecha'">
+              <mat-icon>{{ vista() === 'acoplado' ? 'picture_in_picture_alt' : 'vertical_split' }}</mat-icon>
+            </button>
+          }
+          <button type="button" class="op-ico" (click)="op.minimizar()" matTooltip="Minimizar (Esc)" aria-label="Minimizar"><mat-icon>remove</mat-icon></button>
+          <button type="button" class="op-ico" (click)="cerrarTodo()" matTooltip="Cerrar" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+        </div>
+      </header>
+
+      @if (verRecientes()) {
+        <div class="op-recientes" animate.enter="op-desplegar">
+          <div class="op-recientes-acc">
+            <button type="button" class="op-primario" (click)="nuevaConversacion()"><mat-icon>add_comment</mat-icon> Nueva</button>
+            <button type="button" class="op-secundario" (click)="verHistorial()"><mat-icon>forum</mat-icon> Ver historial completo</button>
+          </div>
+          @if (!recientes().length) { <p class="op-vacio">Aún no hay conversaciones anteriores.</p> }
+          <ul>
+            @for (c of recientes(); track c.id) {
+              <li>
+                <button type="button" [class.actual]="c.id === conversacionId()" (click)="abrirConversacion(c.id)">
+                  <b>{{ c.titulo }}</b>
+                  <small>{{ c.updatedAt | date: 'd MMM, h:mm a' }}@if (c.ultimoMensaje) { · {{ c.ultimoMensaje }} }</small>
+                </button>
+              </li>
+            }
+          </ul>
+        </div>
+      }
+
+      <nav class="op-pestanas" role="tablist">
+        <button type="button" role="tab" [class.activa]="pestana() === 'conversar'" (click)="cambiarPestana('conversar')"><mat-icon>forum</mat-icon><span>Conversar</span></button>
+        <button type="button" role="tab" [class.activa]="pestana() === 'documentos'" (click)="cambiarPestana('documentos')"><mat-icon>folder_open</mat-icon><span>Documentos</span>@if (documentos().length) { <em class="op-cuenta">{{ documentos().length }}</em> }</button>
+        <button type="button" role="tab" [class.activa]="pestana() === 'tareas'" (click)="cambiarPestana('tareas')"><mat-icon>task_alt</mat-icon><span>Tareas</span></button>
+        <button type="button" role="tab" [class.activa]="pestana() === 'automatizaciones'" (click)="cambiarPestana('automatizaciones')"><mat-icon>bolt</mat-icon><span>Automatizar</span></button>
+        @if (perfil()?.admin) {
+          <button type="button" role="tab" class="dev" [class.activa]="pestana() === 'desarrollo'" (click)="cambiarPestana('desarrollo')"><mat-icon>smart_toy</mat-icon><span>Agente</span></button>
+        }
+      </nav>
+
+      @if (aviso()) {
+        <div class="op-aviso" animate.enter="op-desplegar"><mat-icon>info</mat-icon><span>{{ aviso() }}</span><button type="button" class="op-x" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></div>
+      }
+
+      @switch (pestana()) {
+        @case ('conversar') {
+          <div class="op-lista" #lista>
+            @if (cargandoConversacion()) {
+              <div class="op-cargando"><i></i><i></i><i></i></div>
+            } @else if (!mensajes().length) {
+              <div class="op-bienvenida">
+                <div class="op-bienvenida-orbe" aria-hidden="true"><span class="op-orbe-onda"><i></i><i></i><i></i><i></i><i></i></span></div>
+                <h3>Hola{{ primerNombre() ? ', ' + primerNombre() : '' }}.</h3>
+                <p>Dime a dónde quieres ir o qué necesitas. Trabajo con tus permisos: solo veo y abro lo que tú puedes. Puedes pegar capturas o archivos (Ctrl+V).</p>
+                <div class="op-sugerencias">
+                  @for (s of sugerencias(); track s) {
+                    <button type="button" (click)="usarSugerencia(s)">{{ s }}</button>
+                  }
+                </div>
+              </div>
+            }
+            @for (m of mensajes(); track m.id) {
+              <div class="op-msg" [class.yo]="m.rol === 'user'">
+                @if (m.rol === 'user') {
+                  <div class="op-burbuja">
+                    @if (m.viaVoz) { <mat-icon class="op-mini">mic</mat-icon> }
+                    {{ m.contenido || (m.adjuntos.length ? (adjuntosVisibles(m).length ? '' : 'Nota de voz') : '') }}
+                    @if (adjuntosVisibles(m).length) {
+                      <div class="op-adj-enviados">
+                        @for (a of adjuntosVisibles(m); track a.id) {
+                          <span><mat-icon>{{ iconoArchivo(a) }}</mat-icon>{{ a.nombre }}</span>
+                        }
+                      </div>
+                    }
+                  </div>
+                } @else {
+                  <div class="op-burbuja ia">
+                    @if (m.estado === 'PENDIENTE') {
+                      @for (n of narraciones(m); track $index) {
+                        <p class="op-narracion"><mat-icon>record_voice_over</mat-icon>{{ n }}</p>
+                      }
+                      <div class="op-pensando">
+                        <span class="op-progreso"><i></i><i></i><i></i> {{ m.progreso || 'Pensando…' }}</span>
+                        <span class="op-brillo largo"></span><span class="op-brillo"></span><span class="op-brillo corto"></span>
+                      </div>
+                      @for (c of confirmacionesDe(m); track c.id) {
+                        <div class="op-confirma" role="alertdialog" [attr.aria-label]="'Confirmar: ' + c.titulo" animate.enter="op-aviso-entrar">
+                          <span class="op-confirma-ico"><mat-icon>gpp_maybe</mat-icon></span>
+                          <span class="op-confirma-txt"><b>¿Confirmo: {{ c.titulo }}?</b>@if (c.resumen) {<small>{{ c.resumen }}</small>}<em>Puedes decir «sí» o «no»</em></span>
+                          <span class="op-confirma-btns">
+                            <button type="button" class="si" (click)="confirmarHerramienta(c)"><mat-icon>check</mat-icon> Confirmar</button>
+                            <button type="button" class="no" (click)="cancelarHerramienta(c)">Cancelar</button>
+                          </span>
+                        </div>
+                      }
+                      @if (resultadosDe(m).length) {
+                        <div class="op-chips herramientas">
+                          @for (r of resultadosDe(m); track r.id) {
+                            <span class="op-chip-res" [class.mal]="!r.ok" [class.cancelada]="r.cancelada" [attr.title]="r.error || null">
+                              <mat-icon>{{ r.ok ? 'task_alt' : (r.cancelada ? 'block' : 'error') }}</mat-icon>
+                              {{ r.ok ? 'Hecho: ' : (r.cancelada ? 'Cancelado: ' : 'No se pudo: ') }}{{ r.titulo }}
+                            </span>
+                          }
+                        </div>
+                      }
+                      @if (archivosEnCurso(m).length) {
+                        <div class="op-archivos">
+                          @for (a of archivosEnCurso(m); track a.id) {
+                            <div class="op-archivo nuevo" [attr.data-formato]="etiquetaFormato(a)">
+                              <span class="op-archivo-ico"><mat-icon>{{ iconoArchivo(a) }}</mat-icon></span>
+                              <span class="op-archivo-txt"><b>{{ a.nombre }}</b><small>{{ etiquetaFormato(a) }} · {{ tamanoLegible(a.tamano) }} · recién generado</small></span>
+                              <button type="button" class="op-ico chico" (click)="descargar(a)" matTooltip="Descargar" aria-label="Descargar"><mat-icon>download</mat-icon></button>
+                            </div>
+                          }
+                        </div>
+                      }
+                      @if (chips(m).length) {
+                        <div class="op-chips en-curso">
+                          @for (n of chips(m); track n.ruta) {
+                            <button type="button" [class.enlace]="n.enlace" (click)="ir(n.ruta)"><mat-icon>{{ n.enlace ? 'open_in_new' : 'bolt' }}</mat-icon> {{ n.enlace ? n.etiqueta : 'Hecho: ' + n.etiqueta }}</button>
+                          }
+                        </div>
+                      }
+                    } @else if (m.estado === 'ERROR') {
+                      <span class="op-error">{{ m.error || 'No se pudo completar la respuesta.' }}</span>
+                      <button type="button" class="op-link" (click)="reintentar(m)">Reintentar</button>
+                    } @else {
+                      <app-respuesta-avatares [contenido]="m.contenido" [principal]="m.personaje" [interactivo]="true" (pregunta)="usarSugerencia($event)" />
+                      @if (resultadosDe(m).length) {
+                        <div class="op-chips herramientas">
+                          @for (r of resultadosDe(m); track r.id) {
+                            <span class="op-chip-res" [class.mal]="!r.ok" [class.cancelada]="r.cancelada" [attr.title]="r.error || null">
+                              <mat-icon>{{ r.ok ? 'task_alt' : (r.cancelada ? 'block' : 'error') }}</mat-icon>
+                              {{ r.ok ? 'Hecho: ' : (r.cancelada ? 'Cancelado: ' : 'No se pudo: ') }}{{ r.titulo }}
+                            </span>
+                          }
+                        </div>
+                      }
+                      @if (chips(m).length) {
+                        <div class="op-chips">
+                          @for (n of chips(m); track n.ruta) {
+                            <button type="button" [class.enlace]="n.enlace" (click)="ir(n.ruta)">
+                              <mat-icon>{{ n.enlace ? 'open_in_new' : 'near_me' }}</mat-icon> {{ n.enlace ? n.etiqueta : 'Ir a ' + n.etiqueta }}
+                            </button>
+                          }
+                        </div>
+                      }
+                      @if (m.archivos.length) {
+                        <div class="op-archivos">
+                          @for (a of m.archivos; track a.id) {
+                            <div class="op-archivo" [attr.data-formato]="etiquetaFormato(a)">
+                              <span class="op-archivo-ico"><mat-icon>{{ iconoArchivo(a) }}</mat-icon></span>
+                              <span class="op-archivo-txt"><b>{{ a.nombre }}</b><small>{{ etiquetaFormato(a) }} · {{ tamanoLegible(a.tamano) }}</small></span>
+                              <button type="button" class="op-ico chico" (click)="descargar(a)" matTooltip="Descargar" aria-label="Descargar"><mat-icon>download</mat-icon></button>
+                              <button type="button" class="op-ico chico" (click)="verHistorial()" matTooltip="Ver en Conversaciones IA" aria-label="Ver en Conversaciones IA"><mat-icon>open_in_new</mat-icon></button>
+                            </div>
+                          }
+                        </div>
+                      }
+                      <div class="op-pie">
+                        <button type="button" class="op-ico chico" (click)="hablar(m)" [attr.aria-label]="reproductor.sonando() === m.id ? 'Callar' : 'Escuchar respuesta'"
+                                [matTooltip]="reproductor.sonando() === m.id ? 'Callar' : 'Escuchar'">
+                          <mat-icon>{{ reproductor.sonando() === m.id ? 'stop_circle' : 'volume_up' }}</mat-icon>
+                        </button>
+                      </div>
+                    }
+                  </div>
+                }
+              </div>
+            }
+          </div>
+
+          <footer class="op-entrada">
+            @if (pendientes().length) {
+              <div class="op-pendientes">
+                @for (p of pendientes(); track p.clave) {
+                  <span class="op-pendiente" [class]="'op-pendiente est-' + p.estado.toLowerCase()" [matTooltip]="p.error || ''">
+                    @if (p.vista) { <img [src]="p.vista" alt="" /> } @else { <mat-icon>{{ p.archivo ? iconoArchivo(p.archivo) : 'draft' }}</mat-icon> }
+                    <span class="nom">{{ p.nombre }}</span>
+                    <small>{{ p.estado === 'SUBIENDO' ? 'Subiendo…' : p.estado === 'PENDIENTE' ? 'Leyendo…' : p.estado === 'ERROR' ? 'Error' : 'Listo' }}</small>
+                    <button type="button" class="op-x" (click)="quitarPendiente(p)" aria-label="Quitar"><mat-icon>close</mat-icon></button>
+                  </span>
+                }
+              </div>
+            }
+            @if (escuchando() || grabadora.grabando()) {
+              <div class="op-escucha">
+                <span class="op-onda" [style.--nivel]="nivelVoz()"><i></i><i></i><i></i><i></i><i></i></span>
+                <span class="op-parcial">{{ parcial() || (escuchando() ? 'Te escucho…' : 'Grabando… ' + grabadora.segundos() + ' s') }}</span>
+                <button type="button" class="op-ico" (click)="cancelarVoz()" aria-label="Cancelar"><mat-icon>close</mat-icon></button>
+              </div>
+            } @else if (atenta.activa()) {
+              <p class="op-oigo-linea" role="status"><mat-icon>hearing</mat-icon> Te oigo mientras hablo: interrúmpeme cuando quieras.</p>
+            }
+            <div class="op-estilo">
+              <button type="button" class="op-viendo" [class.apagado]="!compartirPantalla()" (click)="alternarCompartirPantalla()"
+                      [matTooltip]="compartirPantalla() ? 'El asistente ve esta pantalla (títulos, tablas, filtros y formulario visibles; nunca claves ni datos marcados como privados). Toca para no compartirla.' : 'No estás compartiendo la pantalla: el asistente solo sabe en qué módulo estás. Toca para compartirla.'"
+                      [attr.aria-pressed]="compartirPantalla()" aria-label="Compartir pantalla con el asistente">
+                <mat-icon>{{ compartirPantalla() ? 'visibility' : 'visibility_off' }}</mat-icon>
+                <span>{{ compartirPantalla() ? 'Viendo: ' + viendo() : 'No compartir pantalla' }}</span>
+              </button>
+              <button type="button" class="op-estilo-chip" (click)="alternarEstilos()" [attr.aria-expanded]="verEstilos()"
+                      [style.--acento]="personalidadActual()?.color || '#7C3AED'" matTooltip="Cómo te responde el asistente">
+                <mat-icon>{{ personalidadActual()?.icono || 'auto_awesome' }}</mat-icon>
+                Respuesta: <b>{{ etiquetaEstilo() }}</b><mat-icon class="flecha">expand_more</mat-icon>
+              </button>
+              @if (verEstilos()) {
+                <div class="op-estilos" role="menu" animate.enter="op-desplegar">
+                  @if (!catalogo()) { <div class="op-cargando"><i></i><i></i><i></i></div> }
+                  @for (p of catalogo()?.predefinidas ?? []; track p.clave) {
+                    <button type="button" role="menuitemradio" [attr.aria-checked]="p.clave === estilo()" [class.actual]="p.clave === estilo()" (click)="elegirEstilo(p.clave)">
+                      <mat-icon [style.color]="p.color">{{ p.icono || 'auto_awesome' }}</mat-icon>
+                      <span><b>{{ p.nombre }}</b><small>{{ p.descripcion }}</small></span>
+                    </button>
+                  }
+                  @if (catalogo()?.propias?.length) {
+                    <p class="op-estilos-sep">Mis personalidades</p>
+                    @for (p of catalogo()!.propias; track p.clave) {
+                      <button type="button" role="menuitemradio" [attr.aria-checked]="p.clave === estilo()" [class.actual]="p.clave === estilo()" (click)="elegirEstilo(p.clave)">
+                        <mat-icon [style.color]="p.color || '#7C3AED'">{{ p.icono || 'face' }}</mat-icon>
+                        <span><b>{{ p.nombre }}</b><small>{{ p.descripcion || 'Personalidad propia' }}</small></span>
+                      </button>
+                    }
+                  }
+                  <div class="op-estilos-pie">
+                    @if (estilo() !== (perfil()?.personalidad || 'auto')) {
+                      <button type="button" class="op-secundario" (click)="usarSiempre()"><mat-icon>push_pin</mat-icon> Usar siempre</button>
+                    }
+                    <button type="button" class="op-secundario" (click)="irAPersonalidades()"><mat-icon>tune</mat-icon> Administrar personalidades…</button>
+                  </div>
+                </div>
+              }
+            </div>
+            <div class="op-fila">
+              <button type="button" class="op-ico" (click)="elegirArchivos()" matTooltip="Adjuntar (o pega con Ctrl+V)" aria-label="Adjuntar archivos"><mat-icon>attach_file</mat-icon></button>
+              <input #selectorArchivo type="file" multiple hidden (change)="alElegir($event)" />
+              <textarea #entrada rows="1" [ngModel]="texto()" (ngModelChange)="texto.set($event)" (keydown)="teclear($event)"
+                        placeholder="Escribe, pega una captura o pulsa el micrófono…" [disabled]="escuchando()" aria-label="Mensaje para el asistente"></textarea>
+              @if (texto().trim() || pendientes().length) {
+                <button type="button" class="op-enviar" (click)="enviar()" [disabled]="ocupado() || subiendo()" aria-label="Enviar"><mat-icon>send</mat-icon></button>
+              } @else if (puedeGrabar) {
+                <button type="button" class="op-enviar" [class.vivo]="escuchando() || grabadora.grabando()" (click)="alternarVoz()" [disabled]="ocupado() && !escuchando() && !grabadora.grabando()"
+                        [attr.aria-label]="escuchando() || grabadora.grabando() ? 'Terminar de hablar' : 'Hablar'">
+                  <mat-icon>{{ escuchando() || grabadora.grabando() ? 'stop' : 'mic' }}</mat-icon>
+                </button>
+              }
+            </div>
+            @if (reconocimiento) {
+              <label class="op-manos">
+                <input type="checkbox" [checked]="manosLibres()" (change)="alternarManosLibres()" />
+                Manos libres: escucho de nuevo cuando termino de hablar (se enciende solo en modo voz)
+              </label>
+            }
+          </footer>
+        }
+
+        @case ('documentos') {
+          <div class="op-cuerpo op-documentos">
+            <p class="op-ayuda">Los archivos de esta conversación: los que generó la IA (informes, Excel, presentaciones) y los que tú adjuntaste. Pide «hazme un informe en PDF con…» y aparecen aquí.</p>
+            @if (cargandoConversacion()) { <div class="op-cargando"><i></i><i></i><i></i></div> }
+            @else if (!documentos().length) { <p class="op-vacio">Aún no hay documentos en esta conversación.</p> }
+            @for (d of documentos(); track d.archivo.id) {
+              <div class="op-archivo" [attr.data-formato]="etiquetaFormato(d.archivo)" animate.enter="op-aparecer">
+                <span class="op-archivo-ico"><mat-icon>{{ iconoArchivo(d.archivo) }}</mat-icon></span>
+                <span class="op-archivo-txt">
+                  <b>{{ d.archivo.nombre }}</b>
+                  <small>{{ d.generado ? 'Generado por la IA' : 'Adjuntado' }} · {{ etiquetaFormato(d.archivo) }} · {{ tamanoLegible(d.archivo.tamano) }}@if (d.fecha) { · {{ d.fecha | date: 'd MMM, h:mm a' }} }</small>
+                </span>
+                <button type="button" class="op-ico chico" (click)="descargar(d.archivo)" matTooltip="Descargar" aria-label="Descargar"><mat-icon>download</mat-icon></button>
+                <button type="button" class="op-ico chico" (click)="verHistorial()" matTooltip="Ver y previsualizar en Conversaciones IA" aria-label="Previsualizar"><mat-icon>visibility</mat-icon></button>
+              </div>
+            }
+          </div>
+        }
+
+        @case ('tareas') {
+          <div class="op-cuerpo">
+            <div class="op-form op-nueva-tarea">
+              <input type="text" [ngModel]="nuevaTarea()" (ngModelChange)="nuevaTarea.set($event)" (keydown.enter)="crearTarea()"
+                     placeholder="Nueva tarea: ¿qué hay que hacer?" maxlength="250" aria-label="Título de la tarea" />
+              <div class="op-resp">
+                <span class="op-resp-lbl">Responsable</span>
+                @if (responsable(); as r) {
+                  <span class="op-resp-chip"><mat-icon>person</mat-icon>{{ r.nombre }}
+                    <button type="button" class="op-x" (click)="elegirResponsable(null)" aria-label="Quitar responsable"><mat-icon>close</mat-icon></button>
+                  </span>
+                } @else {
+                  <span class="op-resp-chip yo"><mat-icon>person</mat-icon>Yo</span>
+                  <input type="text" class="op-resp-buscar" [ngModel]="buscaResponsable()" (ngModelChange)="buscarResponsable($event)"
+                         placeholder="o busca a otra persona…" aria-label="Buscar responsable" />
+                }
+                @if (opcionesResponsable().length) {
+                  <ul class="op-resp-opciones" role="listbox">
+                    @for (p of opcionesResponsable(); track p.id) {
+                      <li><button type="button" (click)="elegirResponsable(p)"><b>{{ p.nombre }}</b><small>{{ p.correo }}</small></button></li>
+                    }
+                  </ul>
+                }
+              </div>
+              <div class="op-fila-form">
+                <select [ngModel]="prioridadTarea()" (ngModelChange)="prioridadTarea.set($event)" aria-label="Prioridad">
+                  <option value="baja">Prioridad baja</option>
+                  <option value="media">Prioridad media</option>
+                  <option value="alta">Prioridad alta</option>
+                  <option value="urgente">Urgente</option>
+                </select>
+                <input type="datetime-local" [ngModel]="venceTarea()" (ngModelChange)="venceTarea.set($event)" aria-label="Para cuándo" />
+                <button type="button" class="op-primario" (click)="crearTarea()" [disabled]="!nuevaTarea().trim() || guardandoTarea()"><mat-icon>add_task</mat-icon> Crear</button>
+              </div>
+              <small class="op-ayuda">Queda en el módulo <a [routerLink]="rutaMisTareas">Tareas</a>: el responsable la ve en «Mis tareas». También puedes pedirlas hablando, varias a la vez.</small>
+            </div>
+            <div class="op-filtros">
+              <select [ngModel]="filtroEstado()" (ngModelChange)="filtroEstado.set($event); cargarTareas()" aria-label="Estado">
+                <option value="">Todos los estados</option>
+                @for (e of estadosTarea; track e) { <option [value]="e">{{ nombresEstado[e] }}</option> }
+              </select>
+              <select [ngModel]="filtroTipo()" (ngModelChange)="filtroTipo.set($event); cargarTareas()" aria-label="Tipo">
+                <option value="">Todo el historial</option>
+                @for (t of tiposTarea; track t) { <option [value]="t">{{ nombresTipo[t] }}</option> }
+              </select>
+            </div>
+            @if (cargandoTareas()) { <div class="op-cargando"><i></i><i></i><i></i></div> }
+            @else if (!tareas().length) { <p class="op-vacio">No hay tareas con ese filtro. Pídeselas al asistente: «crea una tarea para Ana: enviar el informe el viernes».</p> }
+            <ul class="op-items">
+              @for (t of tareas(); track t.id) {
+                <li [class]="'est-' + t.estado.toLowerCase()">
+                  <mat-icon class="op-tipo">{{ iconoTarea(t.tipo) }}</mat-icon>
+                  <div class="op-item-txt">
+                    <b>{{ t.titulo }}</b>
+                    @if (responsableDe(t); as r) { <small class="resp"><mat-icon>person</mat-icon>{{ r }}</small> }
+                    @if (detalleDe(t); as d) { <small>{{ d }}</small> }
+                    @if (t.resultado) { <small class="res">{{ t.resultado }}</small> }
+                    <small class="meta">{{ nombresTipo[t.tipo] || t.tipo }} · {{ nombresEstado[t.estado] }} · {{ t.creadoEn | date: 'd MMM, h:mm a' }}@if (t.venceEn) { · vence {{ t.venceEn | date: 'd MMM, h:mm a' }} }</small>
+                    @if (enTareas(t)) { <a class="op-link-tareas" [routerLink]="rutaMisTareas"><mat-icon>open_in_new</mat-icon> Ver en Tareas</a> }
+                  </div>
+                  <div class="op-item-acc">
+                    @if (t.conversacionId) { <button type="button" class="op-ico chico" (click)="abrirConversacion(t.conversacionId)" matTooltip="Ver conversación"><mat-icon>forum</mat-icon></button> }
+                    @if (t.estado === 'PENDIENTE' || t.estado === 'EN_CURSO') {
+                      <button type="button" class="op-ico chico" (click)="marcar(t, 'HECHA')" matTooltip="Marcar hecha"><mat-icon>check</mat-icon></button>
+                      <button type="button" class="op-ico chico" (click)="marcar(t, 'CANCELADA')" matTooltip="Cancelar"><mat-icon>block</mat-icon></button>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+            @if (totalTareas() > tareas().length) { <p class="op-vacio">Mostrando {{ tareas().length }} de {{ totalTareas() }}.</p> }
+          </div>
+        }
+
+        @case ('automatizaciones') {
+          <div class="op-cuerpo">
+            <div class="op-auto-cabeza">
+              <p class="op-ayuda">
+                El asistente hace solo lo que le pidas: <b>por horario</b>, <b>al entrar</b> o <b>al abrir una pantalla</b>, con tus permisos.
+                Pídelo hablando («cada lunes a las 8 mándame el resumen de…») o usa una plantilla.
+              </p>
+              <button type="button" class="op-primario ancho" (click)="abrirModuloAutomatizaciones()"><mat-icon>dashboard_customize</mat-icon> Abrir módulo y plantillas</button>
+            </div>
+            @if (cargandoAutos() && !automatizaciones().length) { <div class="op-cargando"><i></i><i></i><i></i></div> }
+            @else if (!automatizaciones().length) { <p class="op-vacio">Aún no tienes automatizaciones.</p> }
+            <ul class="op-items">
+              @for (a of automatizaciones(); track a.id) {
+                <li [class.inactiva]="!a.activa">
+                  <mat-icon class="op-tipo">bolt</mat-icon>
+                  <div class="op-item-txt">
+                    <b>{{ a.nombre }}</b>
+                    <small class="meta">
+                      {{ etiquetaDisparador(a) }}
+                      @if (a.proximaEjecucion && a.activa) { · próxima {{ a.proximaEjecucion | date: 'EEE d MMM, h:mm a' }} }
+                      @if (a.ultimaEjecucion) { · última {{ a.ultimaEjecucion | date: 'd MMM, h:mm a' }} }
+                    </small>
+                  </div>
+                  <div class="op-item-acc">
+                    <button type="button" class="op-ico chico" (click)="ejecutarAhora(a)" matTooltip="Ejecutar ahora"><mat-icon>play_arrow</mat-icon></button>
+                    @if (a.conversacionId) { <button type="button" class="op-ico chico" (click)="abrirConversacion(a.conversacionId)" matTooltip="Ver resultados"><mat-icon>forum</mat-icon></button> }
+                    <button type="button" class="op-ico chico" (click)="alternarAuto(a)" [matTooltip]="a.activa ? 'Pausar' : 'Activar'"><mat-icon>{{ a.activa ? 'pause' : 'play_circle' }}</mat-icon></button>
+                  </div>
+                </li>
+              }
+            </ul>
+          </div>
+        }
+
+        @case ('desarrollo') {
+          <div class="op-cuerpo">
+            <div class="op-dev-modo" [class.on]="modoDev()">
+              <div>
+                <b>Modo desarrollador</b>
+                <small>Solo administración. Se enciende a mano y se apaga solo al vencer.
+                  Con él encendido el asistente puede encargar cambios de código a los agentes: trabajan en una rama aparte, no publican ni despliegan.</small>
+                @if (modoDev() && perfil()?.modoDesarrolladorHasta) { <small class="meta">Activo hasta {{ perfil()!.modoDesarrolladorHasta | date: 'd MMM, h:mm a' }}</small> }
+              </div>
+              <button type="button" class="op-interruptor" role="switch" [attr.aria-checked]="modoDev()" (click)="alternarModoDev()" [disabled]="cambiandoModo()" aria-label="Modo desarrollador">
+                <span></span>
+              </button>
+            </div>
+            @if (modoDev()) {
+              <div class="op-form">
+                <textarea rows="3" [ngModel]="objetivoDev()" (ngModelChange)="objetivoDev.set($event)" placeholder="¿Qué hay que cambiar en el código? Sé concreto: pantalla, comportamiento esperado."></textarea>
+                <textarea rows="2" [ngModel]="contextoDev()" (ngModelChange)="contextoDev.set($event)" placeholder="Contexto opcional (errores, ejemplos, enlaces)…"></textarea>
+                <div class="op-form-acc">
+                  <button type="button" class="op-secundario" (click)="cargarDesarrollo()" aria-label="Actualizar"><mat-icon>refresh</mat-icon></button>
+                  <button type="button" class="op-primario" (click)="encargarDesarrollo()" [disabled]="!objetivoDev().trim() || cargandoDev()">Encargar a los agentes</button>
+                </div>
+              </div>
+              @if (!tareasDev().length && !cargandoDev()) { <p class="op-vacio">No hay tareas de desarrollo encargadas desde el asistente.</p> }
+              <ul class="op-items">
+                @for (t of tareasDev(); track t.id) {
+                  <li>
+                    <mat-icon class="op-tipo">code</mat-icon>
+                    <div class="op-item-txt">
+                      <b>{{ t.titulo || t.objetivo || t.id }}</b>
+                      @if (t.resumen) { <small class="res">{{ t.resumen }}</small> }
+                      <small class="meta">{{ t.estado }}@if (t.creada) { · {{ t.creada | date: 'd MMM, h:mm a' }} }</small>
+                    </div>
+                    <div class="op-item-acc">
+                      @if (devViva(t)) { <button type="button" class="op-ico chico" (click)="cancelarDev(t)" matTooltip="Cancelar"><mat-icon>block</mat-icon></button> }
+                    </div>
+                  </li>
+                }
+              </ul>
+            }
+          </div>
+        }
+      }
+
+      @if (soltando()) {
+        <div class="op-soltar" aria-hidden="true"><mat-icon>upload_file</mat-icon><span>Suelta aquí para adjuntar</span></div>
+      }
+      @if (flot) {
+        <span class="op-redimensionar" (pointerdown)="arrastrar($event, 'tamano')" (pointermove)="moverVentana($event)"
+              (pointerup)="soltarVentana()" (pointercancel)="soltarVentana()" aria-hidden="true"></span>
+      }
+    </section>
+  }
+}

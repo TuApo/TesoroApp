@@ -16,10 +16,11 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import Swal from 'sweetalert2';
 
 import {
-  ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
+  AccionMasiva, ColumnaTabla, TABLA_ESTANDAR, TablaEstandarComponent,
 } from '../../../../../../shared/components/tabla-estandar';
 import { CorreosService } from '../../services/correos.service';
 import { CorreoFormDialogComponent } from './correo-form-dialog.component';
+import { CorreosRebotesPanelComponent } from './correos-rebotes-panel.component';
 import {
   CorreoCuenta,
   CuotaResumen,
@@ -67,6 +68,7 @@ function aFecha(v: string | null | undefined): Date | null {
     MatTooltipModule,
     MatSnackBarModule,
     MatProgressSpinnerModule,
+    CorreosRebotesPanelComponent,
     ...TABLA_ESTANDAR,
   ],
   templateUrl: './correos-electronicos.component.html',
@@ -148,6 +150,41 @@ export class CorreosElectronicosComponent implements OnInit, OnDestroy {
   filterProveedor: ProveedorCorreo | '' = '';
   filterEstado: FiltroEstado = 'activas';
   filterVerificacion: EstadoVerificacionCorreo | '' = '';
+
+  /**
+   * Acciones sobre lo marcado (estándar de la tabla): apagar o reactivar
+   * varias cuentas de una vez (se pueden traer pegando una lista desde Excel).
+   * Una por una: el backend no tiene endpoint de lote y así una cuenta que
+   * falle no arrastra a las demás.
+   */
+  readonly accionesMasivas: AccionMasiva<CorreoCuenta>[] = [
+    {
+      id: 'desactivar', etiqueta: 'Desactivar', icono: 'block', tono: 'aviso',
+      aplicaA: (c) => c.activo,
+      confirmar: {
+        icono: 'warning',
+        texto: 'Ninguna se elimina: quedan inactivas, dejan de aportar cuota y no se usarán '
+          + 'para nuevos envíos. Se pueden reactivar cuando quieras.',
+      },
+      ejecutar: (c) => this.correos.desactivar(c.id),
+      etiquetaFila: (c) => c.direccion,
+      verbo: 'desactivada(s)',
+      alTerminar: () => this.cargar(),
+    },
+    {
+      id: 'reactivar', etiqueta: 'Reactivar', icono: 'check_circle', tono: 'primario',
+      aplicaA: (c) => !c.activo,
+      confirmar: {
+        icono: 'question',
+        texto: 'Vuelven a estar disponibles. Cada una recupera su estado de verificación anterior: '
+          + 'las que quedaron pendientes habrá que verificarlas para que aporten cuota.',
+      },
+      ejecutar: (c) => this.correos.reactivar(c.id),
+      etiquetaFila: (c) => c.direccion,
+      verbo: 'reactivada(s)',
+      alTerminar: () => this.cargar(),
+    },
+  ];
 
   constructor(
     private correos: CorreosService,

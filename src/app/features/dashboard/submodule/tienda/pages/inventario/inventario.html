@@ -14,6 +14,9 @@
   @if (aviso()) {
     <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
   }
+  @if (ultimoMovimiento(); as mid) {
+    <section class="tienda-tarjeta"><b>Fotos del movimiento</b> <app-fotos-evidencia entidadTipo="MOVIMIENTO" [entidadId]="mid" etiqueta="Agregar fotos (daño, factura, conteo…)" /></section>
+  }
   @if (error()) {
     <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
   }
@@ -83,6 +86,13 @@
       <ng-template tablaCelda="disponible" let-s>
         <strong>{{ disponible(s) }}</strong>
       </ng-template>
+      <ng-template tablaCelda="minimo" let-s>
+        @if (ctx.puedeAdministrarTienda()) {
+          <input class="minimo" type="number" min="0" step="1" [value]="minimos()[s.producto_id]?.min ?? 0"
+                 (change)="fijarMinimo(s, $any($event.target).value)" (click)="$event.stopPropagation()"
+                 [attr.aria-label]="'Mínimo de ' + nombre(s.producto_id)" title="Por debajo de esto sale en Por reponer" />
+        } @else { {{ minimos()[s.producto_id]?.min ?? 0 }} }
+      </ng-template>
     </app-tabla-estandar>
   }
 
@@ -91,7 +101,7 @@
       id="tienda-inventario-reponer"
       titulo="Por reponer"
       modulo="Tienda"
-      vacio="Nada por debajo del mínimo."
+      vacio="Nada por debajo del mínimo. Fije el mínimo de cada producto en Existencias."
       [datos]="bajoMinimo()"
       [columnas]="columnasReponer"
       [filaId]="idStock" />

@@ -926,3 +926,417 @@
   vertical-align: -3px;
   color: #8a5b12; color: light-dark(#8a5b12, #f2d09c);
 }
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Partes plegables del quiz.
+
+   Un quiz abierto son tres cosas distintas: cómo se responde, qué se pregunta y cómo se
+   agrega. Puestas una detrás de otra, la lista de preguntas —que es lo que se viene a mirar—
+   queda empujada hacia abajo por unos ajustes que se tocan una vez en la vida. Cada parte se
+   pliega y su cabecera resume lo que esconde, para no tener que abrirla sólo para saberlo.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.bc-seccion {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface);
+  overflow: hidden;
+}
+
+.bc-seccion__cab {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 10px;
+  border: none;
+  background: var(--surface-2);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.bc-seccion__cab:hover { background: var(--surface-3); }
+
+.bc-seccion__flecha,
+.bc-seccion__icono {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--muted);
+}
+
+.bc-seccion__tit {
+  font-size: 13px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* La cuenta de preguntas: el dato que se busca al mirar un quiz plegado. */
+.bc-seccion__cuenta {
+  flex: none;
+  min-width: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bc-seccion__resumen {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-style: normal;
+  font-size: 12px;
+  color: var(--text-faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Un quiz sin preguntas no se puede publicar: se avisa en la cabecera, no al intentarlo. */
+.bc-seccion__resumen--alerta { color: var(--color-peligro, light-dark(#c62828, #eca2a2)); }
+
+.bc-seccion__cuerpo {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 10px;
+}
+
+/* El panel de la forma de agregar elegida. */
+.bc-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+
+/* ── Las tres formas de agregar ─────────────────────────────────────────────
+   A la vista las tres a la vez, y no en un menú: son tres trabajos distintos —revisar lo que
+   propone el asistente, redactar, buscar— y quien llega aquí no siempre sabe cuál quiere
+   hasta que los ve. */
+
+.bc-modos {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: 8px;
+}
+
+.bc-modo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 10px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 10px;
+  background: var(--surface);
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+
+.bc-modo:hover { border-color: var(--color-primario, #1976d2); }
+
+.bc-modo.elegido {
+  border-color: var(--color-primario, #1976d2);
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--color-primario, #1976d2);
+}
+
+.bc-modo mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+  color: var(--color-primario, light-dark(#1976d2, #9bc7f3));
+}
+
+.bc-modo strong { font-size: 13px; }
+
+.bc-modo em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--text-faint);
+  line-height: 1.35;
+}
+
+/* ── La fila de una pregunta ────────────────────────────────────────────── */
+
+.bc-preguntas li { flex-direction: column; align-items: stretch; gap: 0; }
+
+.bc-preg-fila {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  width: 100%;
+}
+
+.bc-preg-num {
+  flex: none;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.68rem;
+  font-weight: 600;
+  background: var(--surface-3);
+  color: var(--muted);
+}
+
+.bc-preg--abierta { border-color: var(--color-primario, #1976d2); }
+
+/* Cómo se creó la pregunta. Discreta: informa al revisar, no compite con el enunciado. */
+.bc-eti {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px 1px 5px;
+  border-radius: 999px;
+  font-size: 11px;
+  border: 1px solid transparent;
+  cursor: help;
+}
+
+.bc-eti mat-icon { font-size: 13px; width: 13px; height: 13px; }
+
+.bc-eti--ia {
+  background: light-dark(#f3ecff, #2a2140);
+  color: light-dark(#5b32b5, #c7b0ff);
+  border-color: light-dark(#e0d3fb, #4a3b78);
+}
+
+.bc-eti--nueva {
+  background: light-dark(#eef6ef, #1e2a20);
+  color: light-dark(#2f6b3a, #a6d5ae);
+  border-color: light-dark(#d5e8d8, #38513c);
+}
+
+.bc-eti--banco {
+  background: light-dark(#eef2fb, #1d2434);
+  color: light-dark(#37548f, #a8c0e6);
+  border-color: light-dark(#d7e0f2, #384766);
+}
+
+/* El atajo, resumido. Con esto se ve cuáles quedaron sin sitio a dónde volver sin abrir una
+   por una, que es la revisión que de verdad se hace antes de publicar. */
+.bc-atajo-chip {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  max-width: 12rem;
+  padding: 1px 7px 1px 5px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bc-atajo-chip mat-icon { font-size: 13px; width: 13px; height: 13px; flex: none; }
+
+/* ── El detalle de una pregunta ─────────────────────────────────────────── */
+
+.bc-preg-detalle {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--border-strong);
+}
+
+.bc-detalle-tit {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.bc-detalle-cuerpo { font-size: 12.5px; color: var(--muted); }
+.bc-detalle-cuerpo :is(p, ul, ol) { margin: 0 0 4px; }
+
+.bc-detalle-media,
+.bc-detalle-exp,
+.bc-detalle-criterio {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 0;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.bc-detalle-media mat-icon,
+.bc-detalle-exp mat-icon {
+  flex: none;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.bc-detalle-opciones,
+.bc-detalle-parejas {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.bc-detalle-opciones li,
+.bc-detalle-parejas li {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.bc-detalle-opciones li mat-icon {
+  flex: none;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+.bc-detalle-opciones li.correcta {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.bc-detalle-opciones li.correcta mat-icon { color: light-dark(#2f6b3a, #7fc98c); }
+.bc-detalle-opciones em { font-weight: 400; font-style: normal; color: var(--text-faint); }
+.bc-detalle-img { font-size: 13px !important; width: 13px !important; height: 13px !important; }
+
+/* El atajo, dentro del detalle: es donde cabe decir qué es y ofrecer buscarlo. */
+.bc-atajo {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface-2);
+}
+
+.bc-atajo-campos {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.bc-atajo-campos .bc-ref { max-width: 14rem; flex: 1 1 10rem; }
+
+/* ── Propuestas del asistente ───────────────────────────────────────────── */
+
+.bc-propuestas-cab {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  color: var(--text-faint);
+}
+
+/* Se encontró dónde se explica: el atajo se guarda salvo que se diga que no. */
+.bc-propuesta-atajo {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* No se encontró: se puede agregar igual, pero hay que saberlo antes, no después. */
+.bc-propuesta-sinfuente {
+  display: flex;
+  align-items: flex-start;
+  gap: 5px;
+  margin: 4px 0 0;
+  padding: 6px 8px;
+  border-radius: 8px;
+  background: light-dark(#fff6e5, #33291a);
+  color: light-dark(#8a5a00, #e8c98a);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.bc-propuesta-sinfuente mat-icon {
+  flex: none;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+}
+
+@media (max-width: 600px) {
+  /* En un teléfono el enunciado se queda con su línea y las etiquetas bajan con los botones. */
+  .bc-preg-fila { row-gap: 6px; }
+  .bc-preg-texto { flex-basis: 100%; }
+  .bc-atajo-chip { max-width: 100%; }
+  .bc-seccion__resumen { display: none; }
+}
+
+/* ── Ficha del quiz / de la actividad: qué es y cuánto vale ───────────────── */
+
+.bc-ficha { display: flex; flex-direction: column; gap: 10px; }
+/* La ficha de la actividad no va dentro de una sección plegable: lleva su propio marco. */
+.bc-ficha:not(.bc-seccion__cuerpo) {
+  border: 1px solid var(--border-strong); border-radius: 10px;
+  background: var(--surface-2); padding: 12px 14px; margin-bottom: 12px;
+}
+.bc-ficha__chips { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.bc-ficha__check { align-self: flex-end; margin-bottom: 10px; }
+.bc-ficha .bc-nota { margin: 0; }
+
+.bc-chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 999px;
+  background: var(--surface-4); color: var(--text-2);
+}
+.bc-chip mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.bc-chip--actividad { background: light-dark(#e3effa, #17304d); color: light-dark(#12395f, #a1c7ed); }
+.bc-chip--examen_final { background: light-dark(#ffe9c7, #382f24); color: light-dark(#6b3d00, #f7ce97); }
+.bc-chip--practica { background: light-dark(#e8e8ef, #2a2d38); color: light-dark(#44475a, #c4c7d6); }
+.bc-chip--peso { background: light-dark(#d6f0dd, #193434); color: light-dark(#14532d, #a5e9c0); }
+.bc-chip--minimo { background: light-dark(#fadada, #331b29); color: light-dark(#7a1414, #ef9f9f); }
+.bc-chip--gris { background: var(--surface-3); color: var(--muted); }
+
+.bc-porcentaje { display: flex; align-items: center; gap: 6px; }
+.bc-porcentaje input { flex: 1 1 auto; min-width: 0; }
+.bc-porcentaje span { color: var(--muted); font-weight: 600; }
+
+.bc-chip--examen { background: light-dark(#e8e4fb, #2a2450); color: light-dark(#2e2a6b, #cfc7f7); }
+.bc-examen { align-items: flex-start; }
+.bc-examen span { line-height: 1.35; }
+
+.ficha-edicion { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 6px; padding: 8px; border: 1px dashed var(--border-strong); border-radius: 10px; margin-bottom: 6px; }
+.ficha-edicion textarea { grid-column: 1; }
+.ficha-edicion .btn-icono { grid-row: 1 / span 2; grid-column: 2; }
+.btn-mini { min-height: 34px !important; padding: 0 10px !important; font-size: 12.5px !important; justify-self: start; }
+
+.bc-ejercicio { display: grid; gap: 8px; border-top: 1px dashed var(--border); padding-top: 10px; }
+.bc-ejercicio h4 { margin: 0; display: flex; align-items: center; gap: 6px; font-size: 14px; }
+.bc-ejercicio h4 mat-icon { font-size: 19px; width: 19px; height: 19px; color: var(--primary); }
+.bc-nota { margin: 0; font-size: 12.5px; color: var(--muted); }

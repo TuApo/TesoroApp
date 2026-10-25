@@ -1,0 +1,95 @@
+:host { display: block; min-width: 0; }
+
+.card {
+  position: relative;
+  display: flex; flex-direction: column;
+  height: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  overflow: hidden;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.card:hover { transform: translateY(-2px); box-shadow: var(--shadow-md, 0 10px 26px rgba(15,23,42,.10)); }
+
+.foto {
+  position: relative; display: block;
+  aspect-ratio: 1 / 1;
+  background: var(--surface-2);
+}
+.compacta .foto { aspect-ratio: 4 / 3; }
+
+.sello {
+  position: absolute; left: 8px; top: 8px;
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 3px 8px; border-radius: 999px;
+  font-size: 11px; font-weight: 700; line-height: 1.4;
+  backdrop-filter: blur(6px);
+}
+.sello mat-icon { font-size: 14px; width: 14px; height: 14px; }
+.sello.encargo { background: var(--warn-bg); color: var(--warn-fg); border: 1px solid var(--warn-border); }
+.sello.pocas { background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-border); }
+.sello.global { left: auto; right: 8px; top: auto; bottom: 8px; background: rgba(15, 27, 45, .72); color: #fff; }
+.sello.insignia { left: auto; right: 8px; top: auto; bottom: 8px; background: linear-gradient(120deg, #1846C4, #0A1A55); color: #fff; box-shadow: 0 4px 12px rgba(10,26,85,.35); }
+
+.cuerpo { display: flex; flex-direction: column; gap: 2px; padding: 10px 12px 0; flex: 1; min-width: 0; }
+.precio { font-size: 17px; font-weight: 800; color: var(--text); letter-spacing: -.01em; }
+.p-nombre {
+  color: var(--text-2); font-size: 13.5px; font-weight: 600; text-decoration: none; line-height: 1.3;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.meta { color: var(--muted); font-size: 12px; display: flex; align-items: center; gap: 2px; flex-wrap: wrap; }
+.hoy { display: inline-flex; align-items: center; color: var(--eco-ink); font-weight: 700; }
+.hoy mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+.accion { display: flex; justify-content: flex-end; padding: 8px 10px 10px; }
+
+.mas {
+  width: 40px; height: 40px; min-height: 40px; border-radius: 12px; border: 0;
+  background: var(--eco); color: var(--eco-fg);
+  display: grid; place-items: center; cursor: pointer;
+  box-shadow: 0 6px 14px color-mix(in srgb, var(--eco) 35%, transparent);
+}
+.mas:disabled { opacity: .45; cursor: default; box-shadow: none; }
+
+.stepper {
+  display: inline-flex; align-items: center; gap: 4px;
+  background: var(--eco); color: var(--eco-fg);
+  border-radius: 12px; padding: 2px;
+}
+.stepper.ocupado { opacity: .7; }
+.stepper button {
+  width: 36px; height: 36px; min-height: 36px; border: 0; background: transparent; color: inherit;
+  display: grid; place-items: center; cursor: pointer; border-radius: 10px;
+}
+.stepper button:hover { background: rgba(255,255,255,.14); }
+.stepper span { min-width: 22px; text-align: center; font-weight: 800; }
+
+.precio.oferta { color: var(--danger-fg); display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
+.precio.oferta s { color: var(--muted); font-size: 12px; font-weight: 600; }
+.sello.oferta { left: auto; right: 8px; background: #EF4444; color: #fff; font-size: 12px; }
+
+.sello.servicio { background: #EDE9FE; color: #6D28D9; border: 1px solid #DDD6FE; }
+:host-context(html[data-theme='dark']) .sello.servicio { background: rgba(139,92,246,.2); color: #C4B5FD; border-color: rgba(139,92,246,.4); }
+.origen { display: inline-flex; align-items: center; gap: 3px; color: var(--muted); font-size: 11.5px; font-weight: 600; margin-top: 2px; }
+.origen mat-icon { font-size: 13px; width: 13px; height: 13px; }
+
+.precio small { font-size: 11.5px; font-weight: 700; color: var(--muted); margin-right: 4px; }
+.referencia { font-size: 11.5px; color: var(--muted); }
+.referencia s { font-weight: 600; }
+.sello.condicion { top: auto; bottom: 8px; background: #FEF3C7; color: #92400E; border: 1px solid #FDE68A; }
+:host-context(html[data-theme='dark']) .sello.condicion { background: rgba(245,158,11,.18); color: #FCD34D; border-color: rgba(245,158,11,.4); }
+a.mas { position: relative; text-decoration: none; }
+.mas .cuenta {
+  position: absolute; top: -6px; right: -6px; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--text); color: var(--surface); font-size: 11px; font-weight: 800;
+  display: grid; place-items: center;
+}
+
+/* Puntos que gana al comprarlo */
+.pts { align-self: flex-start; display: inline-flex; align-items: center; gap: 3px; padding: 1px 8px 1px 5px; border-radius: 999px;
+  font-size: 11.5px; font-weight: 800; color: #92400E; background: #FEF3C7; }
+.pts mat-icon { font-size: 14px; width: 14px; height: 14px; color: #D97706; }
+.pts.doble { color: #6B21A8; background: #F3E8FF; }
+.pts.doble mat-icon { color: #A855F7; }
+:host-context(html[data-theme='dark']) .pts { color: #FDE68A; background: rgba(250, 204, 21, .14); }

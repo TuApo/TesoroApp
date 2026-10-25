@@ -1,0 +1,149 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">policy</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Consulta de antecedentes</mat-card-title>
+        <mat-card-subtitle class="subtitulo">
+          Pide los antecedentes de una o varias cédulas sin que la persona esté registrada.
+          Cuando se registre, contratación ya encuentra estos resultados y PDF.
+        </mat-card-subtitle>
+      </div>
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+    <div class="ca-page">
+
+      <!-- Entrada -->
+      <section class="ca-entrada">
+        <div class="ca-bloque">
+          <h3>Escribir o pegar cédulas</h3>
+          <p class="ca-sub">Una por línea, o separadas por coma. Se aceptan con puntos (1.122.415.324).</p>
+          <div class="ca-fila">
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ca-tipo">
+              <mat-label>Tipo</mat-label>
+              <mat-select [(ngModel)]="tipo" name="tipo">
+                @for (t of tiposDoc; track t) {
+                  <mat-option [value]="t">{{ t }}</mat-option>
+                }
+              </mat-select>
+            </mat-form-field>
+            <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ca-texto">
+              <mat-label>Cédula(s)</mat-label>
+              <textarea matInput rows="3" [(ngModel)]="texto" name="texto" (ngModelChange)="leerTexto()"
+                        placeholder="1122415324&#10;9000000464" [disabled]="encolando()"></textarea>
+            </mat-form-field>
+          </div>
+        </div>
+
+        <div class="ca-o">o</div>
+
+        <div class="ca-bloque">
+          <h3>Cargar un Excel</h3>
+          <p class="ca-sub">
+            Primera hoja, una columna con el encabezado <b>Cédula</b> (opcional: <b>Tipo documento</b>).
+            Máximo {{ maxCarga }} por carga.
+          </p>
+          <input #fileInput type="file" hidden accept=".xlsx,.xls,.csv" (change)="leerExcel($event)">
+          <button mat-stroked-button type="button" (click)="fileInput.click()" [disabled]="encolando()">
+            <mat-icon>upload_file</mat-icon> Elegir archivo
+          </button>
+          @if (archivo()) {
+            <span class="ca-archivo"><mat-icon>description</mat-icon>{{ archivo() }}</span>
+          }
+        </div>
+      </section>
+
+      @if (lectura(); as l) {
+        <section class="ca-previa" [class.ca-previa--vacia]="!l.validas.length">
+          <div class="ca-previa-datos">
+            <span><b>{{ l.validas.length }}</b> cédula(s) para consultar</span>
+            @if (l.duplicadas) { <span class="ca-muted">{{ l.duplicadas }} repetida(s) se cuentan una vez</span> }
+            @if (l.invalidas.length) {
+              <span class="ca-alerta" [matTooltip]="l.invalidas.slice(0, 30).join(', ')">
+                {{ l.invalidas.length }} no parecen cédula y se omiten
+              </span>
+            }
+            @if (l.validas.length > maxCarga) {
+              <span class="ca-alerta">Se encolan las primeras {{ maxCarga }}</span>
+            }
+          </div>
+          <div class="ca-previa-acciones">
+            <button mat-button type="button" (click)="limpiarEntrada()" [disabled]="encolando()">Limpiar</button>
+            <button mat-flat-button color="primary" type="button" (click)="consultar()"
+                    [disabled]="!l.validas.length || encolando()">
+              <mat-icon>travel_explore</mat-icon> Consultar antecedentes
+            </button>
+          </div>
+        </section>
+      }
+
+      @if (encolando()) {
+        <div class="ca-progreso">
+          <span>Encolando {{ avance().hechas }} de {{ avance().total }}…</span>
+          <mat-progress-bar mode="determinate"
+                            [value]="avance().total ? (avance().hechas * 100 / avance().total) : 0"></mat-progress-bar>
+        </div>
+      }
+
+      <!-- Resumen -->
+      @if (filas().length) {
+        <section class="ca-kpis">
+          <div class="ca-kpi"><b>{{ resumen().total }}</b><span>en la lista</span></div>
+          <div class="ca-kpi ca-kpi--ok"><b>{{ resumen().completas }}</b><span>con las 6 obligatorias</span></div>
+          <div class="ca-kpi ca-kpi--info"><b>{{ resumen().enCola }}</b><span>esperando robots</span></div>
+          <div class="ca-kpi"><b>{{ resumen().conNombre }}</b><span>con nombre de ADRES</span></div>
+          <div class="ca-kpi ca-kpi--danger"><b>{{ resumen().alertas }}</b><span>con algún «No cumple»</span></div>
+        </section>
+      }
+
+      <app-tabla-estandar
+        id="contratacion-consulta-antecedentes"
+        titulo="Consulta de antecedentes"
+        modulo="Contratación"
+        [datos]="filas()"
+        [columnas]="columnas"
+        [filaId]="idFila"
+        [cargando]="refrescando()"
+        [accionesMasivas]="accionesMasivas"
+        claveMasiva="cedula"
+        vacio="Todavía no has consultado ninguna cédula desde este equipo.">
+
+        <div tablaAccionesBarra class="ca-barra">
+          @if (actualizadoEn(); as t) {
+            <span class="ca-muted">Actualizado {{ fechaCorta(t.toISOString()) }}</span>
+          }
+          <button mat-icon-button type="button" (click)="descargarZip(filas())" [disabled]="!filas().length"
+                  matTooltip="Descargar en un .zip los PDF de toda la lista">
+            <mat-icon>folder_zip</mat-icon>
+          </button>
+          <button mat-icon-button type="button" (click)="refrescar()" [disabled]="refrescando() || !filas().length"
+                  matTooltip="Actualizar ahora">
+            <mat-icon>refresh</mat-icon>
+          </button>
+          <button mat-icon-button type="button" (click)="vaciarLista()" [disabled]="!filas().length"
+                  matTooltip="Vaciar la lista">
+            <mat-icon>delete_sweep</mat-icon>
+          </button>
+        </div>
+
+        <ng-template tablaAcciones let-f>
+          <button mat-icon-button type="button" (click)="verPdfs(f)" matTooltip="Ver PDF de antecedentes">
+            <mat-icon>picture_as_pdf</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
+
+      <p class="ca-nota">
+        <mat-icon>info</mat-icon>
+        Si la cédula se consultó en los últimos 15 días no se vuelve a pedir: se muestra esa consulta.
+        Para pedirla otra vez, márcala y usa «Volver a consultar». OFAC busca por nombre y Medidas
+        correctivas pide la fecha de expedición: si la persona no está registrada pueden quedar sin
+        resultado («Verificar a mano»). La lista se guarda en este navegador.
+      </p>
+    </div>
+  </mat-card-content>
+</mat-card>

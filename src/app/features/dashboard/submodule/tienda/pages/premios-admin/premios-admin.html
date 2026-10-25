@@ -1,0 +1,187 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>stars</mat-icon> Premios y puntos</h1>
+      <p class="tienda-subtitulo">Las personas ganan puntos con la ruleta diaria, los juegos, sus compras y las promociones, y los cambian por premios.
+        Aquí ve lo que hay por entregar, administra el catálogo de premios y consulta o ajusta los puntos de alguien.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+
+  <div class="segmentos pestanas">
+    <button type="button" [class.activo]="pestana() === 'entregar'" (click)="pestana.set('entregar')"><mat-icon>redeem</mat-icon> Por entregar @if (porEntregar()) { <i>{{ porEntregar() }}</i> }</button>
+    <button type="button" [class.activo]="pestana() === 'premios'" (click)="pestana.set('premios')"><mat-icon>card_giftcard</mat-icon> Catálogo de premios</button>
+    <button type="button" [class.activo]="pestana() === 'puntos'" (click)="pestana.set('puntos')"><mat-icon>person_search</mat-icon> Puntos de una persona</button>
+    <button type="button" [class.activo]="pestana() === 'juegos'" (click)="pestana.set('juegos')"><mat-icon>casino</mat-icon> Ruleta y juegos</button>
+  </div>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (pestana() === 'entregar') {
+    <section class="tienda-tarjeta">
+      <div class="barra">
+        <div class="segmentos">
+          @for (f of [['SOLICITADO','Por entregar'],['ENTREGADO','Entregados'],['','Todos']]; track f[0]) {
+            <button type="button" [class.activo]="estado() === f[0]" (click)="estado.set(f[0])">{{ f[1] }}</button>
+          }
+        </div>
+        <form class="con-escaner" (submit)="$event.preventDefault(); buscarCodigo(codigo())">
+          <input class="campo-texto" placeholder="Código del premio (ABCD-2345)" [ngModel]="codigo()" (ngModelChange)="codigo.set($event)" name="codigo" autocomplete="off" />
+          <app-escaner-codigo formatoMira="qr" titulo="Escanear el QR del premio" (leido)="buscarCodigo($event)" />
+        </form>
+      </div>
+      <ul class="canjes">
+        @for (c of canjes(); track c.id) {
+          <li [class.vencido]="+c.vencido">
+            <div class="c-info">
+              <b>{{ c.premio_nombre }}</b>
+              <small>{{ c.nombre || 'Colaborador' }} · {{ c.cedula }} · {{ c.puntos | number: '1.0-0' }} pts · <span class="mono">{{ c.codigo }}</span></small>
+              <small>Pedido {{ c.creado_en | date: 'd MMM, h:mm a' : undefined : 'es-CO' }}
+                @if (c.entregado_en) { · entregado {{ c.entregado_en | date: 'd MMM, h:mm a' : undefined : 'es-CO' }} ({{ c.canal_entrega === 'CAJA' ? 'caja' : 'mostrador' }}) por {{ c.entregado_por_nombre }} }
+                @else if (+c.vencido) { · <b class="mal">vencido</b> } @else { · vence {{ c.vence_en | date: 'd MMM' : undefined : 'es-CO' }} }</small>
+            </div>
+            @if (c.estado === 'SOLICITADO' && !+c.vencido) {
+              <button type="button" class="boton" (click)="entregar(c)" [disabled]="ocupado()"><mat-icon>check</mat-icon> Entregar</button>
+            } @else {
+              <span class="est" [attr.data-e]="c.estado">{{ +c.vencido && c.estado === 'SOLICITADO' ? 'VENCIDO' : c.estado }}</span>
+            }
+          </li>
+        } @empty {
+          <li class="vacio">No hay canjes {{ estado() === 'SOLICITADO' ? 'por entregar' : '' }} en esta tienda.</li>
+        }
+      </ul>
+      <p class="nota">También puede entregar desde <a routerLink="/dashboard/tienda/redimir">Redimir</a> o desde la caja, al elegir a la persona.</p>
+    </section>
+  }
+
+  @if (pestana() === 'premios') {
+    <section class="tienda-tarjeta">
+      <div class="barra"><h2>Catálogo de premios</h2><button type="button" class="boton" (click)="nuevoPremio()"><mat-icon>add</mat-icon> Nuevo premio</button></div>
+      <table class="tabla-premios">
+        <thead><tr><th>Premio</th><th>Puntos</th><th>Nivel</th><th>Disponibles</th><th>Por entregar</th><th>Entregados</th><th></th></tr></thead>
+        <tbody>
+          @for (p of premios(); track p.id) {
+            <tr [class.apagado]="!+p.activo">
+              <td><b>{{ p.nombre }}</b>@if (p.categoria) { <small> · {{ p.categoria }}</small> }@if (!+p.activo) { <small class="mal"> · inactivo</small> }</td>
+              <td>{{ p.puntos | number: '1.0-0' }}</td>
+              <td>{{ p.nivel_minimo }}</td>
+              <td>{{ p.existencias ?? 'Sin límite' }}</td>
+              <td>{{ p.por_entregar }}</td>
+              <td>{{ p.entregados }}</td>
+              <td><button type="button" class="boton secundario" (click)="editar(p)"><mat-icon>edit</mat-icon> Editar</button></td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </section>
+  }
+
+  @if (pestana() === 'puntos') {
+    <section class="tienda-tarjeta">
+      <form class="con-escaner" (submit)="$event.preventDefault(); consultar()">
+        <input class="campo-texto" inputmode="numeric" placeholder="Cédula" [ngModel]="cedula()" (ngModelChange)="cedula.set($event)" name="cedula" />
+        <button type="submit" class="boton"><mat-icon>search</mat-icon> Consultar</button>
+      </form>
+      @if (resumen(); as r) {
+        <div class="resumen-puntos">
+          <div><small>Saldo</small><b>{{ r.saldo | number: '1.0-0' }}</b></div>
+          <div><small>Ganados en total</small><b>{{ r.ganados_total | number: '1.0-0' }}</b></div>
+          <div><small>Canjeados</small><b>{{ r.canjeados_total | number: '1.0-0' }}</b></div>
+          <div><small>Nivel</small><b>{{ r.nivel.nombre }}</b></div>
+          <div><small>Racha</small><b>{{ r.racha }} días</b></div>
+        </div>
+        <h3>Ajuste manual</h3>
+        <div class="ajuste">
+          <input class="campo-texto" type="number" placeholder="Puntos (+ o −)" [ngModel]="ajuste()" (ngModelChange)="ajuste.set($event)" name="ajuste" />
+          <input class="campo-texto" placeholder="Motivo (queda en el historial de la persona)" [ngModel]="motivo()" (ngModelChange)="motivo.set($event)" name="motivo" />
+          <button type="button" class="boton" (click)="ajustar()" [disabled]="ocupado()"><mat-icon>tune</mat-icon> Ajustar</button>
+        </div>
+        <p class="nota">Solo administración puede ajustar. Los ajustes no suben de nivel: el nivel se gana comprando y entrando.</p>
+      }
+    </section>
+  }
+
+  @if (editando(); as e) {
+    <div class="velo-premio" (click)="editando.set(null)"></div>
+    <section class="tienda-tarjeta editor-premio" role="dialog" aria-modal="true">
+      <h2>{{ e['id'] ? 'Editar premio' : 'Nuevo premio' }}</h2>
+      <div class="rej">
+        <label>Nombre *<input class="campo-texto" [ngModel]="e['nombre']" (ngModelChange)="campo('nombre', $event)" /></label>
+        <label>Puntos *<input class="campo-texto" type="number" min="1" [ngModel]="e['puntos']" (ngModelChange)="campo('puntos', $event)" /></label>
+        <label>Categoría<input class="campo-texto" placeholder="Comida, Belleza, Hogar, Tecnología…" [ngModel]="e['categoria']" (ngModelChange)="campo('categoria', $event)" /></label>
+        <label>Nivel mínimo
+          <select class="campo-texto" [ngModel]="e['nivel_minimo']" (ngModelChange)="campo('nivel_minimo', $event)">
+            @for (n of NIVELES; track n) { <option [value]="n">{{ n }}</option> }
+          </select></label>
+        <label>Disponibles (vacío = sin límite)<input class="campo-texto" type="number" min="0" [ngModel]="e['existencias']" (ngModelChange)="campo('existencias', $event)" /></label>
+        <label>Máximo por persona (vacío = sin límite)<input class="campo-texto" type="number" min="1" [ngModel]="e['limite_por_persona']" (ngModelChange)="campo('limite_por_persona', $event)" /></label>
+        <label class="ancho">Descripción<textarea class="campo-texto" rows="2" [ngModel]="e['descripcion']" (ngModelChange)="campo('descripcion', $event)"></textarea></label>
+        <label class="ancho">Producto que se entrega (id, opcional: toma la foto y el valor del producto)<input class="campo-texto" [ngModel]="e['producto_id']" (ngModelChange)="campo('producto_id', $event)" /></label>
+        <label class="chk"><input type="checkbox" [ngModel]="e['destacado']" (ngModelChange)="campo('destacado', $event)" /> Destacado</label>
+        <label class="chk"><input type="checkbox" [ngModel]="e['activo']" (ngModelChange)="campo('activo', $event)" /> Activo (se ve en EconomiAPP)</label>
+      </div>
+      <div class="pie">
+        <button type="button" class="boton secundario" (click)="editando.set(null)">Cancelar</button>
+        <button type="button" class="boton" (click)="guardar()" [disabled]="ocupado()"><mat-icon>save</mat-icon> Guardar</button>
+      </div>
+    </section>
+  }
+
+  @if (pestana() === 'juegos') {
+    @if (juegos(); as j) {
+      <section class="tienda-tarjeta">
+        <div class="barra">
+          <div><h2>Ruleta del día</h2><small class="muted">{{ j.ruleta.giros_hoy }} giros hoy. El sorteo lo hace el servidor con estos pesos; un premio agotado sale del sorteo solo.</small></div>
+        </div>
+        <table class="tabla-premios">
+          <thead><tr><th>Casilla</th><th>Tipo</th><th>Peso</th><th>Probabilidad</th><th>Activa</th><th></th></tr></thead>
+          <tbody>
+            @for (o of j.ruleta.opciones; track o.id) {
+              <tr [class.apagado]="!+o.activo">
+                <td><i class="color" [style.background]="o.color || '#7C3AED'"></i> <b>{{ o.etiqueta }}</b>
+                  @if (o.tipo === 'PREMIO') { <small> · {{ o.premio_nombre }} · {{ o.premio_existencias ?? 'sin límite' }} disp.</small> }</td>
+                <td>{{ o.tipo === 'PUNTOS' ? o.puntos + ' pts' : 'Premio' }}</td>
+                <td><input type="number" min="0" step="25" class="peso" [ngModel]="pesos()[o.id] ?? o.peso" (ngModelChange)="ponerPeso(o.id, $event)" /></td>
+                <td>{{ probEditada()[o.id] ?? 0 }} %</td>
+                <td><input type="checkbox" [checked]="!!+o.activo" (change)="guardarPeso(o.id, $any($event.target).checked)" /></td>
+                <td>@if (pesos()[o.id] != null && pesos()[o.id] !== o.peso) { <button type="button" class="boton" [disabled]="ocupado()" (click)="guardarPeso(o.id)">Guardar</button> }</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        @if (j.ruleta.ultimos_7_dias.length) {
+          <h3 class="sub">Lo que salió en los últimos 7 días</h3>
+          <div class="chips">@for (u of j.ruleta.ultimos_7_dias; track u.etiqueta) { <span class="chip-ruleta">{{ u.etiqueta }}: <b>{{ u.veces }}</b></span> }</div>
+        }
+      </section>
+
+      <section class="tienda-tarjeta">
+        <div class="barra">
+          <div><h2>Torneo semanal</h2><small class="muted">Semana del {{ j.semana }} · cierra {{ j.cierra_en | date: 'EEE d MMM, h:mm a' }} · {{ j.participantes }} participantes · {{ j.rechazadas_7_dias }} partidas rechazadas (7 días)</small></div>
+          <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="cerrarTorneos()"><mat-icon>flag</mat-icon> Cerrar semanas terminadas</button>
+        </div>
+        <div class="torneos">
+          @for (g of j.juegos; track g.codigo) {
+            <button type="button" class="torneo-op" [class.activo]="g.codigo === j.torneo" [disabled]="ocupado() || g.codigo === j.torneo || !+g.activo" (click)="elegirTorneo(g.codigo)">
+              <b>{{ g.nombre }}</b><small>{{ g.duracion_seg }} s · máx. {{ g.puntaje_max | number: '1.0-0' }} · {{ g.partidas_dia }} partidas/día</small>
+              @if (g.codigo === j.torneo) { <i>🏆 Torneo de esta semana</i> }
+            </button>
+          }
+        </div>
+        <p class="muted">Premios del podio (puntos): menos de 20 jugadores 200/100/50 · desde 20, 250/150/75 · desde 50, 300/200/100. Se cambian en las reglas de puntos (JUEGO_*).</p>
+        @if (j.semanas.length) {
+          <h3 class="sub">Semanas anteriores</h3>
+          <ul class="canjes">
+            @for (s of j.semanas; track s.semana) {
+              <li><div class="c-info"><b>Semana del {{ s.semana }} · {{ s.juego_nombre }}</b><small>{{ s.participantes }} jugadores · nivel {{ s.nivel_premio }}</small></div>
+                <div class="c-info">@for (g of s.podio; track g.puesto) { <small>{{ medalla(g.puesto) }} {{ g.nombre }} · {{ g.puntaje }} · +{{ g.puntos_premio }}</small> }</div></li>
+            }
+          </ul>
+        }
+      </section>
+    } @else if (!error()) {
+      <section class="tienda-tarjeta"><p class="muted">Cargando…</p></section>
+    }
+  }
+</div>

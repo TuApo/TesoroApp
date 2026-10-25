@@ -17,6 +17,8 @@ export const routes: Routes = [
   { path: 'remoto', loadComponent: () => import('./pages/remoto/remoto').then(m => m.AtencionRemota) },
   { path: 'oficinas', loadComponent: () => import('./pages/oficinas/oficinas').then(m => m.Oficinas) },
   { path: 'oficinas/:id/croquis', loadComponent: () => import('./pages/croquis-editor/croquis-editor').then(m => m.CroquisEditor) },
+  // El plano 3D ahora es la vista principal del editor del croquis: el enlace viejo lleva ahí.
+  { path: 'oficinas/:id/plano-3d', redirectTo: 'oficinas/:id/croquis' },
   { path: 'servicios', loadComponent: () => import('./pages/servicios/servicios').then(m => m.Servicios) },
   { path: 'equipos', loadComponent: () => import('./pages/equipos/equipos').then(m => m.Equipos) },
   { path: 'cartel', loadComponent: () => import('./pages/cartel/cartel').then(m => m.CartelImprimiblePage) },

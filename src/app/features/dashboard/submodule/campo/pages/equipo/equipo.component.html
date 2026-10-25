@@ -1,0 +1,188 @@
+<div class="pagina">
+  <header class="cabecera">
+    <div class="titulo">
+      <h1>Equipo de campo</h1>
+      <p>Quién reporta a quién, su zona y sus fincas.</p>
+    </div>
+    @if (admin()) {
+      <button type="button" class="boton primario" (click)="abrirAgregar()"><mat-icon>person_add</mat-icon> Agregar persona</button>
+    }
+  </header>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.mal]="a.tipo === 'mal'" role="status">
+      <mat-icon>{{ a.tipo === 'ok' ? 'check_circle' : 'error' }}</mat-icon>
+      <span>{{ a.texto }}</span>
+      <button type="button" class="cerrar" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @if (error(); as e) {
+    <div class="tarjeta vacio">
+      <mat-icon>cloud_off</mat-icon>
+      <span>{{ e }}</span>
+      <button type="button" class="boton" (click)="cargar()"><mat-icon>refresh</mat-icon> Reintentar</button>
+    </div>
+  } @else if (cargando() && !miembros().length) {
+    <div class="tarjeta vacio"><mat-icon>hourglass_empty</mat-icon> Cargando el equipo…</div>
+  } @else if (!miembros().length) {
+    <div class="tarjeta vacio">
+      <mat-icon>groups</mat-icon>
+      Todavía no hay nadie en el equipo de campo.
+      @if (admin()) { <button type="button" class="boton primario" (click)="abrirAgregar()">Agregar la primera persona</button> }
+    </div>
+  } @else {
+    <div class="kpis">
+      <div class="kpi"><b>{{ resumen().total }}</b><span>Personas</span></div>
+      <div class="kpi"><b>{{ resumen().sinJefe }}</b><span>Sin jefe asignado</span></div>
+      <div class="kpi"><b>{{ resumen().porAprobar }}</b><span>Fotos por aprobar</span></div>
+      <div class="kpi"><b>{{ resumen().sinFoto }}</b><span>Sin foto aprobada</span></div>
+    </div>
+
+    <section class="tarjeta">
+      <div class="barra">
+        <nav class="pestanas" aria-label="Vista">
+          <button type="button" [class.activa]="vista() === 'arbol'" (click)="vista.set('arbol')">Árbol</button>
+          <button type="button" [class.activa]="vista() === 'lista'" (click)="vista.set('lista')">Lista</button>
+        </nav>
+        @if (vista() === 'lista') {
+          <input class="buscador" type="search" placeholder="Buscar por nombre, cargo, zona o jefe"
+                 [ngModel]="texto()" (ngModelChange)="texto.set($event)" aria-label="Buscar persona" />
+        }
+      </div>
+
+      <ul class="lista personas">
+        @if (vista() === 'arbol') {
+          @for (n of arbol(); track n.m.usuario_id) {
+            <li class="fila" [class.clic]="admin()" [style.--nivel]="n.nivel" [class.anidada]="n.nivel > 0"
+                (click)="editar(n.m)" (keydown.enter)="editar(n.m)" tabindex="0">
+              @if (n.hijos) {
+                <button type="button" class="plegar" (click)="alternar(n.m.usuario_id); $event.stopPropagation()"
+                        [attr.aria-label]="plegados().has(n.m.usuario_id) ? 'Mostrar equipo' : 'Ocultar equipo'">
+                  <mat-icon>{{ plegados().has(n.m.usuario_id) ? 'chevron_right' : 'expand_more' }}</mat-icon>
+                </button>
+              } @else { <span class="plegar-espacio"></span> }
+              <ng-container *ngTemplateOutlet="persona; context: { $implicit: n.m }" />
+              @if (n.hijos) { <span class="chip info" title="Personas a cargo"><mat-icon>account_tree</mat-icon> {{ n.m.subordinados || n.hijos }}</span> }
+            </li>
+          }
+        } @else {
+          @for (m of lista(); track m.usuario_id) {
+            <li class="fila" [class.clic]="admin()" (click)="editar(m)" (keydown.enter)="editar(m)" tabindex="0">
+              <ng-container *ngTemplateOutlet="persona; context: { $implicit: m }" />
+              @if (m.subordinados) { <span class="chip info"><mat-icon>account_tree</mat-icon> {{ m.subordinados }}</span> }
+            </li>
+          } @empty {
+            <li class="vacio"><mat-icon>search_off</mat-icon> Nadie coincide con «{{ texto() }}».</li>
+          }
+        }
+      </ul>
+    </section>
+  }
+</div>
+
+<ng-template #persona let-m>
+  <span class="avatar" [class.inactivo]="!m.en_jerarquia">{{ iniciales(m.nombre) }}</span>
+  <div class="cuerpo">
+    <strong>{{ m.nombre }}</strong>
+    <small>
+      {{ m.cargo_campo || 'Sin cargo de campo' }}
+      @if (m.zona_nombre) { · {{ m.zona_nombre }} }
+      · {{ m.fincas.length }} {{ m.fincas.length === 1 ? 'finca' : 'fincas' }}
+      @if (vista() === 'lista' && m.jefe_nombre) { · jefe: {{ m.jefe_nombre }} }
+    </small>
+  </div>
+  <span class="chip foto" [class]="'chip foto ' + foto(m).clase">{{ foto(m).texto }}</span>
+  @if (!m.en_jerarquia) { <span class="chip">Inactivo</span> }
+</ng-template>
+
+<!-- ─── Hoja: editar persona ────────────────────────────────────────────── -->
+@if (form(); as f) {
+  <div class="panel-flotante" (click)="form.set(null)">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" [attr.aria-label]="'Editar ' + f.nombre">
+      <h3>{{ f.nombre }}</h3>
+      <div class="formulario">
+        <div class="campo">
+          <label for="e-jefe">Jefe inmediato</label>
+          <select id="e-jefe" [ngModel]="jefeFuera() ? '__fuera' : (f.jefe_id ?? '')"
+                  (ngModelChange)="$event !== '__fuera' && elegirJefeDelEquipo($event || null)">
+            <option value="">Sin jefe</option>
+            @if (jefeFuera()) { <option value="__fuera">{{ f.jefe_nombre }} (fuera del equipo)</option> }
+            @for (m of jefesPosibles(); track m.usuario_id) { <option [value]="m.usuario_id">{{ m.nombre }}</option> }
+          </select>
+        </div>
+        <div class="campo">
+          <label for="e-buscar">¿El jefe no está en la lista? Búscalo en toda la plataforma</label>
+          <input id="e-buscar" class="buscador" type="search" placeholder="Escribe al menos 3 letras"
+                 [ngModel]="busqueda()" (ngModelChange)="escribir($event)" />
+          @if (busqueda().trim().length >= 2) {
+            <ul class="lista resultados">
+              @for (c of candidatos(); track c.id) {
+                <li class="fila clic" (click)="elegirCandidato(c)" (keydown.enter)="elegirCandidato(c)" tabindex="0">
+                  <span class="avatar">{{ iniciales(c.nombre) }}</span>
+                  <div class="cuerpo"><strong>{{ c.nombre }}</strong>@if (c.detalle) { <small>{{ c.detalle }}</small> }</div>
+                  @if (c.del_equipo) { <span class="chip">Equipo</span> }
+                </li>
+              } @empty { <li class="tenue">{{ buscandoPlataforma() ? 'Buscando…' : 'Sin resultados' }}</li> }
+            </ul>
+          }
+        </div>
+        <div class="formulario dos">
+          <div class="campo">
+            <label for="e-cargo">Cargo de campo</label>
+            <select id="e-cargo" [ngModel]="f.cargo" (ngModelChange)="poner('cargo', $event)">
+              @for (c of CARGOS; track c) { <option [value]="c">{{ c }}</option> }
+              <option [value]="OTRO">Otro…</option>
+            </select>
+          </div>
+          @if (f.cargo === OTRO) {
+            <div class="campo">
+              <label for="e-cargo-otro">¿Cuál?</label>
+              <input id="e-cargo-otro" [ngModel]="f.cargo_otro" (ngModelChange)="poner('cargo_otro', $event)" maxlength="60" />
+            </div>
+          }
+          <div class="campo">
+            <label for="e-zona">Zona</label>
+            <select id="e-zona" [ngModel]="f.zona_id" (ngModelChange)="poner('zona_id', $event)">
+              <option [ngValue]="null">Sin zona</option>
+              @for (z of zonas(); track z.id) { <option [ngValue]="z.id">{{ z.nombre }}</option> }
+            </select>
+          </div>
+          <label class="interruptor">
+            <input type="checkbox" [ngModel]="f.activo" (ngModelChange)="poner('activo', $event)" /> Activo en campo
+          </label>
+        </div>
+      </div>
+      <div class="acciones">
+        <button type="button" class="boton" (click)="form.set(null)">Cancelar</button>
+        <button type="button" class="boton primario" (click)="guardar()" [disabled]="trabajando()"><mat-icon>save</mat-icon> Guardar</button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- ─── Hoja: agregar persona ───────────────────────────────────────────── -->
+@if (agregando()) {
+  <div class="panel-flotante" (click)="cerrarAgregar()">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" aria-label="Agregar persona al equipo">
+      <h3>Agregar persona al equipo</h3>
+      <p class="tenue">Entra como COORDINADOR; después le pones jefe y zona.</p>
+      <input class="buscador ancho" type="search" placeholder="Buscar en toda la plataforma (mínimo 3 letras)"
+             [ngModel]="busqueda()" (ngModelChange)="escribir($event)" aria-label="Buscar persona" />
+      @if (busqueda().trim().length >= 3) {
+        <ul class="lista resultados">
+          @for (c of candidatos(); track c.id) {
+            <li class="fila clic" (click)="elegirCandidato(c)" (keydown.enter)="elegirCandidato(c)" tabindex="0">
+              <span class="avatar">{{ iniciales(c.nombre) }}</span>
+              <div class="cuerpo"><strong>{{ c.nombre }}</strong>@if (c.detalle) { <small>{{ c.detalle }}</small> }</div>
+              <mat-icon>person_add</mat-icon>
+            </li>
+          } @empty { <li class="tenue">{{ buscandoPlataforma() ? 'Buscando…' : 'Sin resultados' }}</li> }
+        </ul>
+      }
+      <div class="acciones">
+        <button type="button" class="boton" (click)="cerrarAgregar()">Cerrar</button>
+      </div>
+    </div>
+  </div>
+}

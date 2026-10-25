@@ -116,37 +116,6 @@
 
 .dp-resumen-pct.dp-completo { color: var(--ok-fg); }
 
-/* ── La puerta de la generación ──────────────────────────────────────────── */
-.dp-puerta {
-  display: flex;
-  align-items: flex-start;
-  gap: 9px;
-  padding: 11px 13px;
-  margin-bottom: 14px;
-  border: 1px solid var(--border);
-  border-radius: 10px;
-  background: var(--surface-2);
-  font-size: .8rem;
-  line-height: 1.45;
-  color: var(--text-2);
-}
-
-.dp-puerta > mat-icon {
-  flex: none;
-  font-size: 17px;
-  width: 17px;
-  height: 17px;
-  color: var(--text-faint);
-}
-
-/* El motivo llega con saltos de línea (los mismos del tooltip del pipeline):
-   sin `pre-line` se leería como un párrafo de once campos seguidos. */
-.dp-puerta-txt {
-  flex: 1;
-  min-width: 0;
-  white-space: pre-line;
-}
-
 .dp-aviso-btn {
   flex: none;
   align-self: center;
@@ -187,6 +156,24 @@
   height: 15px;
   color: var(--text-faint);
 }
+
+/* ── Firma del candidato ─────────────────────────────────────────────────── */
+.dp-firma {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  padding: 11px 13px;
+  margin: 18px 0 0;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--surface-2);
+}
+.dp-firma-ok { border-color: #86efac; background: #f0fdf4; background: light-dark(#f0fdf4, #052e16); }
+.dp-firma-icon { flex: none; color: var(--navy); }
+.dp-firma-ok .dp-firma-icon { color: #16a34a; }
+.dp-firma-txt { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 200px; font-size: .78rem; color: var(--text-2); }
+.dp-firma-txt strong { font-size: .82rem; color: var(--navy-ink); }
 
 /* ── Filtros ─────────────────────────────────────────────────────────────── */
 .dp-filtros {
@@ -477,6 +464,61 @@
   font-size: 17px;
   width: 17px;
   height: 17px;
+}
+
+/* ── Aviso de la parametrización: se cierra y queda en una línea ─────────── */
+.dp-aviso-param > span { flex: 1; min-width: 0; }
+
+.dp-aviso-cerrar {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: inherit;
+  opacity: .65;
+  cursor: pointer;
+}
+
+.dp-aviso-cerrar:hover { opacity: 1; background: color-mix(in srgb, currentColor 12%, transparent); }
+.dp-aviso-cerrar mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.dp-aviso-mini {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin-bottom: 14px;
+  padding: 4px 9px;
+  border: 1px solid var(--warn-border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--warn-fg);
+  font: inherit;
+  font-size: .72rem;
+  line-height: 1.2;
+  cursor: pointer;
+}
+
+.dp-aviso-mini:hover { background: var(--warn-bg); }
+
+.dp-aviso-mini > span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.dp-aviso-mini mat-icon {
+  flex: none;
+  font-size: 15px;
+  width: 15px;
+  height: 15px;
+  opacity: .8;
 }
 
 

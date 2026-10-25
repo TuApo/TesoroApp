@@ -1,0 +1,75 @@
+.titulo { flex: 1; min-width: 200px; }
+.titulo h1 { margin: 0; }
+.tenue { color: var(--muted); font-size: 13px; margin: 0; }
+
+.aviso { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 12px; background: var(--ok-bg);
+         color: var(--success); font: 600 14px var(--font-sans); }
+.aviso.mal { background: var(--danger-bg); color: var(--danger); }
+.aviso span { flex: 1; }
+.aviso .cerrar { border: 0; background: none; color: inherit; cursor: pointer; min-width: 44px; min-height: 44px; display: grid; place-items: center; }
+
+.filtros { margin-top: 10px; }
+.selector { min-height: 44px; border-radius: 12px; border: 1px solid var(--border-strong, var(--border)); background: var(--surface);
+            color: var(--text); padding: 0 12px; font: 14px var(--font-sans); max-width: 100%; }
+.interruptor { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; font: 600 14px var(--font-sans); cursor: pointer; }
+.interruptor input { width: 20px; height: 20px; accent-color: var(--navy); }
+.contador { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin: 10px 0;
+            color: var(--muted); font-size: 13px; }
+
+.col-lista .lista { max-height: 70vh; overflow-y: auto; }
+.fila.inactiva { opacity: .6; }
+.color-zona { width: 10px; align-self: stretch; border-radius: 6px; flex: none; }
+.color-zona.grande { width: 14px; }
+
+.col-detalle { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.detalle-cab { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; flex-wrap: wrap; }
+.detalle-cab .cuerpo { flex: 1; min-width: 160px; }
+.detalle-cab h2 { margin: 0; }
+.volver { min-width: 44px; min-height: 44px; padding: 0; }
+
+.propuesta { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 10px 12px; border-radius: 12px; margin-bottom: 12px;
+             background: #FEF3C7; color: #92400E; font-size: 14px; }
+.propuesta span { flex: 1; min-width: 180px; }
+
+.mapa-finca { position: relative; height: min(52vh, 480px); }
+.mapa-finca app-mapa-campo { position: absolute; inset: 0; }
+.ayuda { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 13px; margin: 8px 0 14px; }
+.ayuda mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+.formulario .ancho { grid-column: 1 / -1; }
+.radio-fila { display: flex; align-items: center; gap: 10px; }
+.radio-fila input[type='range'] { flex: 1; min-height: 44px; padding: 0; border: 0; background: none; accent-color: var(--navy); }
+.campo .radio-fila .radio-num { width: 96px; flex: none; }
+.campo input:disabled, .campo select:disabled, .campo textarea:disabled { opacity: .75; }
+.campo input.color { padding: 4px; cursor: pointer; }
+
+.acciones-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 16px; align-items: center; }
+.espacio { flex: 1; }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+.chip.persona { padding: 4px 6px 4px 4px; font-size: 13px; }
+.chip.persona .mini { width: 26px; height: 26px; border-radius: 50%; background: var(--navy); color: #fff; display: grid; place-items: center;
+                      font-size: 11px; }
+.chip.persona button { border: 0; background: none; color: var(--muted); cursor: pointer; min-width: 32px; min-height: 32px;
+                       display: grid; place-items: center; border-radius: 50%; }
+.chip.persona button mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.agregar { display: flex; flex-direction: column; gap: 8px; }
+.agregar .buscador { width: 100%; box-sizing: border-box; }
+.resultados { max-height: 320px; overflow-y: auto; }
+.resultados > .tenue { padding: 8px 4px; }
+
+.hoja.cartel { text-align: center; }
+.hoja.cartel img { width: min(100%, 420px); aspect-ratio: 1; image-rendering: pixelated; background: #fff; border-radius: 12px;
+                   border: 1px solid var(--border); }
+.hoja.cartel .instr { font: 700 18px var(--font-sans); margin: 12px 0 4px; }
+.hoja.cartel .acciones { justify-content: center; }
+
+/* En el teléfono: lista o detalle, no ambos. */
+@media (max-width: 899px) {
+  .rejilla.con-sel .col-lista { display: none; }
+  .solo-escritorio { display: none; }
+}
+@media (min-width: 900px) {
+  .rejilla.lateral { grid-template-columns: minmax(300px, 1fr) minmax(0, 1.6fr); align-items: start; }
+  .volver { display: none; }
+}

@@ -36,6 +36,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/reglas/reglas').then(m => m.ReglasTesoreria),
   },
 
+  // Informe: capacidad de crédito de los activos, uso histórico y listas para actuar (V145).
+  {
+    path: 'informe',
+    loadComponent: () => import('./pages/informe/informe').then(m => m.InformeTesoreria),
+  },
+
   { path: 'manage-workers', component: ManageWorkersComponent },
   { path: 'upload-treasury', component: UploadTreasuryComponent },
 ];

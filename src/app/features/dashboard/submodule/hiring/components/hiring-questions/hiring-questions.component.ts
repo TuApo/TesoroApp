@@ -1,18 +1,24 @@
-import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, computed, signal } from '@angular/core';
+import {  Component, OnInit, input, output, effect, inject, DestroyRef , ChangeDetectionStrategy, computed, signal, untracked } from '@angular/core';
 import { centroDeCostosDe } from '../../shared/contrato-campos';
+import { fondoCesantias, fondoCesantiasDesdeAfp, opcionesFondoCesantias } from '../../shared/fondo-cesantias';
 import { ParametrizacionVacantesService } from '../../../users/services/parametrizacion-vacantes/parametrizacion-vacantes.service';
 import {
   EstadoCampo, estadoDeControl, esImporteValido, esPorcentajeValido,
 } from '../../shared/completitud.util';
 import { AbstractControl, FormBuilder, FormGroup, ValidationErrors, ValidatorFn, Validators } from '@angular/forms';
 import { HttpClient } from '@angular/common/http';
-import { firstValueFrom, merge, Observable } from 'rxjs';
+import { environment } from '@/environments/environment';
+import { firstValueFrom, merge, Observable, of } from 'rxjs';
+import { catchError, debounceTime, distinctUntilChanged, switchMap } from 'rxjs/operators';
 import { take } from 'rxjs/operators';
 import { startWith, map } from 'rxjs/operators';
 import { SharedModule } from '@/app/shared/shared.module';
 import { MatTabsModule } from '@angular/material/tabs';
 import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
+import { esBloqueoExamen } from '../../pages/recruitment-pipeline/examen-medico.rules';
+import { esBloqueoArl, fechaCorta, fechasCoinciden } from '../../pages/recruitment-pipeline/arl.rules';
+import { contratoEnCurso, filtroOtroContrato } from '../../pages/recruitment-pipeline/contrato.rules';
 import { mensajeDeErrorLog } from '@/app/shared/utils/mensaje-error';
 import { DomSanitizer, SafeResourceUrl } from '@angular/platform-browser';
 import type jsPDF from 'jspdf';
@@ -33,6 +39,7 @@ import { GestionDocumentalService } from '../../service/gestion-documental/gesti
 import { FarmsService } from '../../../farms/services/farms/farms.service';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import {
+  CotejoHuellaCedula,
   ProcesoUpdateByDocumentRequest,
   RegistroProcesoContratacion,
 } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
@@ -48,11 +55,18 @@ import {
   VisorDocumentoComponent, VisorDocumentoData,
 } from '../../../nomina/components/visor-documento/visor-documento.component';
 import { avanceDeBanderas, avanceDeForm } from '../../shared/progreso.util';
+import { ResolucionTarjeta } from '../../service/tarjetas.service';
 import { AutoGuardado } from '../../shared/auto-guardado';
+import { SalarioMinimoService } from '../../service/salario-minimo/salario-minimo.service';
+import { SalarioMinimoVigencia } from '../generate-contracting-documents/salario.util';
+import { anioAuxilio, auxilioTransporteDelAnio, esSi, textoAuxilio } from './auxilio-transporte.util';
 import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
 import { HuellaCapturaService } from '../../service/huella/huella-captura.service';
 import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
 import { HuellaError, OrigenHuella } from '../../service/huella/huella.model';
+import { CedulaCamaraComponent } from '../cedula-camara/cedula-camara.component';
+import { CedulaCamaraService } from '../cedula-camara/cedula-camara.service';
+import { CedulaArmada } from '../cedula-camara/cedula-camara.util';
 
 type LocalFile = { file: File | string; fileName: string };
 type ServerDocInfo = {
@@ -71,7 +85,7 @@ type ServerDocInfo = {
   selector: 'app-hiring-questions',
   standalone: true,
   imports: [SharedModule, MatTabsModule, DocumentosPaqueteComponent, EmpalmeDocumentosComponent,
-    AutoGuardadoEstadoComponent],
+    AutoGuardadoEstadoComponent, CedulaCamaraComponent],
   templateUrl: './hiring-questions.component.html',
   styleUrls: ['./hiring-questions.component.css'],
 } )
@@ -98,7 +112,11 @@ export class HiringQuestionsComponent implements OnInit {
   readonly cedulaSubida = signal<boolean>(false);
   /** Id del documento vigente en el tipo 29, para previsualizarlo. */
   readonly cedulaDocumentoId = signal<number | null>(null);
+  /** Miniatura pintable del documento de identidad (imagen o 1ª página del PDF). */
+  readonly cedulaMiniatura = signal<string | null>(null);
   readonly subiendoCedula = signal<boolean>(false);
+  /** Botón "Tomar con cámara": sube frente y reverso y el servidor arma la hoja al 150 %. */
+  private readonly cedulaCamara = inject(CedulaCamaraService);
   // ───────── Input con signals ─────────
   candidatoSeleccionado = input<any>(null);
   /**
@@ -182,6 +200,13 @@ export class HiringQuestionsComponent implements OnInit {
 
   // Lista de tarjetas disponibles (objetos completos)
   tarjetasDisponibles: any[] = [];
+
+  // ── Asignación de tarjeta (solo «Davivienda cta ahorros») ────────────────
+  /** Texto EXACTO de la forma de pago que dispara los dos campos de tarjeta. */
+  static readonly FORMA_DAVIVIENDA = 'Davivienda cta ahorros';
+  /** Último veredicto del servidor para la identificación escrita. */
+  readonly resolucionTarjeta = signal<ResolucionTarjeta | null>(null);
+  readonly verificandoTarjeta = signal(false);
   filteredTarjetas!: Observable<any[]>;
 
   // PDFs por empresa
@@ -264,6 +289,44 @@ export class HiringQuestionsComponent implements OnInit {
    * cabecera y devuelve algo pintable.
    */
   private readonly archivos = inject(ArchivosBackendService);
+  private readonly salarioMinimoService = inject(SalarioMinimoService);
+
+  // ───────── Auxilio de transporte y ruta: valor INFORMATIVO (2026-10-14) ─────────
+  /**
+   * Salario mínimo y auxilio por año (`db_admin.salario_minimo_vigencia`). `null` mientras
+   * carga; si falla, lista vacía y la pantalla dice "Sin configurar".
+   */
+  readonly vigenciasSalario = signal<SalarioMinimoVigencia[] | null>(null);
+
+  /**
+   * SI/NO del auxilio elegido A MANO en esta pantalla, por proceso. La vacante solo lo
+   * propone: sin esto, volver a buscar a la persona lo devolvía al de la vacante.
+   * OJO: el contrato (`ContratoCandidato`) no tiene columna de auxilio, así que la
+   * elección vive solo en esta sesión del navegador.
+   */
+  private readonly auxilioElegido = new Map<string | number, string>();
+
+  /** El usuario cambió el SI/NO del auxilio: manda sobre la vacante para este proceso. */
+  elegirAuxilio(valor: string | null): void {
+    const id = this.procesoActual()?.id;
+    if (id != null && valor != null) this.auxilioElegido.set(id, valor);
+  }
+
+  /** Auxilio de transporte mensual del año del contrato (o del actual), o `null`. */
+  get valorAuxilioMensual(): number | null {
+    const f = this.pagoTransporteForm;
+    const anio = anioAuxilio(f?.get('fechaContrato')?.value, f?.get('fechaIngreso')?.value);
+    return auxilioTransporteDelAnio(this.vigenciasSalario(), anio);
+  }
+
+  /** "$ 249.095" o "Sin configurar". */
+  get textoValorAuxilio(): string {
+    return textoAuxilio(this.valorAuxilioMensual);
+  }
+
+  get muestraValorAuxilio(): boolean {
+    return esSi(this.pagoTransporteForm?.get('auxilio_transporte')?.value);
+  }
 
   /**
    * El candidato quedó EN ESPERA de vacante o marcado NO APLICA (observación del
@@ -282,6 +345,34 @@ export class HiringQuestionsComponent implements OnInit {
 
     // Va aquí y no en `ngOnInit`: `effect()` exige contexto de inyección.
     this.vigilarIdentidad();
+
+    // Cada vez que cambia el documento vigente (otra persona, reemplazo, hoja
+    // ampliada recién armada) se rehace su miniatura.
+    effect(() => {
+      const id = this.cedulaDocumentoId();
+      untracked(() => { void this.cargarMiniaturaCedula(id); });
+    });
+    this.destroyRef.onDestroy(() => this.soltarMiniaturaCedula());
+
+    // ¿El correo de la persona rebotó? Se consulta cada vez que cambia la
+    // dirección: aquí es donde se comprueba el correo, y un "Comprobar correo"
+    // que nunca llega se explica con el rebote.
+    effect(() => {
+      const correo = this.correoDe();
+      untracked(() => this.consultarRebote(correo));
+    });
+
+    // Hoja al 150 % armada con la cámara desde OTRO sitio (p. ej. la ficha en
+    // Selección): sin esto la tarjeta seguía en "Sin subir" porque la cédula ya
+    // estaba "revisada". Se ignora lo anunciado antes de abrir esta pestaña.
+    const armadaAlAbrir = this.cedulaCamara.ultimaArmada();
+    effect(() => {
+      const a = this.cedulaCamara.ultimaArmada();
+      if (!a || a === armadaAlAbrir) return;
+      untracked(() => {
+        if (a.cedula === (this.cedulaDe() ?? '')) this.marcarCedula(a.id);
+      });
+    });
   }
 
   /**
@@ -293,6 +384,102 @@ export class HiringQuestionsComponent implements OnInit {
     () => this.cargarPagoTransporte({ silencioso: true }),
     () => `${this.cedulaDocs()}|${this.procesoId() ?? ''}`,
   );
+
+  /** Proceso de la última entrevista: el mismo que escribe `cargarPagoTransporte`. */
+  private readonly procesoActual = computed<any>(() => {
+    const cand = this.candidatoSeleccionado();
+    const ent0 = Array.isArray(cand?.entrevistas) ? cand.entrevistas[0] : null;
+    return ent0?.proceso ?? null;
+  });
+
+  /** Ya se pulsó "Contratar" (o se contrató antes): el botón da paso al estado. */
+  readonly yaContratado = computed<boolean>(() => this.procesoActual()?.contratado === true);
+
+  readonly codigoContratoActual = computed<string>(() => {
+    const p = this.procesoActual();
+    return String(p?.contrato_codigo ?? p?.contrato?.codigo_contrato ?? '').trim();
+  });
+
+  readonly contratando = signal(false);
+
+  /** Nombre visible de los obligatorios de "Pago y Transporte", para decir qué falta. */
+  private static readonly ETIQUETA_CAMPO: Record<string, string> = {
+    fechaIngreso: 'Fecha de ingreso',
+    fechaContrato: 'Fecha de contrato',
+    formaPago: 'Forma de pago',
+    otraFormaPago: 'Otra forma de pago',
+    numeroPagos: 'Número de cuenta / tarjeta',
+    seguroFunerario: 'Seguro funerario',
+    seguroFunerarioId: 'Valor del seguro funerario',
+    horasExtras: 'Horas extras',
+    Ccostos: 'Ccostos',
+  };
+
+  /** Obligatorios de "Pago y Transporte" sin responder (o con un valor inválido). */
+  camposFaltantes(): string[] {
+    const controles = this.pagoTransporteForm?.controls ?? {};
+    return Object.keys(controles)
+      .filter(k => controles[k].enabled && controles[k].invalid)
+      .map(k => HiringQuestionsComponent.ETIQUETA_CAMPO[k] ?? k);
+  }
+
+  /**
+   * Botón "Contratar": lo ÚNICO que marca a la persona como contratada.
+   *
+   * El guardado automático va guardando cada respuesta, pero contratar es una
+   * decisión: antes bastaba con que el formulario quedara válido para que un
+   * guardado automático contratara con media ficha sin llenar. Ahora se exige el
+   * formulario completo y una confirmación, y recién ahí se marca contratado y se
+   * pide el código de contrato.
+   */
+  async contratar(): Promise<void> {
+    if (this.contratando() || this.yaContratado()) return;
+    if (this.bloqueadoPorEspera()) return;
+
+    const faltan = this.camposFaltantes();
+    if (faltan.length) {
+      this.pagoTransporteForm.markAllAsTouched();
+      await Swal.fire({
+        icon: 'warning',
+        title: 'Faltan datos para contratar',
+        html: `<ul style="text-align:left;margin:0;padding-left:20px">${
+          faltan.map(f => `<li>${escaparHtml(f)}</li>`).join('')}</ul>`,
+        confirmButtonText: 'Ok',
+      });
+      return;
+    }
+
+    const cand = this.candidatoSeleccionado();
+    const nombre = [cand?.primer_nombre, cand?.segundo_nombre, cand?.primer_apellido, cand?.segundo_apellido]
+      .map(x => String(x ?? '').trim()).filter(Boolean).join(' ');
+    const fi = this.pagoTransporteForm.get('fechaIngreso')?.value;
+    const fechaIngreso = fi ? new Date(fi).toISOString().split('T')[0] : '';
+    const r = await Swal.fire({
+      icon: 'question',
+      title: '¿Contratar a esta persona?',
+      html: `<p style="margin:0 0 6px"><b>${escaparHtml(nombre || 'Sin nombre')}</b>`
+        + ` · ${escaparHtml(String(cand?.tipo_doc || 'CC'))} ${escaparHtml(String(cand?.numero_documento ?? ''))}</p>`
+        + `<p style="margin:0">Fecha de ingreso: <b>${escaparHtml(fechaIngreso)}</b></p>`
+        + `<p style="margin:10px 0 0;font-size:.9em;opacity:.8">Queda marcada como contratada y se le asigna el código de contrato.</p>`,
+      showCancelButton: true,
+      confirmButtonText: 'Sí, contratar',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+      focusCancel: true,
+    });
+    if (!r.isConfirmed) return;
+
+    // Lo pendiente del guardado automático va incluido en esta escritura, y la
+    // que esté en vuelo se deja terminar para no cruzar dos PATCH del mismo proceso.
+    this.autoPago.cancelar();
+    this.contratando.set(true);
+    try {
+      await this.autoPago.esperar();
+      await this.cargarPagoTransporte();
+    } finally {
+      this.contratando.set(false);
+    }
+  }
 
   // ───────── Ciclo de vida ─────────
   // ── Grupo de pago: lo trae la REQUISICIÓN ─────────────────────────────────
@@ -326,6 +513,10 @@ export class HiringQuestionsComponent implements OnInit {
     this.autoPago.vigilar(this.pagoTransporteForm, this.destroyRef);
     this.setupFormaPagoValidation(); // ← aplica validación dinámica CO
     this.loadTarjetas();
+    // Valor informativo del auxilio (y de la ruta). Si no carga, "Sin configurar".
+    this.salarioMinimoService.vigencias()
+      .pipe(take(1), takeUntilDestroyed(this.destroyRef))
+      .subscribe(v => this.vigenciasSalario.set(Array.isArray(v) ? v : []));
     // Consentimiento: autocompletar UserAgent
     this.huellaForm.patchValue({ userAgent: navigator.userAgent });
 
@@ -343,6 +534,23 @@ export class HiringQuestionsComponent implements OnInit {
     this.pagoTransporteForm.get('fechaIngreso')?.valueChanges
       .pipe(takeUntilDestroyed(this.destroyRef))
       .subscribe(() => this.sugerirDescripcionObra());
+
+    // ARL (V74): la fecha de ingreso debe ser la de inicio de afiliación. Si
+    // quien contrata la cambia y deja de coincidir, se avisa en el acto (al
+    // contratar, ms-hr lo bloquea con 409 ARL_REQUERIDA).
+    this.pagoTransporteForm.get('fechaIngreso')?.valueChanges
+      .pipe(takeUntilDestroyed(this.destroyRef))
+      .subscribe((v) => {
+        if (!this.pagoTransporteForm.get('fechaIngreso')?.dirty) return;
+        const inicio = this.procesoActual()?.arl?.fecha_inicio_afiliacion;
+        if (fechasCoinciden(inicio, v) !== false) return;
+        void Swal.fire({
+          icon: 'warning', toast: true, position: 'top-end', showConfirmButton: false, timer: 7000,
+          title: 'No coincide con la ARL',
+          text: `La fecha de ingreso (${fechaCorta(v as any)}) no es la de inicio de afiliación a la ARL `
+            + `(${fechaCorta(inicio)}). No se podrá contratar así.`,
+        });
+      });
 
     // Avance de los cinco sub-pasos para el rail del pipeline. Se escucha
     // también `statusChanges`: los obligatorios de Pago y Transporte cambian
@@ -382,6 +590,14 @@ export class HiringQuestionsComponent implements OnInit {
     const tipo = String(this.candidatoSeleccionado()?.tipo_doc || 'CC').trim().toUpperCase();
     return HiringQuestionsComponent.NOMBRE_DOCUMENTO[tipo] ?? `Documento de identidad (${tipo})`;
   });
+
+  /**
+   * "Tomar con cámara" pide frente y reverso de una tarjeta (cédula, CE, PPT…) y
+   * las pone al 150 % en carta. El pasaporte es una libreta de otro tamaño: para
+   * él solo queda subir el archivo.
+   */
+  readonly cedulaConCamara = computed<boolean>(() =>
+    String(this.candidatoSeleccionado()?.tipo_doc || 'CC').trim().toUpperCase() !== 'PA');
 
   /** Última cédula para la que se miró el expediente, para no repetir. */
   private cedulaRevisada: string | null = null;
@@ -445,6 +661,69 @@ export class HiringQuestionsComponent implements OnInit {
     const n = Number(id);
     this.cedulaDocumentoId.set(Number.isFinite(n) && n > 0 ? n : null);
     this.cedulaSubida.set(true);
+  }
+
+  /** `blob:` de la miniatura vigente, para liberarlo al cambiarla. */
+  private miniaturaBlobUrl: string | null = null;
+
+  private soltarMiniaturaCedula(): void {
+    if (this.miniaturaBlobUrl) URL.revokeObjectURL(this.miniaturaBlobUrl);
+    this.miniaturaBlobUrl = null;
+    this.cedulaMiniatura.set(null);
+  }
+
+  /**
+   * Miniatura del documento de identidad: la imagen tal cual o la primera
+   * página del PDF (la hoja con las dos caras). Si no se puede pintar, la
+   * tarjeta se queda con el recuadro "Ver documento" de siempre.
+   */
+  private async cargarMiniaturaCedula(id: number | null): Promise<void> {
+    this.soltarMiniaturaCedula();
+    if (id == null || typeof document === 'undefined') return;
+    const r = await this.archivos.resolverBlob(`/api/v1/documents/${id}/download`);
+    if (!r) return;
+    // Otra persona u otro documento mientras llegaba: esta ya no aplica.
+    if (this.cedulaDocumentoId() !== id) { URL.revokeObjectURL(r.url); return; }
+
+    const cabecera = new Uint8Array(await r.blob.slice(0, 4).arrayBuffer());
+    const esPdf = r.blob.type === 'application/pdf'
+      || String.fromCharCode(...cabecera) === '%PDF';
+    if (!esPdf) {
+      this.miniaturaBlobUrl = r.url;
+      this.cedulaMiniatura.set(r.url);
+      return;
+    }
+    URL.revokeObjectURL(r.url);
+    try {
+      const png = await this.primeraPaginaPdf(r.blob);
+      if (this.cedulaDocumentoId() === id) this.cedulaMiniatura.set(png);
+    } catch {
+      /* PDF que pdf.js no abre: queda el recuadro "Ver documento" */
+    }
+  }
+
+  private async primeraPaginaPdf(blob: Blob): Promise<string> {
+    const pdfjs = await import('pdfjs-dist');
+    if (!pdfjs.GlobalWorkerOptions.workerPort) {
+      pdfjs.GlobalWorkerOptions.workerPort = new Worker(
+        // Ruta relativa: el bundler de workers no resuelve especificadores de paquete.
+        new URL('../../../../../../../../node_modules/pdfjs-dist/build/pdf.worker.min.mjs',
+          import.meta.url), { type: 'module' });
+    }
+    const tarea = pdfjs.getDocument({ data: new Uint8Array(await blob.arrayBuffer()) });
+    try {
+      const pdf = await tarea.promise;
+      const page = await pdf.getPage(1);
+      const ancho = page.getViewport({ scale: 1 }).width;
+      const viewport = page.getViewport({ scale: 520 / ancho });
+      const canvas = document.createElement('canvas');
+      canvas.width = Math.ceil(viewport.width);
+      canvas.height = Math.ceil(viewport.height);
+      await page.render({ canvas, viewport }).promise;
+      return canvas.toDataURL('image/png');
+    } finally {
+      void tarea.destroy();
+    }
   }
 
   /** Abre el documento de identidad del expediente sin salir de Contratación. */
@@ -530,6 +809,20 @@ export class HiringQuestionsComponent implements OnInit {
       });
   }
 
+  /**
+   * "Tomar con cámara" terminó: las dos caras están arriba y el servidor dejó la
+   * hoja carta al 150 % en el tipo 29. Mismo cierre que `subirCedula`: se marca,
+   * se refresca la miniatura (efecto de `cedulaDocumentoId`) y se avisa al pipeline.
+   */
+  alTomarCedulaConCamara(r: CedulaArmada): void {
+    // Si mientras subía se abrió a otra persona, la hoja es de la de la foto: no
+    // se pinta en esta tarjeta.
+    if (r.cedula === (this.cedulaDe() ?? '')) this.marcarCedula(r.id);
+    this.alert('success', `${this.nombreDocumento()} cargado`,
+      'Quedó en el expediente: frente y reverso en una hoja carta al 150 %.');
+    this.guardado.emit();
+  }
+
   /** Contacto de la persona, para decir a qué correo / número se está enviando. */
   correoDe(): string | null {
     const c = this.candidatoSeleccionado()?.contacto ?? {};
@@ -539,6 +832,42 @@ export class HiringQuestionsComponent implements OnInit {
   whatsappDe(): string | null {
     const c = this.candidatoSeleccionado()?.contacto ?? {};
     return (c.whatsapp ?? c.celular ?? '').toString().trim() || null;
+  }
+
+  /**
+   * Último rebote conocido del correo de la persona (ms-auth-admin lee el buzón
+   * de rebotes cada 10 min). null = nunca rebotó o no se pudo consultar: la
+   * consulta es informativa y jamás frena el paso.
+   */
+  readonly correoRebote = signal<CorreoRebote | null>(null);
+  private consultaReboteSeq = 0;
+
+  private consultarRebote(correo: string | null): void {
+    const seq = ++this.consultaReboteSeq;
+    this.correoRebote.set(null);
+    if (!correo) return;
+    this.http.get<CorreoRebote>(`${environment.apiUrl}/api/v1/admin/correos/rebotes/direccion`,
+      { params: { direccion: correo } })
+      .pipe(catchError(() => of(null)))
+      .subscribe((r) => {
+        if (seq !== this.consultaReboteSeq) return;
+        this.correoRebote.set(r && (r.invalida || r.ultimo_tipo) ? r : null);
+      });
+  }
+
+  /** Texto del aviso de rebote para la tarjeta Correo. */
+  textoRebote(): string | null {
+    const r = this.correoRebote();
+    if (!r) return null;
+    const cuando = r.ultimo_rebote ? ' el ' + new Date(r.ultimo_rebote).toLocaleDateString('es-CO') : '';
+    switch (r.ultimo_tipo) {
+      case 'DURO': return `Rebotó${cuando}: la dirección no existe. Pide el correo de nuevo.`;
+      case 'BLANDO': return r.invalida
+        ? `Rebotó${cuando}: buzón lleno (${r.rebotes_blandos} avisos). Pide otro correo.`
+        : `Aviso${cuando}: buzón lleno. Puede que no le lleguen los correos.`;
+      case 'OTRO': return `El servidor de destino devolvió el correo${cuando}.`;
+      default: return r.invalida ? `Rebotó${cuando}.` : null;
+    }
   }
 
   correoConfirmado(): boolean {
@@ -592,9 +921,6 @@ export class HiringQuestionsComponent implements OnInit {
       this.whatsappConfirmado(),
     ]));
   }
-
-  /** Último motivo de "sin código de contrato" ya avisado en el guardado automático. */
-  private avisoSinCodigo = '';
 
   /** True cuando la lista de tarjetas YA respondió (aunque venga vacía). */
   private tarjetasCargadas = false;
@@ -655,7 +981,11 @@ export class HiringQuestionsComponent implements OnInit {
         // cae al Ccostos.
         carnetCentroCosto: [null],
         salario: [{ value: null, disabled: true }, Validators.required],
-        auxilio_transporte: [{ value: null, disabled: true }, Validators.required],
+        // SI/NO del auxilio legal de transporte. La vacante lo PROPONE (ver `loadData`) pero
+        // se cambia aquí (pedido 2026-10-14). Sin `required`: antes iba deshabilitado y no
+        // contaba para "Contratar"; exigirlo ahora bloquearía procesos sin vacante.
+        // No viaja en el guardado: `ContratoCandidato` no tiene columna para él.
+        auxilio_transporte: [null],
         // Temporal y cargo son datos CANÓNICOS del proceso: la temporal la resuelve el
         // maestro de centros de costo (más fiable que la vacante, ver
         // `prellenarDesdeVacante`) y el cargo es `vacante.cargo`. Se muestran
@@ -678,6 +1008,7 @@ export class HiringQuestionsComponent implements OnInit {
         // OJO: NO es `porcentajeARL`. Aquel es riesgo laboral y se sugiere desde el
         // cargo; este es el recargo pactado de horas extras. Campos y columnas
         // distintas a propósito.
+        // Fuera de pantalla (2026-10-06): el control sigue para no pisar lo ya guardado.
         porcentajeHorasExtras: [null],
         // ── Fuera de la ficha de contratación, pero VIVOS ────────────────────
         // Estos ocho salieron de la pantalla (2026-09-08) porque no están en la
@@ -705,7 +1036,8 @@ export class HiringQuestionsComponent implements OnInit {
         grupo: [null],
         categoria: [null],
         operacion: [null],
-        horasExtras: [false, Validators.required],
+        // Por defecto SI (2026-10-06); un NO guardado se respeta al recargar.
+        horasExtras: [true, Validators.required],
         fechaIngreso: [null, Validators.required],
         fechaContrato: [null, Validators.required],
       },
@@ -922,6 +1254,11 @@ export class HiringQuestionsComponent implements OnInit {
     });
   }
 
+  /** Opciones de "Fondo de cesantías (AFC)": el catálogo más lo guardado si no está en él. */
+  opcionesCesantias(): string[] {
+    return opcionesFondoCesantias(this.pagoTransporteForm?.get('cesantias')?.value);
+  }
+
   /** Atajo para la plantilla: `[class.campo-completo]="campoCompleto('grupo')"`. */
   campoCompleto(nombre: string): boolean {
     return this.estadoCampo(nombre) === 'completo';
@@ -951,6 +1288,12 @@ export class HiringQuestionsComponent implements OnInit {
       if (forma === 'Daviplata') {
         // Daviplata => "Número de cuenta"
         numCtrl.setValidators([Validators.required]); // O pattern phoneCO
+      } else if (forma === HiringQuestionsComponent.FORMA_DAVIVIENDA) {
+        // Davivienda cta ahorros => se escribe la IDENTIFICACIÓN de una tarjeta ya
+        // cargada en el parametrizador y el número de cuenta lo rellena el servidor.
+        // Los dos son obligatorios, pero el usuario solo teclea el primero.
+        numCtrl.setValidators([Validators.required]);
+        if (idCtrl) idCtrl.setValidators([Validators.required]);
       } else if (forma) {
         // Otros => Tarjeta. Sin `pattern`: el número de cuenta es TEXTO libre.
         // El patrón de 16-18 dígitos rechazaba cuentas que no son tarjeta (bancos
@@ -972,6 +1315,42 @@ export class HiringQuestionsComponent implements OnInit {
     apply();
     formaCtrl.valueChanges.pipe(takeUntilDestroyed(this.destroyRef)).subscribe(apply);
 
+    // Davivienda: cada cambio de la identificación se comprueba CONTRA EL SERVIDOR.
+    // No vale hacerlo con la lista local: que la tarjeta exista lo sabe el maestro, pero
+    // que esté libre depende de los contratos de todos los demás, y eso solo lo sabe ms-hr.
+    if (idCtrl) {
+      idCtrl.valueChanges.pipe(
+        debounceTime(400),
+        distinctUntilChanged(),
+        switchMap((valor) => {
+          const forma = formaCtrl.value;
+          if (forma !== HiringQuestionsComponent.FORMA_DAVIVIENDA) return of(null);
+          const id = String(typeof valor === 'string' ? valor : (valor?.identification_number ?? '')).trim();
+          if (!id) {
+            this.resolucionTarjeta.set(null);
+            this.aplicarErroresTarjeta(null);
+            return of(null);
+          }
+          this.verificandoTarjeta.set(true);
+          return this.tarjetasService.resolverAsignacion({
+            identificacion: id,
+            documento: this.cedulaDocs() || undefined,
+          }).pipe(catchError(() => of({
+            estado: 'POOL_NO_DISPONIBLE',
+            identificacion: id, numero_cuenta: null, cuentas_disponibles: [], ocupadas: [],
+            mensaje: 'No se pudo comprobar la identificación. Inténtalo de nuevo.',
+            valido: false,
+          } as ResolucionTarjeta)));
+        }),
+        takeUntilDestroyed(this.destroyRef),
+      ).subscribe((r) => {
+        this.verificandoTarjeta.set(false);
+        if (!r) return;
+        this.resolucionTarjeta.set(r);
+        this.aplicarErroresTarjeta(r);
+      });
+    }
+
     // Validación extra: verificar si la tarjeta existe
     // Escuchar cambios en numeroPagos + numeroIdentificacion
     if (idCtrl) {
@@ -986,12 +1365,92 @@ export class HiringQuestionsComponent implements OnInit {
     }
   }
 
+  /** ¿La forma de pago elegida es la que usa el pool de tarjetas? */
+  esDavivienda(): boolean {
+    return this.pagoTransporteForm?.get('formaPago')?.value === HiringQuestionsComponent.FORMA_DAVIVIENDA;
+  }
+
+  /**
+   * Traslada el veredicto del servidor al formulario: error en la identificación y, si
+   * todo está bien, número de cuenta relleno.
+   *
+   * <p>El número de cuenta NO se teclea: sale de la tarjeta. Por eso el campo va en solo
+   * lectura y lo escribe este método.
+   */
+  private aplicarErroresTarjeta(r: ResolucionTarjeta | null): void {
+    const idCtrl = this.pagoTransporteForm.get('numeroIdentificacion');
+    const numCtrl = this.pagoTransporteForm.get('numeroPagos');
+    if (!idCtrl || !numCtrl) return;
+
+    for (const e of ['identificacionNoExiste', 'tarjetaAsignada', 'variasTarjetas', 'poolNoDisponible']) {
+      this._clearCustomError(idCtrl, e);
+    }
+    if (!r) return;
+
+    switch (r.estado) {
+      case 'NO_EXISTE':
+        this._setCustomError(idCtrl, 'identificacionNoExiste');
+        numCtrl.setValue('', { emitEvent: false });
+        break;
+      case 'ASIGNADA_A_OTRO':
+        this._setCustomError(idCtrl, 'tarjetaAsignada');
+        numCtrl.setValue('', { emitEvent: false });
+        break;
+      case 'POOL_NO_DISPONIBLE':
+        this._setCustomError(idCtrl, 'poolNoDisponible');
+        break;
+      case 'VARIAS_DISPONIBLES':
+        // No es un error de dato: es que hay que elegir cuál de las tarjetas físicas es.
+        // Se marca igual para que no se guarde a medias.
+        this._setCustomError(idCtrl, 'variasTarjetas');
+        numCtrl.setValue('', { emitEvent: false });
+        break;
+      default:
+        numCtrl.setValue(r.numero_cuenta ?? '', { emitEvent: false });
+        numCtrl.updateValueAndValidity({ emitEvent: false });
+    }
+  }
+
+  /** El usuario elige una de las cuentas libres cuando la identificación tiene varias. */
+  elegirCuentaTarjeta(cuenta: string): void {
+    const idCtrl = this.pagoTransporteForm.get('numeroIdentificacion');
+    this.pagoTransporteForm.get('numeroPagos')?.setValue(cuenta);
+    if (idCtrl) this._clearCustomError(idCtrl, 'variasTarjetas');
+  }
+
+  /**
+   * Motivo por el que NO se puede guardar la asignación de tarjeta, o null si se puede.
+   *
+   * <p>Se mira el veredicto del servidor, no el estado del control: así el bloqueo vale
+   * igual para el guardado automático, que no pasa por la pantalla.
+   */
+  errorAsignacionTarjeta(): string | null {
+    if (!this.esDavivienda()) return null;
+    const id = String(this.pagoTransporteForm?.get('numeroIdentificacion')?.value ?? '').trim();
+    if (!id) return null;                       // vacío lo gobierna el `required`
+    const r = this.resolucionTarjeta();
+    if (!r) return null;                        // todavía no ha respondido: no se bloquea
+    if (r.identificacion !== id) return null;   // el veredicto es de otra identificación
+    if (r.estado === 'VARIAS_DISPONIBLES') {
+      // Deja de bloquear en cuanto el usuario elige una de las cuentas libres.
+      const cuenta = String(this.pagoTransporteForm.get('numeroPagos')?.value ?? '').trim();
+      return cuenta && r.cuentas_disponibles.includes(cuenta) ? null : r.mensaje;
+    }
+    return r.valido ? null : r.mensaje;
+  }
+
+  /** Mensaje del servidor, para pintarlo bajo el campo. */
+  mensajeTarjeta(): string {
+    return this.resolucionTarjeta()?.mensaje ?? '';
+  }
+
   // Verificar existencia de tarjeta (local, sin API call)
   verificarTarjeta() {
     try {
       const forma = this.pagoTransporteForm.get('formaPago')?.value;
-      console.log('[verificarTarjeta] forma:', forma);
-      if (forma === 'Daviplata' || !forma) return;
+      // Davivienda va por el resolutor del servidor (`aplicarErroresTarjeta`): la
+      // comprobación local con la lista en memoria no sabe quién tiene ya cada tarjeta.
+      if (forma === 'Daviplata' || forma === HiringQuestionsComponent.FORMA_DAVIVIENDA || !forma) return;
 
       const numCtrl = this.pagoTransporteForm.get('numeroPagos')!;
       const numRaw = numCtrl.value;
@@ -1085,13 +1544,29 @@ export class HiringQuestionsComponent implements OnInit {
    * Guarda "Pago y Transporte".
    *
    * `silencioso` es el guardado automático (sin botón): no abre avisos, lanza
-   * si falla para que el indicador lo muestre, y con el formulario A MEDIAS
-   * guarda lo respondido sin marcar contratado ni pedir código de contrato.
-   * Eso solo pasa cuando está completo, igual que hacía el antiguo "Cargar".
+   * si falla para que el indicador lo muestre y NUNCA contrata, esté el
+   * formulario completo o no. Antes, al quedar válido (bastaban fecha de
+   * contrato, forma de pago y cuenta: el resto se prellena) marcaba contratado
+   * con media ficha sin llenar. La fecha de ingreso SÍ se guarda (la piden los
+   * documentos, que se generan antes de contratar).
+   *
+   * Sin argumento es lo que dispara el botón "Contratar" (`contratar`): exige el
+   * formulario completo, marca contratado y pide el código de contrato.
    */
   async cargarPagoTransporte(opts: { silencioso?: boolean } = {}): Promise<void> {
     const silencioso = !!opts.silencioso;
     if (silencioso ? this.bloqueado() : this.bloqueadoPorEspera()) return;
+
+    // La asignación de tarjeta bloquea el guardado ENTERO, también el automático: una
+    // identificación que no existe o que ya es de otra persona no se puede dejar a medias
+    // "para arreglarla luego", porque nadie vuelve a mirarla y acaba en la nómina.
+    const errorTarjeta = this.errorAsignacionTarjeta();
+    if (errorTarjeta) {
+      this.pagoTransporteForm.get('numeroIdentificacion')?.markAsTouched();
+      if (silencioso) throw new Error(errorTarjeta);
+      return this.alert('warning', 'Tarjeta no asignable', errorTarjeta);
+    }
+
     const completo = this.pagoTransporteForm.valid;
     if (!completo && !silencioso) {
       this.pagoTransporteForm.markAllAsTouched();
@@ -1115,7 +1590,7 @@ export class HiringQuestionsComponent implements OnInit {
     const codigoContrato: string | null =
       (proc?.contrato_codigo as string) || (contr?.codigo_contrato as string) || null;
 
-    const v = this.pagoTransporteForm.getRawValue(); // getRawValue incluye disabled fields (salario, auxilio_transporte)
+    const v = this.pagoTransporteForm.getRawValue(); // getRawValue incluye disabled fields (salario); auxilio_transporte NO se envía
     // Acepta coma decimal ("0,522"): con Number() a secas daba NaN, que el
     // serializador de HTTP convertía en null y el %ARL se perdía con Swal de
     // éxito incluido.
@@ -1171,11 +1646,11 @@ export class HiringQuestionsComponent implements OnInit {
       };
     } = {
       numero_documento: String(cand.numero_documento),
-      // Completo: contratado + código de contrato. El backend es idempotente:
-      // si ya hay código lo devuelve sin tocarlo (incluida la edición forzada) y
-      // solo genera cuando el contrato está sin código. A medias (guardado
-      // automático) solo se escriben las respuestas.
-      ...(completo ? {
+      // Solo el botón "Contratar": contratado + código de contrato. El backend es
+      // idempotente: si ya hay código lo devuelve sin tocarlo (incluida la edición
+      // forzada) y solo genera cuando el contrato está sin código. El guardado
+      // automático solo escribe las respuestas.
+      ...(!silencioso ? {
         contratado: true,
         contrato: { sede_abbr: ent0?.oficina || undefined, generar_codigo: true },
       } : {}),
@@ -1219,6 +1694,10 @@ export class HiringQuestionsComponent implements OnInit {
         usa_ruta: v.usaRuta === null || v.usaRuta === undefined || v.usaRuta === '' ? null : !!v.usaRuta,
         valor_transporte: toNum(v.valorTransporte),
         porcentaje_horas_extras: toNum(v.porcentajeHorasExtras),
+        // Viaja también en el guardado automático: los documentos de contratación
+        // la necesitan y se generan ANTES de "Contratar". Ya no pinta CONTRATADO:
+        // en la plataforma nueva eso lo decide solo `contratado` (ver
+        // `PRIMER_PROCESO_PLATAFORMA_NUEVA` en contrato.rules.ts).
         fecha_ingreso: v.fechaIngreso ? new Date(v.fechaIngreso).toISOString().split('T')[0] : null,
         fecha_contrato: v.fechaContrato ? new Date(v.fechaContrato).toISOString().split('T')[0] : null,
         // Los datos de obra viajan en el MISMO guardado. Antes solo los
@@ -1230,25 +1709,12 @@ export class HiringQuestionsComponent implements OnInit {
     };
 
     if (silencioso) {
-      const resp = await firstValueFrom(
+      // El aviso de "sin código de contrato" ya no sale de aquí: el código lo pide
+      // "Contratar", que lo avisa en el camino de abajo.
+      await firstValueFrom(
         this.procesosService.updateProcesoByDocumento(this.conDestino(payload), 'PATCH'),
       );
       this.pagoTransporteForm.markAsPristine();
-      const proc0 = (resp as any)?.proceso;
-      const codigoFinal = String(proc0?.contrato_codigo ?? codigoContrato ?? '').trim();
-      const motivo = String(proc0?.contrato_codigo_motivo ?? '').trim();
-      if (completo && !codigoFinal && motivo && this.avisoSinCodigo !== motivo) {
-        // Una vez por motivo: repetirlo en cada campo sería ruido.
-        this.avisoSinCodigo = motivo;
-        void Swal.fire({
-          icon: 'warning', toast: true, position: 'top-end', showConfirmButton: false,
-          timer: 6000, timerProgressBar: true,
-          title: 'Guardado sin código de contrato',
-          text: motivo === 'rango_agotado'
-            ? 'El rango de números de esta oficina se agotó. Avisa a sistemas.'
-            : 'La oficina no tiene rango de numeración. Avisa a sistemas.',
-        });
-      }
       this.guardado.emit();
       return;
     }
@@ -1265,8 +1731,8 @@ export class HiringQuestionsComponent implements OnInit {
         // vez de dejarlo mudo: 'sin_oficina' = la sede no tiene rango asignado,
         // 'rango_agotado' = se acabaron los 10.000 números de esa oficina.
         // Se ESPERA el Ok antes de emitir: la recarga que dispara `guardado`
-        // abre el Swal de "Cargando…", que reemplazaría este aviso a los
-        // pocos ms y el operador nunca sabría que el contrato quedó sin código.
+        // abría el Swal de "Cargando…", que reemplazaba este aviso a los pocos
+        // ms. Hoy esa recarga es silenciosa, pero esperar sigue siendo lo seguro.
         await Swal.fire({
           icon: 'warning',
           title: 'Guardado sin código de contrato',
@@ -1285,6 +1751,39 @@ export class HiringQuestionsComponent implements OnInit {
       this.guardado.emit();
     } catch (e: any) {
       console.error('[cargarPagoTransporte] Error:', e);
+      // Falta el examen médico (pedido #10, 409 EXAMEN_MEDICO_REQUERIDO): se
+      // dice qué falta, una cosa por línea, en vez del texto genérico.
+      // Falta la ARL o su fecha no es la de ingreso (409 ARL_REQUERIDA, V74).
+      if (esBloqueoArl(e)) {
+        const faltantes: string[] = Array.isArray(e?.error?.faltantes) ? e.error.faltantes : [];
+        const lista = faltantes
+          .map((f) => `<li>${String(f).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' } as Record<string, string>)[c])}</li>`)
+          .join('');
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Falta la afiliación a la ARL',
+          html: `<p style="margin:0 0 8px">No se puede contratar todavía. Falta:</p>
+                 <ul style="text-align:left;margin:0;padding-left:18px">${lista}</ul>
+                 <p style="margin:10px 0 0;font-size:13px">Revísalo en <b>Selección → ARL</b> o corrige la fecha de ingreso.</p>`,
+          confirmButtonText: 'Entendido',
+        });
+        return;
+      }
+      if (esBloqueoExamen(e)) {
+        const faltantes: string[] = Array.isArray(e?.error?.faltantes) ? e.error.faltantes : [];
+        const lista = faltantes
+          .map((f) => `<li>${String(f).replace(/[<>&]/g, (c) => ({ '<': '&lt;', '>': '&gt;', '&': '&amp;' } as Record<string, string>)[c])}</li>`)
+          .join('');
+        await Swal.fire({
+          icon: 'warning',
+          title: 'Falta el examen médico',
+          html: `<p style="margin:0 0 8px">No se puede contratar todavía. Falta:</p>
+                 <ul style="text-align:left;margin:0;padding-left:18px">${lista}</ul>
+                 <p style="margin:10px 0 0;font-size:13px">Complétalo en <b>Selección → Exámenes de ingreso</b>.</p>`,
+          confirmButtonText: 'Entendido',
+        });
+        return;
+      }
       const body = e?.error;
       let msg = '';
       if (body?.detail) {
@@ -1647,8 +2146,8 @@ export class HiringQuestionsComponent implements OnInit {
       // el expediente del titular CC con el mismo número (owner_id sin "x").
       const tipoDoc = String(this.candidatoSeleccionado()?.tipo_doc || '').trim() || undefined;
       const obs = withContract
-        ? this.docSvc.guardarDocumento(fileName, ced, type, file, cod, tipoDoc)
-        : this.docSvc.guardarDocumento(fileName, ced, type, file, undefined, tipoDoc);
+        ? this.docSvc.guardarDocumento(fileName, ced, type, file, cod, tipoDoc, this.procesoId() ?? null)
+        : this.docSvc.guardarDocumento(fileName, ced, type, file, undefined, tipoDoc, this.procesoId() ?? null);
 
       try {
         const resp: any = await firstValueFrom(obs);
@@ -2100,7 +2599,14 @@ export class HiringQuestionsComponent implements OnInit {
   async borrarHuella(empresaSlug: 'apoyo-laboral' | 'tu-alianza'): Promise<void> {
     const recienCapturada = empresaSlug === 'apoyo-laboral'
       ? this.fingerprintImageApoyo : this.fingerprintImageTuAlianza;
-    const guardada = this.huellaGuardadaDe(empresaSlug);
+    // Se mira la RUTA, no la imagen: huellaGuardadaDe() es null mientras el
+    // blob no se ha descargado, y tras capturar nunca se descarga (la tarjeta
+    // pinta la captura local). Eso hacia que la primera X solo descartara lo
+    // local, asomara la guardada y hubiera que pulsar la X otra vez.
+    // Si la captura acaba de subirse, la relectura del mapa puede no haber
+    // llegado aun: se espera antes de decidir.
+    if (recienCapturada && !this.tieneHuellaGuardada(empresaSlug)) await this.cargarHuellasGuardadas();
+    const guardada = this.tieneHuellaGuardada(empresaSlug);
     if (!recienCapturada && !guardada) return;
 
     const cfg = HiringQuestionsComponent.EMPRESAS_HUELLA[empresaSlug];
@@ -2129,6 +2635,8 @@ export class HiringQuestionsComponent implements OnInit {
     if (!cedula) return;
     try {
       await firstValueFrom(this.procesosService.eliminarHuella(cedula, empresaSlug));
+      // El cotejo era de la huella quitada: que no quede pintado sobre la siguiente.
+      this.cotejos.update(m => { const { [empresaSlug]: _, ...resto } = m; return resto; });
       await this.cargarHuellasGuardadas();
       this.nav.pedirRefrescoBiometria();
       this.setMensajeHuella(empresaSlug, 'Huella quitada. Puedes capturar una nueva.');
@@ -2152,22 +2660,154 @@ export class HiringQuestionsComponent implements OnInit {
     return this.archivos.visible(ruta);
   }
 
+  /** La descarga de la huella guardada se dio por perdida tras reintentar. */
+  huellaGuardadaFallida(empresaSlug: string): boolean {
+    return this.archivos.fallida(this.huellasGuardadas()[empresaSlug]);
+  }
+
   /** ¿Hay huella guardada, aunque su imagen aún se esté descargando? */
   tieneHuellaGuardada(empresaSlug: string): boolean {
     return !!this.huellasGuardadas()[empresaSlug];
   }
 
+  // ── Cotejo de la huella con una referencia ──
+  /**
+   * Último cotejo por empresa. Es un AVISO: un resultado bajo casi siempre es la
+   * fotocopia de la cédula (o se capturó otro dedo), así que nunca bloquea nada.
+   *
+   * La referencia la elige el backend: la huella impresa en la cédula si el
+   * recorte es de verdad una huella, o si no la captura de una contratación
+   * anterior. Si no hay ninguna llega `mostrar: false` y la tarjeta no pinta
+   * nada: ni el bloque, ni el mensaje, ni el botón.
+   */
+  readonly cotejos = signal<Record<string, CotejoHuellaCedula>>({});
+  private cedulaDeCotejos: string | null = null;
+  readonly cotejando = signal<Record<string, boolean>>({});
+  /** Leyendo el último cotejo guardado: se pinta "cargando", no el estado vacío. */
+  readonly cargandoCotejo = signal<Record<string, boolean>>({});
+
+  cotejoDe(empresaSlug: string): CotejoHuellaCedula | null {
+    const c = this.cotejos()[empresaSlug];
+    return c && c.mostrar !== false ? c : null;
+  }
+
+  /**
+   * Ya se cotejó y no había contra qué comparar: la tarjeta no muestra nada del cotejo.
+   * Salvo que haya datos nuevos (otra huella u otra cédula): entonces ofrece volver a cotejar.
+   */
+  cotejoOculto(empresaSlug: string): boolean {
+    const c = this.cotejos()[empresaSlug];
+    return c?.mostrar === false && !c.desactualizado;
+  }
+
+  /** Después del cotejo guardado hay otra huella u otra cédula: el resultado puede no valer. */
+  cotejoDesactualizado(empresaSlug: string): boolean {
+    return !!this.cotejos()[empresaSlug]?.desactualizado;
+  }
+
+  estaCargandoCotejo(empresaSlug: string): boolean {
+    return !!this.cargandoCotejo()[empresaSlug];
+  }
+
+  /**
+   * Imagen de la referencia. Recién cotejado viene en la respuesta; al recargar se pide al
+   * backend, que la regenera desde el documento usado (no se guarda: es biométrica).
+   */
+  imagenReferencia(c: CotejoHuellaCedula): string | null {
+    const inline = c.imagen_referencia ?? c.recorte_cedula;
+    if (inline) return inline;
+    const cedula = this.candidatoSeleccionado()?.numero_documento;
+    if (!c.id || !cedula || c.mostrar === false || !c.origen_referencia || c.resultado === 'ERROR') return null;
+    const empresa = c.empresa ? `empresa=${encodeURIComponent(c.empresa)}&` : '';
+    return this.archivos.visible(
+      `/gestion_contratacion/biometria/cotejo-cedula/${encodeURIComponent(String(cedula))}/referencia?${empresa}id=${c.id}`);
+  }
+
+  /** Rótulo de la imagen de la izquierda según contra qué se cotejó. */
+  rotuloReferencia(c: CotejoHuellaCedula): string {
+    if (c.origen_referencia !== 'HUELLA_ANTERIOR') return 'En la cédula';
+    const f = c.referencia_fecha ? new Date(c.referencia_fecha) : null;
+    return f && !isNaN(f.getTime())
+      ? `Contratación anterior — ${f.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' })}`
+      : 'Contratación anterior';
+  }
+
+  estaCotejando(empresaSlug: string): boolean {
+    return !!this.cotejando()[empresaSlug];
+  }
+
+  /** Huella del lector a mostrar al lado del recorte: la recién capturada o la guardada. */
+  huellaParaCotejo(empresaSlug: string): string | null {
+    const recien = empresaSlug === 'apoyo-laboral' ? this.fingerprintImageApoyo
+      : empresaSlug === 'tu-alianza' ? this.fingerprintImageTuAlianza : null;
+    return recien || this.huellaGuardadaDe(empresaSlug);
+  }
+
+  async cotejarHuella(empresaSlug: string): Promise<void> {
+    const cedula = this.candidatoSeleccionado()?.numero_documento;
+    if (!cedula || this.estaCotejando(empresaSlug)) return;
+    this.cotejando.update(m => ({ ...m, [empresaSlug]: true }));
+    try {
+      const r = await firstValueFrom(this.procesosService.cotejarHuellaCedula(cedula, empresaSlug));
+      // Si mientras tanto se cambió de candidato, el resultado ya no es de esta pantalla.
+      if (this.candidatoSeleccionado()?.numero_documento !== cedula) return;
+      this.cotejos.update(m => ({ ...m, [empresaSlug]: r }));
+    } catch {
+      this.cotejos.update(m => ({ ...m, [empresaSlug]: {
+        ok: false, id: 0, resultado: 'ERROR', coincide: false,
+        mensaje: 'No se pudo hacer el cotejo. Puede volver a intentarlo.',
+        detalle: null, puntaje: null, umbral: null, empresa: empresaSlug, usuario: null, created_at: null,
+      } }));
+    } finally {
+      this.cotejando.update(m => ({ ...m, [empresaSlug]: false }));
+    }
+  }
+
+  /**
+   * Al abrir la vista (F5, volver al paso, otro funcionario): el último cotejo guardado de cada
+   * huella. El backend es la fuente de verdad; aquí solo se lee, nunca se vuelve a cotejar.
+   */
+  private async cargarCotejosGuardados(cedula: string, slugs: string[]): Promise<void> {
+    const marcar = (v: boolean) => this.cargandoCotejo.update(m => {
+      const n = { ...m };
+      for (const slug of slugs) n[slug] = v;
+      return n;
+    });
+    marcar(true);
+    const mapa: Record<string, CotejoHuellaCedula> = {};
+    try {
+      await Promise.all(slugs.map(async slug => {
+        try {
+          mapa[slug] = await firstValueFrom(this.procesosService.ultimoCotejoHuellaCedula(cedula, slug));
+        } catch { /* 404 = nunca se cotejó: la tarjeta ofrece el botón */ }
+      }));
+    } finally {
+      marcar(false);
+    }
+    if (this.candidatoSeleccionado()?.numero_documento !== cedula) return;
+    // No se pisa un cotejo recién hecho en esta pantalla (ese sí trae la imagen).
+    this.cotejos.update(m => ({ ...mapa, ...m }));
+  }
+
   /** Relee del servidor qué huellas hay guardadas para el candidato actual. */
   private async cargarHuellasGuardadas(): Promise<void> {
     const cedula = this.candidatoSeleccionado()?.numero_documento;
+    if (cedula !== this.cedulaDeCotejos) { this.cotejos.set({}); this.cedulaDeCotejos = cedula ?? null; }
     if (!cedula) { this.huellasGuardadas.set({}); return; }
     try {
       const bio: any = await firstValueFrom(this.procesosService.getBiometriaPorCedula(cedula));
       const mapa: Record<string, string> = {};
       for (const [slug, info] of Object.entries<any>(bio?.huellas ?? {})) {
-        if (info?.file_url) mapa[slug] = info.file_url;
+        // La ruta es la misma tras recapturar: sin la versión se seguía
+        // pintando el blob de la huella anterior (o su fallo).
+        if (info?.file_url) {
+          mapa[slug] = info.updated_at
+            ? `${info.file_url}${info.file_url.includes('?') ? '&' : '?'}v=${encodeURIComponent(info.updated_at)}`
+            : info.file_url;
+        }
       }
       this.huellasGuardadas.set(mapa);
+      void this.cargarCotejosGuardados(String(cedula), Object.keys(mapa));
     } catch {
       // Que falle la relectura no puede romper la pantalla: como mucho, la
       // tarjeta se queda sin la previa de lo ya guardado.
@@ -2502,6 +3142,8 @@ export class HiringQuestionsComponent implements OnInit {
           this.nav.pedirRefrescoBiometria();
           void this.cargarHuellasGuardadas();
           this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
+          // Cotejo con la cédula del expediente: solo informa, no frena el flujo.
+          if (empresaSlug) void this.cotejarHuella(empresaSlug);
         } catch (e) {
           Swal.close();
           setMsg('Huella capturada, pero no se pudo guardar.');
@@ -2704,7 +3346,10 @@ export class HiringQuestionsComponent implements OnInit {
       + `|${proc.publicacion ?? proc.vacante ?? 'sin-vac'}`
       + `|${proc.vacante_salario ?? ''}#${this.consultaSeq()}`;
     if (cargaKey === this.ultimaCargaKey) {
-      this.llenarDocumentos().catch(console.error);
+      // Recarga interna de la misma persona (cada guardado automático pide una):
+      // sin el diálogo "Cargando…", que parpadeaba con cada campo y se tragaba el
+      // diálogo que hubiera abierto (p. ej. la confirmación de "Contratar").
+      this.llenarDocumentos({ silencioso: true }).catch(console.error);
       return;
     }
     this.ultimaCedulaCargada = cedActual;
@@ -2745,7 +3390,8 @@ export class HiringQuestionsComponent implements OnInit {
       Ccostos: centroDeCostosDe(contr),
       carnetCentroCosto: (contr as any)?.carnet_centro_costo ?? null,
       porcentajeARL: contr?.porcentaje_arl != null ? toNum(contr.porcentaje_arl) : null,
-      cesantias: contr?.cesantias ?? null,
+      // Lo guardado manda (con el nombre del catálogo); si no hay, se propone el de la AFP.
+      cesantias: fondoCesantias(contr?.cesantias) ?? fondoCesantiasDesdeAfp(proc?.antecedentes),
       subCentroCostos: contr?.subcentro_de_costos ?? null,
       empresaGrupoElite: contr?.empresa_grupo_elite ?? null,
       codigoCompania: contr?.codigo_compania ?? null,
@@ -2755,7 +3401,7 @@ export class HiringQuestionsComponent implements OnInit {
       grupo: contr?.grupo ?? null,
       categoria: contr?.categoria ?? null,
       operacion: contr?.operacion ?? null,
-      horasExtras: contr?.horas_extras ?? false,
+      horasExtras: contr?.horas_extras ?? true,
       // Lo GUARDADO manda; si el contrato aún no tiene temporal, la resuelve la vacante
       // o el maestro más abajo (`prellenarDesdeVacante` / `autollenarDesdeCentroCosto`).
       // El backend la guarda como código (AL/TA, VARCHAR(16)); con código se deja vacía
@@ -2768,10 +3414,11 @@ export class HiringQuestionsComponent implements OnInit {
       porcentajeHorasExtras: (contr as any)?.porcentaje_horas_extras != null
         ? toNum((contr as any).porcentaje_horas_extras) : null,
       salario: proc?.vacante_salario != null ? toNum(proc.vacante_salario) : null,
-      // Vacío, NO 'No': el auxilio lo dice la vacante y se parchea abajo. Con
+      // Vacío, NO 'No': el auxilio lo PROPONE la vacante y se parchea abajo. Con
       // 'No' fijo, un proceso sin publicación —o una vacante que no se pudo
       // traer— mostraba "sin auxilio" como si fuera un dato del contrato.
-      auxilio_transporte: null,
+      // Lo elegido a mano en esta sesión para este proceso manda sobre la vacante.
+      auxilio_transporte: proc?.id != null ? (this.auxilioElegido.get(proc.id) ?? null) : null,
       fechaIngreso: contr?.fecha_ingreso ?? null,
       fechaContrato: contr?.fecha_contrato ?? null,
     });
@@ -2814,7 +3461,9 @@ export class HiringQuestionsComponent implements OnInit {
 
         this.pagoTransporteForm.patchValue({
           salario: salarioFromProc ?? salarioFromVac,
-          auxilio_transporte: auxFromVac,
+          // La vacante solo PROPONE el auxilio: si quien contrata ya lo cambió para
+          // este proceso, se respeta su elección.
+          auxilio_transporte: (proc?.id != null ? this.auxilioElegido.get(proc.id) : undefined) ?? auxFromVac,
           // El cargo SIEMPRE manda desde la vacante: es su fuente canónica y aquí solo
           // se muestra. No se guarda en el contrato para que no puedan divergir.
           cargo: String(vac?.cargo ?? '').trim() || null,
@@ -3001,16 +3650,43 @@ export class HiringQuestionsComponent implements OnInit {
   private readonly cargosPorNombre = new Map<string, any[]>();
 
   private _docsCtx = 0;
-  async llenarDocumentos(): Promise<void> {
+
+  /** Marca del diálogo de carga de documentos, para cerrar SOLO ese. */
+  private static readonly CLASE_CARGANDO_DOCS = 'hq-cargando-docs';
+
+  /**
+   * Cierra el "Cargando…" de `llenarDocumentos` si es el que está a la vista.
+   * Antes se cerraba cualquier Swal visible, también uno ajeno que el usuario
+   * tuviera delante (la confirmación de "Contratar", un aviso de faltantes…).
+   */
+  private cerrarCargandoDocs(): void {
+    if (Swal.isVisible()
+        && Swal.getPopup()?.classList.contains(HiringQuestionsComponent.CLASE_CARGANDO_DOCS)) {
+      Swal.close();
+    }
+  }
+
+  /**
+   * Rellena los adjuntos de Referencias y Traslado desde el expediente.
+   *
+   * `silencioso` es la recarga que sigue a cada guardado automático: sin diálogo
+   * de carga ni de error (lo que está en pantalla se queda como estaba si falla).
+   * El diálogo queda para cuando se abre a una persona.
+   */
+  async llenarDocumentos(opts: { silencioso?: boolean } = {}): Promise<void> {
+    const silencioso = !!opts.silencioso;
     const ctx = ++this._docsCtx;
-    Swal.fire({
-      icon: 'info',
-      title: 'Cargando…',
-      text: 'Cargando documentos del candidato…',
-      allowOutsideClick: false,
-      showConfirmButton: false,
-      didOpen: () => Swal.showLoading(),
-    });
+    if (!silencioso) {
+      Swal.fire({
+        icon: 'info',
+        title: 'Cargando…',
+        text: 'Cargando documentos del candidato…',
+        allowOutsideClick: false,
+        showConfirmButton: false,
+        customClass: { popup: HiringQuestionsComponent.CLASE_CARGANDO_DOCS },
+        didOpen: () => Swal.showLoading(),
+      });
+    }
 
     try {
       // Antes eran cuatro GET al mismo endpoint variando `type` (16, 17, 18 y
@@ -3020,17 +3696,22 @@ export class HiringQuestionsComponent implements OnInit {
       // selección comparten esta misma respuesta. (El `codigo_contrato` que se
       // enviaba antes nunca filtró nada: el GET del backend lo ignora.)
       const ced = this.candidatoSeleccionado()?.numero_documento;
-      const docs = await firstValueFrom(this.docSvc.getDocumentosDeCandidato(ced));
+      const docs = await firstValueFrom(this.docSvc.getDocumentosDeCandidato(ced, {
+        tipoDoc: this.candidatoSeleccionado()?.tipo_doc,
+      }));
       // Orden por id ASCENDENTE: es el mismo criterio con el que "Generar
       // referencia" reparte personal1/personal2. Con el orden por recencia del
       // backend, re-subir el PDF de la persona 2 lo movía al slot 1 y quedaban
       // archivo y datos cruzados.
+      // Las referencias y el traslado del contrato anterior no son los del proceso en curso.
+      const esDeOtroContrato = filtroOtroContrato(contratoEnCurso(this.candidatoSeleccionado()), docs);
       const delTipo = (t: number) => (docs ?? [])
-        .filter((d: any) => Number(d?.type) === t)
+        .filter((d: any) => Number(d?.type) === t && !esDeOtroContrato(d))
         .sort((a: any, b: any) => Number(a?.id ?? 0) - Number(b?.id ?? 0));
       const res = { tipo16: delTipo(16), tipo17: delTipo(17), tipo18: delTipo(18), tipo86: delTipo(86) };
 
-      if (ctx !== this._docsCtx) { if (Swal.isVisible()) Swal.close(); return; }
+      // Hay una carga más nueva en curso: el diálogo, si lo hay, lo cierra ella.
+      if (ctx !== this._docsCtx) return;
 
       // Slots derivados del servidor se reconstruyen desde cero; un adjunto
       // LOCAL aún sin guardar (File) se respeta para no perderlo.
@@ -3082,12 +3763,15 @@ export class HiringQuestionsComponent implements OnInit {
       }
     } catch (err: any) {
       console.error('[llenarDocumentos] Error:', err);
-      if (Swal.isVisible()) Swal.close();
+      if (silencioso || ctx !== this._docsCtx) return;
+      this.cerrarCargandoDocs();
       const detail = err?.error?.detail || err?.message || '';
       Swal.fire('Error', detail ? `No se pudieron cargar los documentos: ${detail}` : 'No fue posible cargar los documentos. Verifique su conexión.', 'error');
       return;
     } finally {
-      if (ctx === this._docsCtx && Swal.isVisible()) Swal.close();
+      // También en silencioso: si una carga con diálogo quedó superada por esta,
+      // su "Cargando…" lo cierra la última en terminar.
+      if (ctx === this._docsCtx) this.cerrarCargandoDocs();
     }
   }
 
@@ -3450,4 +4134,25 @@ export class HiringQuestionsComponent implements OnInit {
 
     return doc.output('arraybuffer');
   }
+}
+
+/** Para meter datos de la persona en el `html` de un Swal sin que se interpreten. */
+function escaparHtml(texto: string): string {
+  return texto
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+/** Respuesta de GET /api/v1/admin/correos/rebotes/direccion (ms-auth-admin, snake_case). */
+interface CorreoRebote {
+  direccion: string;
+  invalida: boolean;
+  ultimo_tipo: 'DURO' | 'BLANDO' | 'POLITICA' | 'OTRO' | 'DEMORADO' | null;
+  ultimo_codigo: string | null;
+  ultimo_detalle: string | null;
+  ultimo_rebote: string | null;
+  rebotes_blandos: number;
 }

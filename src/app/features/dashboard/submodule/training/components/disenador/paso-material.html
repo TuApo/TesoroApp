@@ -1,0 +1,124 @@
+<div class="pm">
+  <div class="pz-tarjeta pm-entrada">
+    <h2>Tu material</h2>
+    <p class="pz-ayuda">Sube todo lo que tengas sobre el tema: manuales, procedimientos, diapositivas, hojas de cálculo,
+      fotos de tableros, audios o videos de una clase. Si no tienes nada escrito, grábate explicándolo.</p>
+
+    <label class="pm-drop" [class.pm-drop--sobre]="arrastrando()"
+           (dragover)="$event.preventDefault(); arrastrando.set(true)" (dragleave)="arrastrando.set(false)" (drop)="soltar($event)">
+      <input type="file" multiple [accept]="acepta" (change)="elegir($event)" />
+      <mat-icon>cloud_upload</mat-icon>
+      <strong>Arrastra archivos aquí o toca para elegirlos</strong>
+      <em>PDF · Word · PowerPoint · Excel · texto · imágenes · audio · video (hasta 500 MB)</em>
+    </label>
+
+    <div class="pm-otras">
+      <app-grabadora-voz etiqueta="Grabar una explicación" [maximoSeg]="900" (grabado)="grabacion($event)" />
+      <button type="button" class="pz-btn" [class.activo]="modo() === 'texto'" (click)="modo.set(modo() === 'texto' ? 'nada' : 'texto')">
+        <mat-icon>notes</mat-icon> Pegar texto
+      </button>
+      <button type="button" class="pz-btn" [class.activo]="modo() === 'enlace'" (click)="modo.set(modo() === 'enlace' ? 'nada' : 'enlace')">
+        <mat-icon>link</mat-icon> Enlace o YouTube
+      </button>
+    </div>
+
+    @if (modo() === 'texto') {
+      <div class="pm-form">
+        <label class="pz-campo"><span>Título (opcional)</span>
+          <input [(ngModel)]="textoTitulo" maxlength="300" placeholder="Ej.: Procedimiento de ingreso a campo" /></label>
+        <label class="pz-campo"><span>Texto</span>
+          <textarea rows="7" [(ngModel)]="texto" placeholder="Pega aquí el contenido…"></textarea></label>
+        <div class="pm-form__acc">
+          <button type="button" class="pz-btn pz-btn--chico" (click)="modo.set('nada')">Cancelar</button>
+          <button type="button" class="pz-btn pz-btn--primario pz-btn--chico" [disabled]="!texto.trim() || enviando()" (click)="agregarTexto()">Agregar</button>
+        </div>
+      </div>
+    }
+    @if (modo() === 'enlace') {
+      <div class="pm-form pm-form--fila">
+        <input class="pz-input" [(ngModel)]="enlace" placeholder="https://… (página web o video de YouTube)" (keydown.enter)="agregarEnlace()" />
+        <button type="button" class="pz-btn pz-btn--primario pz-btn--chico" [disabled]="!enlace.trim() || enviando()" (click)="agregarEnlace()">Agregar</button>
+      </div>
+    }
+
+    @if (diseno.idea) {
+      <div class="pm-idea"><mat-icon>lightbulb</mat-icon><div><strong>Tu idea</strong><p>{{ diseno.idea }}</p></div></div>
+    }
+  </div>
+
+  <div class="pz-tarjeta pm-lista">
+    <div class="pm-lista__cab">
+      <h3>Material recibido</h3>
+      <span class="pz-estado pz-estado--neutro">{{ listas }} listo{{ listas === 1 ? '' : 's' }}
+        @if (leyendo) { · {{ leyendo }} leyendo }</span>
+    </div>
+
+    @for (s of subidas(); track s.nombre) {
+      <div class="pm-fuente">
+        <mat-icon class="pm-fuente__icono">{{ s.estado === 'error' ? 'error_outline' : 'upload' }}</mat-icon>
+        <div class="pm-fuente__cuerpo"><strong>{{ s.nombre }}</strong>
+          @if (s.estado === 'subiendo') { <span class="pz-estado pz-estado--info"><span class="pz-punto"></span> Subiendo</span> }
+          @else { <span class="pz-estado pz-estado--error">{{ s.error }}</span> }
+        </div>
+        @if (s.estado === 'error') { <button type="button" class="pz-btn pz-btn--icono" (click)="quitarSubida(s)" aria-label="Quitar"><mat-icon>close</mat-icon></button> }
+      </div>
+    }
+
+    @for (f of diseno.fuentes; track f.id) {
+      <div class="pm-fuente" [class.pm-fuente--error]="f.estado === 'ERROR'">
+        <mat-icon class="pm-fuente__icono">{{ icono(f) }}</mat-icon>
+        <div class="pm-fuente__cuerpo">
+          <button type="button" class="pm-fuente__titulo" (click)="alternar(f)" [disabled]="!f.extracto">
+            {{ f.titulo || f.url || 'Material' }}
+          </button>
+          <div class="pm-fuente__meta">
+            @switch (f.estado) {
+              @case ('LISTO') { <span class="pz-estado pz-estado--ok"><mat-icon>check</mat-icon> Leído · {{ f.caracteres | number }} caracteres</span> }
+              @case ('ERROR') { <span class="pz-estado pz-estado--error"><mat-icon>error_outline</mat-icon> No se pudo leer</span> }
+              @default { <span class="pz-estado pz-estado--info"><span class="pz-punto"></span> Leyendo</span> }
+            }
+            @if (f.error) { <em [class.pm-error]="f.estado === 'ERROR'">{{ f.error }}</em> }
+          </div>
+          @if (abierta() === f.id && f.extracto) { <pre class="pm-extracto">{{ f.extracto }}</pre> }
+        </div>
+        <div class="pm-fuente__acc">
+          @if (f.estado === 'ERROR') {
+            <button type="button" class="pz-btn pz-btn--icono" (click)="reintentar(f)" title="Reintentar" aria-label="Reintentar"><mat-icon>refresh</mat-icon></button>
+          }
+          <button type="button" class="pz-btn pz-btn--icono" (click)="quitar(f)" title="Quitar" aria-label="Quitar"><mat-icon>delete_outline</mat-icon></button>
+        </div>
+      </div>
+    } @empty {
+      @if (!subidas().length) {
+        <div class="pz-vacio"><mat-icon>inventory_2</mat-icon>
+          <p>Todavía no hay material. También puedes empezar solo con tu idea: la IA propondrá los temas y te dirá qué falta.</p></div>
+      }
+    }
+
+    <div class="pz-pie">
+      @if (diseno.mapa) {
+        @if (diseno.mapa_desactualizado) {
+          <button type="button" class="pz-btn" [disabled]="ocupado || enviando() || leyendo > 0" (click)="analizar()">
+            <mat-icon>autorenew</mat-icon> Volver a leer el material
+          </button>
+        }
+        <div class="pz-pie__der">
+          <button type="button" class="pz-btn pz-btn--primario" (click)="ir.emit('entrevista')">
+            Ir a la entrevista <mat-icon>arrow_forward</mat-icon>
+          </button>
+        </div>
+      } @else {
+        <span class="pm-nota">
+          @if (leyendo) { Esperando a terminar de leer {{ leyendo }} pieza{{ leyendo === 1 ? '' : 's' }}… }
+          @else if (!diseno.fuentes.length && !diseno.idea) { Sube algo o describe la idea para empezar. }
+        </span>
+        <div class="pz-pie__der">
+          <button type="button" class="pz-btn pz-btn--primario" (click)="analizar()"
+                  [disabled]="ocupado || enviando() || leyendo > 0 || (!listas && !diseno.idea) || !diseno.ia_disponible">
+            <mat-icon>auto_awesome</mat-icon> Leer el material y empezar la entrevista
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+</div>

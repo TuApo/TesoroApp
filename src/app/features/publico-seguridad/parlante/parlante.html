@@ -1,0 +1,59 @@
+<main class="quiosco" [class.ptt]="pttActivo()" [class.sonando]="!!reproduciendo()">
+  <audio #ptt autoplay playsinline class="oculto"></audio>
+
+  @if (error(); as e) {
+    <section class="centro error" role="alert">
+      <mat-icon aria-hidden="true">speaker_notes_off</mat-icon>
+      <h1>Parlante no disponible</h1>
+      <p>{{ e }}</p>
+      <small>Código {{ codigo() }}</small>
+    </section>
+  } @else if (config(); as c) {
+    <header class="cab">
+      <div class="donde"><b>{{ c.sede_nombre }}</b><span>{{ c.nombre }}</span></div>
+      <div class="reloj"><b>{{ hora() }}</b><small>{{ fecha() }}</small></div>
+    </header>
+
+    @if (!activado()) {
+      <section class="centro">
+        <button type="button" class="activar" (click)="activar()">
+          <mat-icon aria-hidden="true">volume_up</mat-icon>
+          <span>Activar audio</span>
+        </button>
+        <p class="ayuda">Toque una vez para que este equipo pueda reproducir los avisos del centro de monitoreo.
+          @if (c.microfono) { El navegador pedirá permiso para usar el micrófono: acéptelo. }</p>
+      </section>
+    } @else {
+      <section class="centro">
+        <div class="anillo" aria-hidden="true">
+          <mat-icon>{{ pttActivo() ? 'record_voice_over' : reproduciendo() ? 'campaign' : 'speaker' }}</mat-icon>
+        </div>
+        <h1 aria-live="polite">{{ estadoTexto() }}</h1>
+        @if (reproduciendo(); as r) { <p class="detalle">{{ r }}</p> }
+      </section>
+    }
+
+    <footer class="pie">
+      <span class="estado" [class.ok]="canal() === 'conectado'"><i aria-hidden="true"></i>{{ canal() === 'conectado' ? 'Conectado' : canal() === 'cerrado' ? 'Desconectado' : 'Reconectando…' }}</span>
+      <span class="estado"><mat-icon aria-hidden="true">volume_up</mat-icon>{{ volumen() }}%</span>
+      @if (c.microfono) {
+        <span class="estado" [class.ok]="microfono() === 'publicando'" [class.mal]="microfono() === 'error'">
+          <mat-icon aria-hidden="true">{{ microfono() === 'publicando' ? 'mic' : 'mic_off' }}</mat-icon>
+          {{ microfono() === 'publicando' ? 'Micrófono activo' : microfono() === 'conectando' ? 'Abriendo micrófono…' : microfono() === 'error' ? 'Micrófono sin conexión' : 'Micrófono apagado' }}
+          @if (microfono() === 'publicando') { <i class="vumetro" [style.width.%]="nivel() * 100" aria-hidden="true"></i> }
+        </span>
+      }
+      @if (c.transcribir && microfono() === 'publicando') {
+        <span class="estado" [class.ok]="transcripcion() === 'transcribiendo'" [class.mal]="transcripcion() === 'error'">
+          <mat-icon aria-hidden="true">subtitles</mat-icon>{{ transcripcion() === 'transcribiendo' ? 'Transcribiendo' : transcripcion() === 'error' ? 'Sin transcripción' : 'Conectando transcripción…' }}
+        </span>
+      }
+      @if (errorMic(); as m) { <span class="estado mal">{{ m }}</span> }
+    </footer>
+    @if (c.transcribir && (parcial() || ultimaFrase())) {
+      <p class="subtitulo" aria-live="polite">{{ parcial() || ultimaFrase() }}</p>
+    }
+  } @else {
+    <section class="centro"><mat-icon class="girando" aria-hidden="true">sync</mat-icon><p>Conectando…</p></section>
+  }
+</main>

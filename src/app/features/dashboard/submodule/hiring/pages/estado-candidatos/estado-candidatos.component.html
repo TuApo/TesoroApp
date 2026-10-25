@@ -1,0 +1,482 @@
+<mat-card class="premium-card">
+  <mat-card-header class="card-header-premium">
+    <div class="header-content">
+      <div class="header-icon-container">
+        <mat-icon class="header-icon">insights</mat-icon>
+      </div>
+      <div class="header-text">
+        <mat-card-title class="titulo">Estado de candidatos</mat-card-title>
+        <mat-card-subtitle class="subtitulo">
+          Quién se inscribió, quién quedó en espera, a quién se rechazó y quién se contrató, según la observación del evaluador.
+        </mat-card-subtitle>
+      </div>
+    </div>
+  </mat-card-header>
+
+  <mat-card-content class="card-content">
+    <div class="ec-page">
+
+      <form class="ec-filtros" (ngSubmit)="consultar()">
+        <!-- Calendario desplegable: clic en el campo o en el ícono. Solo lectura para que no se
+             tecleen fechas que el adaptador nativo no sabe leer (21/10/2026 = fecha inválida). -->
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ec-campo">
+          <mat-label>Desde</mat-label>
+          <input matInput readonly name="desde" required class="ec-fecha"
+                 [matDatepicker]="pickerDesde" [value]="fecha(filtros.desde)" [max]="fecha(filtros.hasta) ?? hoy"
+                 (dateChange)="ponerFecha('desde', $event.value)" (click)="pickerDesde.open()">
+          <mat-datepicker-toggle matIconSuffix [for]="pickerDesde"></mat-datepicker-toggle>
+          <mat-datepicker #pickerDesde></mat-datepicker>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ec-campo">
+          <mat-label>Hasta</mat-label>
+          <input matInput readonly name="hasta" required class="ec-fecha"
+                 [matDatepicker]="pickerHasta" [value]="fecha(filtros.hasta)" [min]="fecha(filtros.desde)" [max]="hoy"
+                 (dateChange)="ponerFecha('hasta', $event.value)" (click)="pickerHasta.open()">
+          <mat-datepicker-toggle matIconSuffix [for]="pickerHasta"></mat-datepicker-toggle>
+          <mat-datepicker #pickerHasta></mat-datepicker>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ec-campo">
+          <mat-label>Oficina</mat-label>
+          <mat-select name="oficina" [(ngModel)]="filtros.oficina" (selectionChange)="consultar()">
+            <mat-option value="">Todas las de mi alcance</mat-option>
+            @for (o of oficinas(); track o) {
+              <mat-option [value]="o">{{ o }}</mat-option>
+            }
+          </mat-select>
+        </mat-form-field>
+        <mat-form-field appearance="outline" subscriptSizing="dynamic" class="ec-campo ec-campo--ancho">
+          <mat-label>Cédula o nombre</mat-label>
+          <input matInput name="q" [(ngModel)]="filtros.q" autocomplete="off">
+        </mat-form-field>
+        <div class="ec-acciones">
+          <button mat-flat-button type="submit" [disabled]="esta('resumen')">
+            <mat-icon>search</mat-icon> Consultar
+          </button>
+          @if (vista() !== 'resumen') {
+            <button mat-stroked-button type="button" (click)="descargarExcel()" [disabled]="descargando()">
+              <mat-icon>download</mat-icon> {{ descargando() ? 'Generando…' : 'Excel' }}
+            </button>
+          }
+        </div>
+      </form>
+
+      @if (error()) {
+        <div class="ec-aviso ec-aviso--error" role="alert">
+          <mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+        </div>
+      }
+
+      <mat-tab-group class="ec-tabs" [selectedIndex]="pestana()" (selectedIndexChange)="cambiarPestana($event)"
+                     animationDuration="0ms" mat-stretch-tabs="false">
+
+        <!-- ============================================================ RESUMEN -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="ec-tab-icono">bar_chart</mat-icon> Resumen
+          </ng-template>
+          <div class="ec-panel">
+            @if (esta('resumen') && !resumen()) {
+              <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+            }
+            @if (kpis(); as k) {
+              <div class="ec-kpis">
+                <div class="ec-kpi ec-kpi--ok">
+                  <span class="ec-kpi-tag">Aplica</span>
+                  <b>{{ k.aplica | number }}</b>
+                  <span>{{ pct(k.aplica, k.evaluados) }} % de {{ k.evaluados | number }} evaluados</span>
+                </div>
+                <div class="ec-kpi ec-kpi--warn">
+                  <span class="ec-kpi-tag">En espera</span>
+                  <b>{{ k.espera | number }}</b>
+                  <span>{{ k.vigentes | number }} siguen sin ingresar</span>
+                </div>
+                <div class="ec-kpi ec-kpi--danger">
+                  <span class="ec-kpi-tag">No aplica</span>
+                  <b>{{ k.noAplica | number }}</b>
+                  <span>+{{ k.etapa | number }} en prueba técnica o examen</span>
+                </div>
+                <div class="ec-kpi ec-kpi--info">
+                  <span class="ec-kpi-tag">Recuperados</span>
+                  <b>{{ k.recuperados }} %</b>
+                  <span>de los en espera ingresan{{ k.diasRecuperacion != null ? ' · ' + k.diasRecuperacion + ' días' : '' }}</span>
+                </div>
+              </div>
+
+              <div class="ec-grid ec-grid--2">
+                <section class="ec-card">
+                  <h3>Observación del evaluador por mes</h3>
+                  <p class="ec-sub">Procesos evaluados en el rango</p>
+                  <div echarts [options]="graficaMes()" class="ec-grafica" role="img" aria-label="Observación del evaluador por mes"></div>
+                </section>
+                <section class="ec-card">
+                  <h3>Antigüedad de la espera</h3>
+                  <p class="ec-sub">Personas que siguen esperando, por días desde la evaluación</p>
+                  <div echarts [options]="graficaAntiguedad()" class="ec-grafica" role="img" aria-label="Antigüedad de la espera"></div>
+                </section>
+              </div>
+
+              <div class="ec-grid ec-grid--3">
+                <section class="ec-card">
+                  <h3>Motivos de espera</h3>
+                  <p class="ec-sub">Agrupados por palabras clave del motivo escrito</p>
+                  <div class="ec-barras">
+                    @for (m of motivosEspera(); track m.codigo) {
+                      <div class="ec-barra">
+                        <span class="ec-barra-txt">{{ m.texto }}</span>
+                        <span class="ec-barra-trk"><i class="ec-barra--warn" [style.width.%]="m.ancho"></i></span>
+                        <b>{{ m.n | number }}</b>
+                      </div>
+                    } @empty { <p class="ec-sub">Sin datos en el rango.</p> }
+                  </div>
+                </section>
+                <section class="ec-card">
+                  <h3>Motivos de no aplica</h3>
+                  <p class="ec-sub">Agrupados por palabras clave del motivo escrito</p>
+                  <div class="ec-barras">
+                    @for (m of motivosNoAplica(); track m.codigo) {
+                      <div class="ec-barra">
+                        <span class="ec-barra-txt">{{ m.texto }}</span>
+                        <span class="ec-barra-trk"><i class="ec-barra--danger" [style.width.%]="m.ancho"></i></span>
+                        <b>{{ m.n | number }}</b>
+                      </div>
+                    } @empty { <p class="ec-sub">Sin datos en el rango.</p> }
+                  </div>
+                </section>
+                <section class="ec-card">
+                  <h3>¿Qué pasó después?</h3>
+                  <p class="ec-sub">Contrato real con ingreso posterior, por proceso</p>
+                  <div class="ec-barras">
+                    @for (r of recuperacion(); track r.texto) {
+                      <div class="ec-barra ec-barra--ancha">
+                        <span class="ec-barra-txt">{{ r.texto }}</span>
+                        <span class="ec-barra-trk"><i [style.width.%]="pct(r.n, r.total)" [style.background]="r.color"></i></span>
+                        <b>{{ pct(r.n, r.total) }} %</b>
+                      </div>
+                    }
+                  </div>
+                </section>
+              </div>
+
+              <section class="ec-card">
+                <h3>Ingresos por mes y temporal</h3>
+                <p class="ec-sub">Contratos reales por fecha de ingreso (incluye los que llegan del sistema anterior)</p>
+                <div echarts [options]="graficaIngresos()" class="ec-grafica ec-grafica--baja" role="img" aria-label="Ingresos por mes"></div>
+              </section>
+
+              @if (inscripcion(); as ins) {
+                <h3 class="ec-subtitulo"><mat-icon>assignment_ind</mat-icon> Inscripción</h3>
+                <div class="ec-kpis">
+                  <div class="ec-kpi ec-kpi--neutro">
+                    <span class="ec-kpi-tag">Inscritos</span>
+                    <b>{{ ins.inscritos | number }}</b>
+                    <span>llenaron el formulario en el rango</span>
+                  </div>
+                  <div class="ec-kpi ec-kpi--info">
+                    <span class="ec-kpi-tag">Formulario promedio</span>
+                    <b>{{ ins.completitud_promedio ?? 0 }} %</b>
+                    <span>de lo obligatorio diligenciado</span>
+                  </div>
+                  <div class="ec-kpi ec-kpi--ok">
+                    <span class="ec-kpi-tag">100 % completos</span>
+                    <b>{{ ins.completos | number }}</b>
+                    <span>{{ pct(ins.completos, ins.inscritos) }} % de los inscritos</span>
+                  </div>
+                  <div class="ec-kpi ec-kpi--warn">
+                    <span class="ec-kpi-tag">Sin proceso</span>
+                    <b>{{ ins.sin_proceso | number }}</b>
+                    <span>nunca pasaron a selección</span>
+                  </div>
+                </div>
+
+                <div class="ec-grid ec-grid--2">
+                  <section class="ec-card">
+                    <h3>Embudo</h3>
+                    <p class="ec-sub">Desde el día de la inscripción · % sobre la etapa anterior</p>
+                    <div class="ec-barras">
+                      @for (e of embudo(); track e.texto) {
+                        <div class="ec-barra ec-barra--ancha">
+                          <span class="ec-barra-txt">{{ e.texto }}</span>
+                          <span class="ec-barra-trk"><i [style.width.%]="e.ancho" [style.background]="e.color"></i></span>
+                          <b>{{ e.n | number }}@if (e.tasa != null) { <small class="ec-tasa">{{ e.tasa }} %</small> }</b>
+                        </div>
+                      }
+                    </div>
+                  </section>
+                  <section class="ec-card">
+                    <h3>Completitud del formulario</h3>
+                    <p class="ec-sub">Inscritos por porcentaje diligenciado</p>
+                    <div echarts [options]="graficaCompletitud()" class="ec-grafica" role="img" aria-label="Completitud del formulario"></div>
+                  </section>
+                </div>
+
+                <div class="ec-grid ec-grid--2">
+                  <section class="ec-card">
+                    <h3>Secciones más incompletas</h3>
+                    <p class="ec-sub">% de inscritos con algún campo pendiente en cada paso</p>
+                    <div class="ec-barras">
+                      @for (sec of seccionesIncompletas(); track sec.id) {
+                        <div class="ec-barra ec-barra--ancha">
+                          <span class="ec-barra-txt">{{ sec.texto }}</span>
+                          <span class="ec-barra-trk"><i class="ec-barra--danger" [style.width.%]="sec.pct"></i></span>
+                          <b>{{ sec.pct }} %</b>
+                        </div>
+                      }
+                    </div>
+                  </section>
+                  <section class="ec-card">
+                    <h3>Inscritos por mes</h3>
+                    <p class="ec-sub">Por fecha de inscripción, junto a los procesos evaluados del mes</p>
+                    <div echarts [options]="graficaInscritos()" class="ec-grafica" role="img" aria-label="Inscritos por mes"></div>
+                  </section>
+                </div>
+              }
+
+              <h3 class="ec-subtitulo"><mat-icon>store</mat-icon> Por oficina</h3>
+              <app-tabla-estandar
+                id="hiring-estado-candidatos-oficinas"
+                titulo="Estado de candidatos por oficina"
+                modulo="Contratación"
+                vacio="Sin datos por oficina."
+                [busqueda]="false"
+                [seleccionable]="false"
+                [datos]="resumen()?.por_oficina ?? []"
+                [columnas]="columnasOficina"
+                [filaId]="idOficina"
+                [pie]="pieOficina"
+                [filasPorPagina]="0"
+                [cargando]="esta('resumen')">
+              </app-tabla-estandar>
+            }
+          </div>
+        </mat-tab>
+
+        <!-- ============================================================ EN ESPERA -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="ec-tab-icono">hourglass_top</mat-icon> En espera
+            <span class="ec-tab-n">{{ (resumen()?.pestanas?.en_espera | number) ?? '…' }}</span>
+          </ng-template>
+          <div class="ec-panel">
+            <div class="ec-facetas">
+              <mat-button-toggle-group [value]="soloVigentes()" (change)="cambiarVigentes($event.value)" aria-label="Qué esperas mostrar" hideSingleSelectionIndicator>
+                <mat-button-toggle [value]="true">Siguen esperando</mat-button-toggle>
+                <mat-button-toggle [value]="false">Todo el histórico</mat-button-toggle>
+              </mat-button-toggle-group>
+            </div>
+            <div class="ec-chips" role="group" aria-label="Filtrar por motivo">
+              @for (c of conteo(espera(), 'por_motivo'); track c[0]) {
+                <button type="button" class="ec-chip ec-chip--warn" [class.ec-chip--activo]="motivoEspera() === c[0]"
+                        [attr.aria-pressed]="motivoEspera() === c[0]" (click)="faceta(motivoEspera, c[0], 'en-espera')">
+                  <span>{{ etiqueta(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            <div class="ec-chips" role="group" aria-label="Filtrar por antigüedad">
+              @for (c of conteo(espera(), 'por_antiguedad'); track c[0]) {
+                <button type="button" [class]="'ec-chip ec-chip--' + (c[0] === '0-7' || c[0] === '8-30' ? 'ok' : c[0] === '31-60' ? 'warn' : 'danger')"
+                        [class.ec-chip--activo]="tramo() === c[0]" [attr.aria-pressed]="tramo() === c[0]"
+                        (click)="faceta(tramo, c[0], 'en-espera')">
+                  <mat-icon>schedule</mat-icon><span>{{ etiquetaTramo(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            <app-tabla-estandar
+              id="hiring-estado-candidatos-espera"
+              titulo="Candidatos en espera"
+              modulo="Contratación"
+              vacio="Nadie en espera con estos filtros."
+              textoDetalle="Línea de tiempo"
+              [busqueda]="false"
+              [seleccionable]="false"
+              [datos]="espera()?.filas ?? []"
+              [columnas]="columnasEspera"
+              [filaId]="idEspera"
+              [cargando]="esta('en-espera')"
+              [totalServidor]="espera()?.total ?? 0"
+              [paginaServidor]="pagina()['en-espera'].page"
+              [filasPorPagina]="pagina()['en-espera'].size"
+              [opcionesPorPagina]="[25, 50, 100, 250, 500]"
+              (paginaCambio)="paginar('en-espera', $event)"
+              (filaClick)="verPersona($event)">
+              <ng-template tablaAcciones let-f>
+                <button mat-icon-button type="button" matTooltip="Abrir en Selección y contratación" aria-label="Abrir proceso" (click)="abrirProceso(f)">
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+              </ng-template>
+            </app-tabla-estandar>
+          </div>
+        </mat-tab>
+
+        <!-- ============================================================ RECHAZADOS -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="ec-tab-icono">block</mat-icon> Rechazados
+            <span class="ec-tab-n">{{ (resumen()?.pestanas?.rechazados | number) ?? '…' }}</span>
+          </ng-template>
+          <div class="ec-panel">
+            <div class="ec-chips" role="group" aria-label="Filtrar por etapa">
+              @for (c of conteo(rechazos(), 'por_etapa'); track c[0]) {
+                <button type="button" class="ec-chip ec-chip--danger" [class.ec-chip--activo]="etapa() === c[0]"
+                        [attr.aria-pressed]="etapa() === c[0]" (click)="cambiarEtapa(c[0])">
+                  <mat-icon>{{ c[0] === 'EVALUACION' ? 'person_off' : c[0] === 'PRUEBA_TECNICA' ? 'construction' : 'medical_services' }}</mat-icon>
+                  <span>{{ etiqueta(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            @if (conteo(rechazos(), 'por_motivo').length) {
+              <div class="ec-chips" role="group" aria-label="Filtrar por motivo">
+                @for (c of conteo(rechazos(), 'por_motivo'); track c[0]) {
+                  <button type="button" class="ec-chip" [class.ec-chip--activo]="motivoRechazo() === c[0]"
+                          [attr.aria-pressed]="motivoRechazo() === c[0]" (click)="faceta(motivoRechazo, c[0], 'rechazados')">
+                    <span>{{ etiqueta(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                  </button>
+                }
+              </div>
+            }
+            <app-tabla-estandar
+              id="hiring-estado-candidatos-rechazados"
+              titulo="Candidatos rechazados"
+              modulo="Contratación"
+              vacio="Sin rechazos con estos filtros."
+              textoDetalle="Línea de tiempo"
+              [busqueda]="false"
+              [seleccionable]="false"
+              [datos]="rechazos()?.filas ?? []"
+              [columnas]="columnasRechazo"
+              [filaId]="idRechazo"
+              [cargando]="esta('rechazados')"
+              [totalServidor]="rechazos()?.total ?? 0"
+              [paginaServidor]="pagina().rechazados.page"
+              [filasPorPagina]="pagina().rechazados.size"
+              [opcionesPorPagina]="[25, 50, 100, 250, 500]"
+              (paginaCambio)="paginar('rechazados', $event)"
+              (filaClick)="verPersona($event)">
+              <ng-template tablaAcciones let-f>
+                <button mat-icon-button type="button" matTooltip="Abrir en Selección y contratación" aria-label="Abrir proceso" (click)="abrirProceso(f)">
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+              </ng-template>
+            </app-tabla-estandar>
+          </div>
+        </mat-tab>
+
+        <!-- ============================================================ CONTRATADOS -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="ec-tab-icono">how_to_reg</mat-icon> Contratados
+            <span class="ec-tab-n">{{ (resumen()?.pestanas?.contratados | number) ?? '…' }}</span>
+          </ng-template>
+          <div class="ec-panel">
+            <div class="ec-chips" role="group" aria-label="Filtrar por temporal">
+              @for (c of conteo(contratos(), 'por_temporal'); track c[0]) {
+                <button type="button" [class]="'ec-chip ec-chip--' + (c[0] === 'AL' ? 'ok' : c[0] === 'TA' ? 'info' : 'neutro')"
+                        [class.ec-chip--activo]="temporal() === c[0]" [attr.aria-pressed]="temporal() === c[0]"
+                        (click)="faceta(temporal, c[0], 'contratados')">
+                  <span>{{ etiqueta(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            <div class="ec-aviso" role="note">
+              <mat-icon>info</mat-icon>
+              <span>Son ingresos del rango, no la planta activa: el retiro aún no se registra en el contrato.</span>
+            </div>
+            <app-tabla-estandar
+              id="hiring-estado-candidatos-contratados"
+              titulo="Candidatos contratados"
+              modulo="Contratación"
+              vacio="Sin ingresos con estos filtros."
+              textoDetalle="Línea de tiempo"
+              [busqueda]="false"
+              [seleccionable]="false"
+              [datos]="contratos()?.filas ?? []"
+              [columnas]="columnasContrato"
+              [filaId]="idContrato"
+              [cargando]="esta('contratados')"
+              [totalServidor]="contratos()?.total ?? 0"
+              [paginaServidor]="pagina().contratados.page"
+              [filasPorPagina]="pagina().contratados.size"
+              [opcionesPorPagina]="[25, 50, 100, 250, 500]"
+              (paginaCambio)="paginar('contratados', $event)"
+              (filaClick)="verPersona($event)">
+              <ng-template tablaAcciones let-f>
+                <button mat-icon-button type="button" matTooltip="Abrir en Selección y contratación" aria-label="Abrir proceso" (click)="abrirProceso(f)">
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+              </ng-template>
+            </app-tabla-estandar>
+          </div>
+        </mat-tab>
+
+        <!-- ============================================================ INSCRITOS -->
+        <mat-tab>
+          <ng-template mat-tab-label>
+            <mat-icon class="ec-tab-icono">assignment_ind</mat-icon> Inscritos
+            <span class="ec-tab-n">{{ (resumen()?.inscripcion?.inscritos | number) ?? '…' }}</span>
+          </ng-template>
+          <div class="ec-panel">
+            <div class="ec-chips" role="group" aria-label="Filtrar por completitud">
+              @for (c of conteo(inscritos(), 'por_completitud'); track c[0]) {
+                <button type="button" [class]="'ec-chip ec-chip--' + tramoCompletitud(c[0]).tono"
+                        [class.ec-chip--activo]="completitud() === c[0]" [attr.aria-pressed]="completitud() === c[0]"
+                        (click)="faceta(completitud, c[0], 'inscritos')">
+                  <mat-icon>donut_large</mat-icon><span>{{ tramoCompletitud(c[0]).etiqueta }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            <div class="ec-chips" role="group" aria-label="Filtrar por sección incompleta">
+              @for (c of conteo(inscritos(), 'por_seccion_incompleta'); track c[0]) {
+                <button type="button" class="ec-chip" [class.ec-chip--activo]="seccion() === c[0]"
+                        [attr.aria-pressed]="seccion() === c[0]" (click)="faceta(seccion, c[0], 'inscritos')">
+                  <span>Falta · {{ etiquetaSeccion(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            <div class="ec-chips" role="group" aria-label="Filtrar por lo que pasó después">
+              @for (c of conteo(inscritos(), 'por_despues'); track c[0]) {
+                <button type="button" [class]="'ec-chip ec-chip--' + tonoDespues(c[0])"
+                        [class.ec-chip--activo]="despues() === c[0]" [attr.aria-pressed]="despues() === c[0]"
+                        (click)="faceta(despues, c[0], 'inscritos')">
+                  <span>{{ etiqueta(c[0]) }}</span><span class="ec-chip-n">{{ c[1] | number }}</span>
+                </button>
+              }
+            </div>
+            <div class="ec-aviso" role="note">
+              <mat-icon>info</mat-icon>
+              <span>El % cuenta solo lo obligatorio del formulario (y lo condicional cuando aplica). Una ficha por persona, con la fecha de su inscripción.</span>
+            </div>
+            <app-tabla-estandar
+              id="hiring-estado-candidatos-inscritos"
+              titulo="Candidatos inscritos"
+              modulo="Contratación"
+              vacio="Nadie inscrito con estos filtros."
+              textoDetalle="Línea de tiempo"
+              [busqueda]="false"
+              [seleccionable]="false"
+              [datos]="inscritos()?.filas ?? []"
+              [columnas]="columnasInscrito"
+              [filaId]="idInscrito"
+              [cargando]="esta('inscritos')"
+              [totalServidor]="inscritos()?.total ?? 0"
+              [paginaServidor]="pagina().inscritos.page"
+              [filasPorPagina]="pagina().inscritos.size"
+              [opcionesPorPagina]="[25, 50, 100, 250, 500]"
+              (paginaCambio)="paginar('inscritos', $event)"
+              (filaClick)="verPersona($event)">
+              <ng-template tablaCelda="completitud" let-f>
+                <span class="ec-completitud" [matTooltip]="detalleSecciones(f)" matTooltipClass="tooltip-faltantes">
+                  <span class="ec-barra-trk"><i [style.width.%]="f.completitud" [style.background]="tramoCompletitud(f.tramo).color"></i></span>
+                  <b>{{ f.completitud }} %</b>
+                </span>
+              </ng-template>
+              <ng-template tablaAcciones let-f>
+                <button mat-icon-button type="button" matTooltip="Abrir en Selección y contratación" aria-label="Abrir proceso" (click)="abrirProceso(f)">
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+              </ng-template>
+            </app-tabla-estandar>
+          </div>
+        </mat-tab>
+      </mat-tab-group>
+    </div>
+  </mat-card-content>
+</mat-card>

@@ -19,11 +19,39 @@
 }
 
 /* En móvil el wrapper solo tiene 0.75rem arriba/abajo y nada a los lados: con
-   -2rem la página quedaba corrida 16 px fuera de la pantalla. */
+   -2rem la página quedaba corrida 16 px fuera de la pantalla. El 1rem lateral
+   lo pone `.dashboard-content`; se cancela también para que el pipeline vaya
+   de borde a borde. El relleno de abajo (80px) es el de la barra inferior y se
+   respeta. */
 @media (max-width: 900px) {
   :host {
-    margin: -0.75rem 0;
+    margin: -0.75rem -1rem;
   }
+}
+
+/* La tarjeta y su cuerpo NO dejan marco: la pantalla es del pipeline entero.
+   El `padding` global de `mat-card` en móvil (15px) también se anula aquí. */
+.pipeline-card {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+  box-sizing: border-box;
+  padding: 0 !important;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+.pipeline-body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  padding: 0 !important;
+  box-sizing: border-box;
 }
 
 mat-tab-group {
@@ -967,6 +995,38 @@ mat-tab-group {
   color: #1d4ed8;
 }
 
+.med-upload-zone:disabled,
+.med-upload-zone:disabled:hover {
+  cursor: not-allowed;
+  opacity: .6;
+  border-color: var(--border-strong);
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
+/* «Cargar examen»: acción propia, aparte del concepto */
+.med-cargar-examen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+}
+
+.med-concepto-cerrado {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-style: normal;
+  font-weight: 600;
+}
+
+.med-concepto-cerrado mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
 .med-upload-zone mat-icon {
   font-size: 20px;
   width: 20px;
@@ -1215,6 +1275,43 @@ mat-tab-group {
   color: #d97706; color: light-dark(#d97706, #f7ca97);
 }
 
+/* Cerrar el aviso de edición forzada (solo oculta el banner; el override sigue). */
+.contrato-activo-banner .cab-close {
+  flex: 0 0 auto;
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  margin: -4px -6px -4px 0;
+  padding: 0;
+  border: none;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  opacity: 0.75;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.contrato-activo-banner .cab-close:hover {
+  opacity: 1;
+  background: rgba(245, 158, 11, 0.16);
+}
+
+.contrato-activo-banner .cab-close:focus-visible {
+  outline: none;
+  opacity: 1;
+  box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.35);
+}
+
+.contrato-activo-banner .cab-close mat-icon {
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
 
 /* ─────────────────────────────────────────────────────────────────────────
    Botón "Cerrar contratación": el único con texto en la toolbar. No hereda
@@ -1267,12 +1364,12 @@ mat-tab-group {
 }
 
 /* Las dos capas viajan juntas: una sola pieza de navegación pegada al
-   contenido, no dos barras sueltas compitiendo. */
+   contenido, no dos barras sueltas compitiendo. Van de arriba abajo, sin
+   esquinas: son el borde de la pantalla, no una tarjeta flotando en ella. */
 .rails {
   display: flex;
   flex: none;
   min-height: 0;
-  border-radius: 16px 0 0 16px;
   overflow: hidden;
   box-shadow: inset -1px 0 0 rgba(255, 255, 255, .06);
 }
@@ -1285,20 +1382,30 @@ mat-tab-group {
 }
 
 /* ── Capa 1 · los dos momentos ──────────────────────────────────────────── */
+/* Si la ventana es baja la columna se desplaza en vez de apretar los botones:
+   al encogerse, el % de un módulo quedaba encima del anillo del siguiente. */
 .rail-capa1 {
-  width: 104px;
-  padding: 12px 8px;
-  gap: 10px;
+  width: 100px;
+  padding: 8px 5px 0;
+  gap: 4px;
   background: var(--navy, #21263C);
+  overflow-y: auto;
+  overflow-x: hidden;
+  overscroll-behavior: contain;
+  scrollbar-width: none;
 }
+
+.rail-capa1::-webkit-scrollbar { display: none; }
 
 .capa {
   position: relative;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
-  padding: 14px 6px 12px;
+  gap: 4px;
+  min-height: 0 !important;
+  padding: 7px 3px 6px;
   border: 0;
   border-radius: 14px;
   background: transparent;
@@ -1324,9 +1431,9 @@ mat-tab-group {
 .capa-activa::before {
   content: '';
   position: absolute;
-  left: -8px;
-  top: 12px;
-  bottom: 12px;
+  left: -5px;
+  top: 10px;
+  bottom: 10px;
   width: 3px;
   border-radius: 0 3px 3px 0;
   background: var(--lime, #8CD50A);
@@ -1342,10 +1449,11 @@ mat-tab-group {
 /* El fondo (el arco de progreso) lo pone el componente con `fondoAnillo()`. */
 .capa-anillo {
   position: relative;
+  flex: none;
   display: grid;
   place-items: center;
-  width: 46px;
-  height: 46px;
+  width: 40px;
+  height: 40px;
   border-radius: 50%;
   transition: background .35s ease;
 }
@@ -1353,8 +1461,8 @@ mat-tab-group {
 .capa-anillo-centro {
   display: grid;
   place-items: center;
-  width: 36px;
-  height: 36px;
+  width: 31px;
+  height: 31px;
   border-radius: 50%;
   background: var(--navy, #21263C);
 }
@@ -1364,9 +1472,9 @@ mat-tab-group {
 }
 
 .capa-anillo mat-icon {
-  font-size: 20px;
-  width: 20px;
-  height: 20px;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
   color: inherit;
 }
 
@@ -1375,25 +1483,41 @@ mat-tab-group {
 }
 
 .capa-txt {
-  font-size: .76rem;
+  font-size: .72rem;
   font-weight: 700;
   line-height: 1.15;
   letter-spacing: .01em;
+  overflow-wrap: anywhere;
 }
 
+/* El % va montado sobre el pie del anillo, como una etiqueta: en su propio
+   renglón cada módulo medía ~20px más y la columna ya no cabía en la altura
+   de un portátil. 7px = padding-top de .capa; 40px = alto del anillo; la
+   etiqueta (13px) sube 11px para no rozar el rótulo de abajo. */
 .capa-pct {
-  font-size: .68rem;
-  font-weight: 700;
+  position: absolute;
+  top: calc(7px + 40px - 11px);
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 0 5px;
+  border-radius: 999px;
+  background: var(--navy, #21263C);
+  font-size: .6rem;
+  font-weight: 800;
+  line-height: 13px;
   font-variant-numeric: tabular-nums;
-  color: rgba(255, 255, 255, .55);
+  color: rgba(255, 255, 255, .62);
+  pointer-events: none;
 }
+
+.capa-activa .capa-pct { background: #2A3050; }
 
 .capa-activa .capa-pct { color: var(--lime, #8CD50A); }
 
 /* ── Capa 2 · los pasos del momento abierto ─────────────────────────────── */
 .rail-capa2 {
-  width: 104px;
-  padding: 12px 6px;
+  width: 96px;
+  padding: 8px 6px;
   gap: 2px;
   background: #2A3050;
   overflow-y: auto;
@@ -1407,12 +1531,17 @@ mat-tab-group {
 }
 
 /* ── Capa 2 · los pasos del módulo abierto ──────────────────────────────── */
+/* En una línea y con menos tracking: "CONTRATACIÓN" con .12em no cabía en
+   los 96px del rail y se salía por la derecha. */
 .rail-capa2-titulo {
-  padding: 2px 4px 8px;
+  padding: 2px 2px 8px;
   text-align: center;
-  font-size: .58rem;
+  font-size: .56rem;
   font-weight: 800;
-  letter-spacing: .12em;
+  letter-spacing: .06em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-transform: uppercase;
   color: rgba(255, 255, 255, .40);
 }
@@ -1421,6 +1550,7 @@ mat-tab-group {
    En fila, el rail se comía 218px de ancho que hacen mucha falta al formulario
    de la derecha, que es donde de verdad se trabaja. */
 .sub {
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1503,6 +1633,7 @@ mat-tab-group {
 .acceso,
 .acceso-tt > .acceso {
   position: relative;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1568,19 +1699,29 @@ mat-tab-group {
    capa más: no es un sitio al que ir, es algo que se abre y se cierra. */
 .capa-accion {
   margin-top: 2px;
-  padding-top: 14px;
+  padding-top: 10px;
   border-top: 1px solid rgba(255, 255, 255, .10);
 }
 
 .rail-capa1-relleno { flex: 1; }
 
+/* Pegado al pie aunque la columna se desplace: es la acción con la que se
+   termina el día y no puede quedar escondida bajo los módulos. La sombra navy
+   tapa lo que pasa por detrás al desplazar. */
 .capa-cerrar {
+  position: sticky;
+  bottom: 8px;
+  z-index: 1;
+  flex: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 5px;
-  margin-top: 10px;
-  padding: 11px 6px;
+  gap: 3px;
+  min-height: 0 !important;
+  margin-top: 8px;
+  margin-bottom: 8px;
+  padding: 7px 4px;
+  box-shadow: 0 0 0 8px var(--navy, #21263C);
   border: 0;
   border-radius: 12px;
   background: var(--lime, #8CD50A);
@@ -1600,89 +1741,6 @@ mat-tab-group {
   font-size: 20px;
   width: 20px;
   height: 20px;
-}
-
-/* ── Responsivo ───────────────────────────────────────────────────────────
-   Con poca altura o poco ancho las dos capas se acuestan: la 1 como una fila
-   de dos botones y la 2 como una tira desplazable debajo. Apiladas en
-   vertical no caben sin cortar los rótulos. */
-@media (max-width: 1100px), (max-height: 640px) {
-  .pipeline-shell {
-    flex-direction: column;
-  }
-
-  .rails {
-    flex-direction: column;
-    border-radius: 16px 16px 0 0;
-    box-shadow: none;
-  }
-
-  .rail-capa1 {
-    flex-direction: row;
-    width: auto;
-    padding: 8px;
-  }
-
-  .capa {
-    flex: 1;
-    flex-direction: row;
-    justify-content: center;
-    padding: 8px 12px;
-  }
-
-  .capa-activa::before {
-    left: 12px;
-    right: 12px;
-    top: auto;
-    bottom: -4px;
-    width: auto;
-    height: 3px;
-    border-radius: 3px 3px 0 0;
-  }
-
-  .capa-anillo { width: 34px; height: 34px; }
-  .capa-anillo-centro { width: 26px; height: 26px; }
-  .capa-anillo mat-icon { font-size: 16px; width: 16px; height: 16px; }
-
-  .rail-capa1-relleno { display: none; }
-
-  .capa-cerrar {
-    flex: none;
-    flex-direction: row;
-    margin-top: 0;
-    padding: 8px 14px;
-  }
-
-  .rail-capa2 {
-    flex-direction: row;
-    width: auto;
-    padding: 8px;
-    overflow-x: auto;
-    overflow-y: hidden;
-  }
-
-  .sub,
-  .acceso,
-  .acceso-tt > .acceso {
-    flex: none;
-    flex-direction: row;
-    width: auto;
-    min-width: 150px;
-    gap: 8px;
-    text-align: left;
-  }
-
-  .sub-txt,
-  .acceso-txt { width: auto; text-align: left; }
-
-  .acceso-punto { position: static; }
-
-  .rail-capa2-titulo { display: none; }
-
-  .sub {
-    flex: none;
-    min-width: 172px;
-  }
 }
 
 /* ── Bloqueo por contrato activo ────────────────────────────────────────── */
@@ -1727,24 +1785,14 @@ mat-tab-group {
    crea igual y el `@ViewChild` lo encuentra. */
 .buscador-oculto { display: none; }
 
-/* ── La ficha, fija a la izquierda del rail ──────────────────────────────────
-   Es la base de todas las vistas: no se desmonta al cambiar de paso. */
-.pipeline-shell app-ficha-candidato {
+/* ── La ficha, barra fija arriba del rail ────────────────────────────────────
+   Es la base de todas las vistas: no se desmonta al cambiar de paso. Va a lo
+   ancho y no se encoge: el que cede alto es el panel de trabajo. */
+.pipeline-body > app-ficha-candidato {
   display: block;
   flex: none;
-  width: 340px;
-  max-width: 100%;
-  padding-right: 14px;
-  overflow-y: auto;
-  overscroll-behavior: contain;
-}
-
-/* Barra fina en vez de la del sistema: la ficha es angosta y la nativa se come
-   ~16px de ancho útil. */
-.pipeline-shell app-ficha-candidato::-webkit-scrollbar { width: 6px; }
-.pipeline-shell app-ficha-candidato::-webkit-scrollbar-thumb {
-  background: var(--border-strong);
-  border-radius: 999px;
+  padding: 8px 8px 6px;
+  box-sizing: border-box;
 }
 
 /* ── La ÚNICA transición ─────────────────────────────────────────────────
@@ -1769,25 +1817,167 @@ mat-tab-group {
   }
 }
 
-/* Entre 1100 y 1440 la ficha y los dos railes se comen el ancho útil, así que
-   ceden los tres a la vez y el contenido conserva su sitio. */
-@media (max-width: 1440px) {
-  .pipeline-shell app-ficha-candidato {
-    width: 300px;
-    padding-right: 10px;
+/* ── Responsivo ───────────────────────────────────────────────────────────
+   Va DESPUÉS de las reglas base de la ficha y de los railes: antes estaba
+   delante y las reglas de escritorio (anchos fijos de 88/94px) le ganaban por
+   orden, así que la tira de pasos quedaba recortada en "Antecede…".
+
+   Por debajo de 1100px de ancho, o con menos de 640px de alto, las tres
+   columnas no caben y todo se apila:
+   · la ficha se pliega a su cabecera (nombre + documento) y se abre a
+     demanda — desplegada entera se comía la pantalla y al formulario le
+     quedaban 40px;
+   · las dos capas se acuestan como tiras que se desplazan de lado, con
+     "Cerrar contratación" siempre visible a la derecha;
+   · el panel de trabajo se queda con el resto del alto, nunca menos de lo
+     que hace falta para trabajar: si no cabe, desplaza la página entera. */
+@media (max-width: 1100px), (max-height: 640px) {
+  .pipeline-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
-  .rail-capa1 { width: 88px; }
-  .rail-capa2 { width: 94px; }
+  .pipeline-shell {
+    flex-direction: column;
+  }
+
+  .pipeline-shell .tab-group,
+  .pipeline-shell .contrato-lock {
+    flex: 1 1 0;
+    min-height: min(440px, 72dvh);
+  }
+
+  .rails {
+    flex-direction: column;
+    box-shadow: none;
+  }
+
+  /* ── Capa 1 en fila ── */
+  .rail-capa1 {
+    flex-direction: row;
+    width: auto;
+    padding: 6px;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .capa {
+    flex: 1 0 auto;
+    flex-direction: row;
+    justify-content: center;
+    gap: 8px;
+    padding: 6px 10px;
+    white-space: nowrap;
+  }
+
+  .capa-txt { overflow-wrap: normal; }
+
+  /* El filete que separa Historial de los módulos es horizontal en columna;
+     en fila sobra. */
+  .capa-accion {
+    margin-top: 0;
+    border-top: 0;
+  }
+
+  /* En fila el % vuelve a ir junto al rótulo: aquí sobra ancho, falta alto. */
+  .capa-pct {
+    position: static;
+    transform: none;
+    padding: 0;
+    background: none;
+    line-height: inherit;
+    font-size: .66rem;
+  }
+
+  .capa-activa::before {
+    left: 12px;
+    right: 12px;
+    top: auto;
+    bottom: -3px;
+    width: auto;
+    height: 3px;
+    border-radius: 3px 3px 0 0;
+  }
+
+  .capa-anillo { width: 32px; height: 32px; }
+  .capa-anillo-centro { width: 25px; height: 25px; }
+  .capa-anillo mat-icon { font-size: 15px; width: 15px; height: 15px; }
+
+  .rail-capa1-relleno { display: none; }
+
+  .capa-cerrar {
+    right: 0;
+    bottom: auto;
+    flex-direction: row;
+    margin: 0;
+    padding: 6px 12px;
+    white-space: nowrap;
+    box-shadow: 0 0 0 6px var(--navy, #21263C);
+  }
+
+  /* ── Capa 2 en fila ── */
+  .rail-capa2 {
+    flex-direction: row;
+    width: auto;
+    padding: 6px;
+    gap: 4px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  .sub,
+  .acceso,
+  .acceso-tt > .acceso {
+    flex: none;
+    flex-direction: row;
+    width: auto;
+    min-width: 0;
+    min-height: 0 !important;
+    gap: 8px;
+    padding: 6px 12px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .acceso-tt { flex: none; }
+
+  .sub-txt,
+  .acceso-txt {
+    width: auto;
+    text-align: left;
+    overflow-wrap: normal;
+  }
+
+  .acceso-punto { position: static; }
+
+  .rail-capa2-titulo { display: none; }
 }
 
-@media (max-width: 1100px) {
-  .pipeline-shell app-ficha-candidato {
-    width: auto;
-    padding-right: 0;
-    padding-bottom: 12px;
-    overflow: visible;
-  }
+/* Portátil de poca altura (650–760px de ventana) con las columnas aún de
+   pie: los módulos se aprietan un poco más para que la columna entera, con
+   Historial y "Cerrar contratación", quepa sin tener que desplazarla. */
+@media (min-width: 1101px) and (min-height: 641px) and (max-height: 760px) {
+  .capa { gap: 3px; padding: 6px 3px 5px; }
+  .capa-anillo { width: 34px; height: 34px; }
+  .capa-anillo-centro { width: 27px; height: 27px; }
+  .capa-anillo mat-icon { font-size: 16px; width: 16px; height: 16px; }
+  .capa-txt { font-size: .68rem; }
+  /* 6px = padding-top de .capa; 34px = alto del anillo. */
+  .capa-pct { top: calc(6px + 34px - 11px); }
+  .capa-accion { padding-top: 8px; }
+  .capa-cerrar { padding: 6px 4px; }
+}
+
+/* Teléfono: los rótulos de la capa 1 se achican un punto para que quepan
+   más módulos sin desplazar; el resto se alcanza deslizando la tira. */
+@media (max-width: 600px) {
+  .capa { padding: 5px 8px; gap: 6px; }
+  .capa-txt { font-size: .68rem; }
+  /* En el teléfono "Cerrar contratación" se queda en su icono: con el rótulo
+     ocupaba media tira y tapaba los módulos. El nombre va en aria-label. */
+  .capa-cerrar { padding: 5px 10px; }
+  .capa-cerrar span { display: none; }
 }
 
 
@@ -1976,3 +2166,240 @@ mat-tab-group {
   background: #fef2f2; background: light-dark(#fef2f2, #351927);
   color: #dc2626;
 }
+
+/* ───────── Examen médico requerido para contratar (pedido #10) ───────── */
+
+/* Acceso a la carga masiva, en la cabecera de Exámenes de ingreso. */
+.med-masivos {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  color: var(--text);
+  font-size: .8rem;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.med-masivos:hover {
+  border-color: #3b82f6;
+  color: #1d4ed8; color: light-dark(#1d4ed8, #9cc3ff);
+}
+
+.med-masivos mat-icon {
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+}
+
+.med-concepto {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+/* Cuatro conceptos: en pantallas angostas bajan a dos por fila. */
+.med-concepto-toggle {
+  flex-wrap: wrap;
+}
+
+.med-concepto-toggle ::ng-deep .mat-button-toggle {
+  flex: 1 1 160px;
+}
+
+.med-status-toggle ::ng-deep .toggle-restricciones.mat-button-toggle-checked {
+  background: #0d9488;
+  color: #ffffff;
+}
+
+.med-status-toggle ::ng-deep .toggle-aplazado.mat-button-toggle-checked {
+  background: #d97706;
+  color: #ffffff;
+}
+
+.med-concepto-vacio {
+  font-size: .78rem;
+  color: var(--muted);
+  font-style: italic;
+}
+
+.med-concepto-campo {
+  margin: 0 !important;
+}
+
+.med-requisitos {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.med-requisito {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: var(--surface-3);
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 600;
+}
+
+.med-requisito mat-icon {
+  font-size: 16px;
+  width: 16px;
+  height: 16px;
+}
+
+.med-requisito-ok {
+  background: #dcfce7; background: light-dark(#dcfce7, #123b33);
+  color: #15803d; color: light-dark(#15803d, #9fefbd);
+}
+
+.med-requisito-mal {
+  background: #fee2e2; background: light-dark(#fee2e2, #371725);
+  color: #b91c1c; color: light-dark(#b91c1c, #f09e9e);
+}
+
+.med-concepto-registro {
+  margin: 0;
+  font-size: .78rem;
+  color: var(--muted);
+}
+
+.med-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-size: .84rem;
+  line-height: 1.4;
+  border: 1px solid transparent;
+}
+
+.med-aviso > mat-icon {
+  flex: none;
+  font-size: 20px;
+  width: 20px;
+  height: 20px;
+}
+
+.med-aviso ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+.med-aviso-bloqueo {
+  background: #fef2f2; background: light-dark(#fef2f2, #351927);
+  border-color: #fecaca; border-color: light-dark(#fecaca, #6b2433);
+  color: #991b1b; color: light-dark(#991b1b, #f7b4b4);
+}
+
+.med-aviso-espera,
+.med-aviso-salto {
+  background: #fff8e1; background: light-dark(#fff8e1, #383524);
+  border-color: #ffe082; border-color: light-dark(#ffe082, #6c591b);
+  color: #6d4c00; color: light-dark(#6d4c00, #f7da97);
+}
+
+.med-aviso-ok {
+  background: #f0fdf4; background: light-dark(#f0fdf4, #143a33);
+  border-color: #bbf7d0; border-color: light-dark(#bbf7d0, #1f5c4c);
+  color: #166534; color: light-dark(#166534, #9fefbd);
+}
+
+.med-salto-btn,
+.bloqueo-examen-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 6px 12px;
+  border-radius: 8px;
+  border: 1px solid currentColor;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.med-salto-btn mat-icon,
+.bloqueo-examen-btn mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+/* Banner dentro de la pestaña Contratación: mismo aviso ámbar del bloqueo por
+   espera, con la lista de lo que falta. */
+.bloqueo-examen-banner {
+  align-items: flex-start;
+}
+
+.bloqueo-examen-banner ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+}
+
+/* Contratación en el rail con el examen incompleto: sigue pulsable (el clic
+   explica qué falta), pero se ve cerrada. */
+.capa-bloqueada {
+  opacity: .6;
+}
+
+.capa-bloqueada .capa-anillo-centro mat-icon {
+  color: #fbbf24;
+}
+
+@media (max-width: 600px) {
+  .med-masivos {
+    margin-left: 0;
+  }
+
+  .med-aviso {
+    flex-wrap: wrap;
+  }
+
+  .med-salto-btn,
+  .bloqueo-examen-btn {
+    margin-left: 0;
+  }
+}
+
+/* Resultado por examen en «Soportes cargados». */
+.med-doc-resultados {
+  list-style: none;
+  margin: 6px 0 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 6px;
+}
+.med-doc-res {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 2px 8px 2px 5px;
+  border-radius: 999px;
+  font-size: .72rem;
+  line-height: 1.4;
+  border: 1px solid currentColor;
+}
+.med-doc-res mat-icon { font-size: 14px; width: 14px; height: 14px; }
+.med-doc-res-examen { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 220px; }
+.med-doc-res.is-apto { color: #17803f; background: rgba(23, 128, 63, .08); }
+.med-doc-res.is-no-apto { color: #b91c1c; background: rgba(185, 28, 28, .08); }
+.med-doc-sin-res { margin-top: 4px; }

@@ -51,6 +51,8 @@ export interface ContratacionRow {
   // 4 validadores de confirmación de ingreso
   ingreso_confirmado?: boolean;     // Validador 1: afiliaciones
   ingreso_confirmado_canal?: string;
+  /** Cuándo se confirmó el validador de Afiliaciones (línea de seguimiento). */
+  ingreso_confirmado_at?: string | null;
   coord_confirmado?: boolean;       // Validador 2: coordinador de finca
   nomina_confirmado?: boolean;      // Validador 3: nómina
   pago_confirmado?: boolean;        // Validador 4: pago de seguridad social
@@ -80,6 +82,7 @@ export interface ContratacionRow {
   // ADRES del robot (último por cédula)
   adres_estado?: string;   // estado actual de la persona en ADRES (ACTIVO/RETIRADO/…)
   adres_eps?: string;      // EPS registrada en ADRES
+  adres_regimen?: string;  // régimen en ADRES (V65); incluye la marca de régimen de excepción
   adres_fecha?: string;    // cuándo lo consultó el robot
 
   /** Resumen del expediente de la fila (se carga después de la página, ver ResumenPersona). */
@@ -140,7 +143,12 @@ export interface CedulaDoc {
 
 // ── Expediente de la persona (documentos + ADRES + traslados de EPS) ──
 
-export type GrupoDoc = 'CEDULA' | 'ADRES' | 'TRASLADO';
+/**
+ * Grupos del expediente. Los tres primeros los arma ms-hr; `OTROS` lo trae el frontend
+ * pidiéndole a gestión documental todo lo del dueño: una persona puede tener 20 tipos
+ * (contrato, exámenes, ARL, AFP, policivos, desprendibles…) y aquí solo se veían tres.
+ */
+export type GrupoDoc = 'CEDULA' | 'ADRES' | 'TRASLADO' | 'OTROS';
 
 /** Un documento del expediente, ya normalizado por ms-hr. */
 export interface DocumentoExpediente {

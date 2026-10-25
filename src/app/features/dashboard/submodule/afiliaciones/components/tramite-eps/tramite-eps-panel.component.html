@@ -1,0 +1,125 @@
+<section class="tr">
+  <header class="tr-cab">
+    <h4><mat-icon class="tr-ico">assignment_turned_in</mat-icon> Trámite de afiliación EPS</h4>
+    @if (actual; as a) {
+      <span class="tr-estado tr-estado--{{ (a.tramite.estado || '').toLowerCase() }}">{{ etiquetaEstado(a.tramite.estado) }}</span>
+      <span class="tr-eps">{{ a.tramite.epsNombre }}</span>
+    }
+  </header>
+  @if (cargando() || trabajando()) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
+  @if (trabajando(); as msg) { <p class="tr-msg">{{ msg }}</p> }
+
+  <!-- Línea de tiempo del ciclo -->
+  <ol class="tr-pasos">
+    @for (p of pasos(); track p.clave) {
+      <li class="tr-paso tr-paso--{{ p.estado }}">
+        <span class="tr-punto"><mat-icon>{{ p.estado === 'hecho' ? 'check' : p.estado === 'curso' ? 'schedule' : p.estado === 'mal' ? 'close' : 'remove' }}</mat-icon></span>
+        <span class="tr-txt"><strong>{{ p.titulo }}</strong><em>{{ p.detalle }}</em></span>
+      </li>
+    }
+  </ol>
+
+  @if (!cargando() && !actual) {
+    <div class="tr-vacio">
+      <p>Este contrato aún no tiene trámite EPS. Ábrelo para registrar lo remitido, las respuestas de la EPS y la afiliación.</p>
+      <button mat-flat-button color="primary" (click)="iniciar()" [disabled]="!!trabajando()"><mat-icon>play_arrow</mat-icon> Abrir trámite</button>
+    </div>
+  }
+
+  @if (actual; as a) {
+    <div class="tr-form">
+      <input class="tr-input" [(ngModel)]="nota" placeholder="Nota (opcional): qué se envió, qué respondió la EPS, motivo…">
+      <label class="tr-check" matTooltip="Al subir un soporte, el trámite pasa solo a la etapa correspondiente">
+        <input type="checkbox" [(ngModel)]="avanzar"> Mover el estado al subir
+      </label>
+    </div>
+
+    <!-- Una tarjeta por etapa, con sus soportes -->
+    <div class="tr-etapas">
+      @for (e of etapas; track e.etapa) {
+        <div class="tr-etapa">
+          <div class="tr-etapa-cab">
+            <mat-icon>{{ e.icono }}</mat-icon>
+            <strong>{{ e.titulo }}</strong>
+            <span class="tr-n">{{ docsDe(e.etapa).length }}</span>
+            <span class="tr-flex"></span>
+            <label class="tr-subir" [matTooltip]="e.ayuda + ' Puedes elegir varios archivos.'" [class.off]="!!trabajando()">
+              <input type="file" multiple hidden accept="application/pdf,image/*,.msg,.eml,.doc,.docx,.xls,.xlsx"
+                     (change)="subir(e.etapa, $event)" [disabled]="!!trabajando()">
+              <mat-icon>upload_file</mat-icon> Subir
+            </label>
+          </div>
+          @if (docsDe(e.etapa).length) {
+            <ul class="tr-docs">
+              @for (d of docsDe(e.etapa); track d.id) {
+                <li>
+                  <button type="button" class="tr-doc" (click)="ver(d)" [matTooltip]="(d.nota || '') + (d.subidoPor ? ' · ' + d.subidoPor : '')">
+                    <mat-icon>description</mat-icon>
+                    <span class="tr-doc-nom">{{ d.nombreArchivo || ('documento ' + d.documentId) }}</span>
+                    <span class="tr-doc-meta">{{ fecha(d.createdAt) }} {{ peso(d.tamanoBytes) }}</span>
+                  </button>
+                </li>
+              }
+            </ul>
+          }
+          <div class="tr-etapa-acc">
+            @switch (e.etapa) {
+              @case ('REMISION') {
+                @if (a.tramite.estado === 'POR_ENVIAR' || a.tramite.estado === 'CON_RESPUESTA') {
+                  <input class="tr-input tr-input--corto" [(ngModel)]="radicado" placeholder="No. radicado (opcional)">
+                  <button mat-stroked-button (click)="mover('REMISION')" [disabled]="!!trabajando()">
+                    {{ a.tramite.estado === 'CON_RESPUESTA' ? 'Marcar reenviado' : 'Marcar remitido' }}
+                  </button>
+                }
+              }
+              @case ('RESPUESTA') {
+                @if (a.tramite.estado === 'RADICADA') {
+                  <button mat-stroked-button (click)="mover('RESPUESTA')" [disabled]="!!trabajando()">Registrar respuesta sin soporte</button>
+                }
+              }
+              @case ('AFILIACION') {
+                @if (a.tramite.estado !== 'CONFIRMADA' && a.tramite.estado !== 'RECHAZADA') {
+                  <button mat-stroked-button color="primary" (click)="mover('AFILIACION')" [disabled]="!!trabajando()">Marcar afiliado</button>
+                }
+              }
+            }
+          </div>
+        </div>
+      }
+    </div>
+
+    <div class="tr-pie">
+      @if (a.tramite.estado === 'RADICADA' || a.tramite.estado === 'CON_RESPUESTA' || a.tramite.estado === 'CONFIRMADA') {
+        <button mat-button color="warn" (click)="rechazar()" [disabled]="!!trabajando()" matTooltip="La EPS devolvió la afiliación (usa la nota como motivo)">
+          <mat-icon>block</mat-icon> Rechazada por la EPS
+        </button>
+      }
+      @if (a.tramite.estado === 'RECHAZADA') {
+        <button mat-button color="primary" (click)="reabrir()" [disabled]="!!trabajando()"><mat-icon>replay</mat-icon> Reabrir para reenviar</button>
+      }
+      <span class="tr-flex"></span>
+      <button mat-button (click)="verHistorial = !verHistorial"><mat-icon>history</mat-icon> Histórico ({{ a.eventos.length }})</button>
+    </div>
+
+    @if (verHistorial) {
+      <ul class="tr-hist">
+        @for (ev of a.eventos; track ev.id) {
+          <li>
+            <span class="tr-hist-f">{{ fecha(ev.createdAt) }}</span>
+            <span class="tr-hist-e">{{ etiquetaEstado(ev.estadoNuevo) }}</span>
+            <span class="tr-hist-d">{{ ev.detalle }}</span>
+            <span class="tr-hist-u">{{ ev.usuario }}</span>
+          </li>
+        }
+        @for (g of linea()?.generaciones ?? []; track $index) {
+          <li>
+            <span class="tr-hist-f">{{ fecha(g.generadoAt) }}</span>
+            <span class="tr-hist-e">Documento generado</span>
+            <span class="tr-hist-d">{{ g.plantilla }} v{{ g.version }} · {{ g.modo === 'MASIVO' ? 'masivo' : 'individual' }}</span>
+            <span class="tr-hist-u">{{ g.generadoPor }}</span>
+          </li>
+        }
+      </ul>
+    }
+  }
+</section>

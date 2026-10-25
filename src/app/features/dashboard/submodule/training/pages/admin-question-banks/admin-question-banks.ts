@@ -1,4 +1,4 @@
-import { Component, ChangeDetectionStrategy, OnInit, inject, signal, computed } from '@angular/core';
+import { Component, ChangeDetectionStrategy, OnInit, ViewChild, inject, signal, computed } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
@@ -6,6 +6,8 @@ import Swal from 'sweetalert2';
 import {
   TrainingAdminService, Banco, Pregunta, PreguntaRequest, Opcion, Curso, CriterioPregunta
 } from '../../service/training-admin.service';
+import { EjercicioEditor } from '../../components/codigo/ejercicio-editor';
+import { EjercicioCodigo, ejercicioNuevo } from '../../service/codigo.service';
 
 /** Borrador de pregunta que se está escribiendo. */
 interface FormPregunta {
@@ -18,9 +20,11 @@ interface FormPregunta {
   media_document_id: string | null;
   media_url: string | null;
   media_mime: string | null;
-  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO';
+  tipo: 'OPCION_MULTIPLE' | 'VERDADERO_FALSO' | 'EMPAREJAR' | 'TEXTO_ABIERTO' | 'NUMERO' | 'PROGRAMACION';
   /** Sólo en las que se responden escribiendo. */
   criterio: CriterioPregunta | null;
+  /** Sólo PROGRAMACION: lenguaje, código inicial, solución y casos de prueba. */
+  ejercicio: EjercicioCodigo | null;
   explicacion: string;
   opciones: Opcion[];
   /** true = la pregunta ya fue respondida, así que guardar creará una versión nueva. */
@@ -38,7 +42,7 @@ interface FormPregunta {
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-question-banks',
-  imports: [CommonModule, FormsModule, MatIconModule],
+  imports: [CommonModule, FormsModule, MatIconModule, EjercicioEditor],
   templateUrl: './admin-question-banks.html',
   styleUrl: './admin-question-banks.css'
 })
@@ -55,6 +59,7 @@ export class AdminQuestionBanks implements OnInit {
 
   readonly nuevoBanco = signal<{ nombre: string; course_id: string } | null>(null);
   readonly form = signal<FormPregunta | null>(null);
+  @ViewChild(EjercicioEditor) editorEjercicio?: EjercicioEditor;
 
   readonly activas = computed(() => this.preguntas().filter(p => p.activa).length);
 
@@ -134,7 +139,7 @@ export class AdminQuestionBanks implements OnInit {
   nuevaPregunta(): void {
     this.form.set({
       enunciado: '', cuerpo_html: '', tipo: 'OPCION_MULTIPLE', explicacion: '', versionar: false,
-      criterio: null,
+      criterio: null, ejercicio: null,
       media_tipo: null, media_document_id: null, media_url: null, media_mime: null,
       opciones: [
         { texto: '', correcta: true }, { texto: '', correcta: false },
@@ -157,6 +162,7 @@ export class AdminQuestionBanks implements OnInit {
       // que la persona escriba, no después de que el guardado falle con un 409.
       versionar: p.ya_respondida,
       criterio: p.criterio ?? null,
+      ejercicio: p.ejercicio ?? null,
       opciones: p.opciones.map(o => ({ ...o })),
     });
   }
@@ -185,6 +191,9 @@ export class AdminQuestionBanks implements OnInit {
     this.form.update(f => {
       if (!f) return f;
       // Cambiar a una abierta vacía las opciones y estrena criterio; al revés, al revés.
+      if (tipo === 'PROGRAMACION') {
+        return { ...f, tipo, opciones: [], criterio: null, ejercicio: f.ejercicio ?? ejercicioNuevo() };
+      }
       if (tipo === 'TEXTO_ABIERTO') {
         return { ...f, tipo, opciones: [], criterio: { modo: 'TEXTO_CONTIENE', contiene: [] } };
       }
@@ -309,6 +318,17 @@ export class AdminQuestionBanks implements OnInit {
       return;
     }
 
+    // Un ejercicio se guarda con todos sus esperados: si faltan y hay solución, se calculan.
+    let ejercicio: EjercicioCodigo | null = null;
+    if (f.tipo === 'PROGRAMACION') {
+      try {
+        ejercicio = this.editorEjercicio ? await this.editorEjercicio.completarEsperados() : f.ejercicio;
+      } catch (e) {
+        Swal.fire('Revisa el ejercicio', e instanceof Error ? e.message : 'No se pudieron calcular los esperados.', 'info');
+        return;
+      }
+    }
+
     const req: PreguntaRequest = {
       enunciado: f.enunciado.trim(),
       cuerpo_html: f.cuerpo_html?.trim() || undefined,
@@ -320,7 +340,8 @@ export class AdminQuestionBanks implements OnInit {
       explicacion: f.explicacion || undefined,
       activa: true,
       criterio: this.esAbierta() ? f.criterio : null,
-      opciones: this.esAbierta()
+      ejercicio,
+      opciones: this.esAbierta() || f.tipo === 'PROGRAMACION'
         ? []
         : f.opciones.map((o, i) => ({ ...o, texto: o.texto.trim(), orden: i })),
     };
@@ -379,6 +400,7 @@ export class AdminQuestionBanks implements OnInit {
       case 'EMPAREJAR': return 'Emparejar';
       case 'TEXTO_ABIERTO': return 'Respuesta escrita';
       case 'NUMERO': return 'Un número';
+      case 'PROGRAMACION': return 'Programación';
       default: return tipo;
     }
   }

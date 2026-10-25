@@ -1,0 +1,234 @@
+/* Marketing › Cumpleaños. Comparte .btn, .campo, .telon, .panel… con las demás pestañas
+   (pestanas-banners.css); aquí solo lo propio, con prefijo cu- (styles.css trae clases
+   globales como .titulo o .nombre con !important). */
+
+.cu-acciones { display: flex; flex-wrap: wrap; gap: 8px; }
+
+.cu-hoy {
+  display: flex; align-items: center; gap: 10px; margin: 0 0 16px; padding: 12px 14px; border-radius: 12px;
+  background: linear-gradient(90deg, color-mix(in srgb, #ff4f8b 14%, var(--surface)), color-mix(in srgb, #ffb13d 12%, var(--surface)));
+  border: 1px solid color-mix(in srgb, #ff4f8b 30%, var(--border)); font-size: .88rem; line-height: 1.4;
+}
+.cu-hoy .mat-icon { color: #e0245e; flex: none; }
+
+.cu-seccion { margin-top: 18px; }
+.cu-seccion:first-child { margin-top: 0; }
+.cu-seccion__cab { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 6px 16px; margin-bottom: 10px; }
+.cu-seccion__cab h3 { margin: 0; font-size: 1.02rem; }
+.cu-seccion__cab .sub { flex: 1 1 100%; }
+
+.cu-dias { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr)); gap: 12px; }
+.cu-dia {
+  display: flex; flex-direction: column; gap: 10px; padding: 14px; border-radius: 14px; min-width: 0;
+  background: var(--surface); border: 1px solid var(--border); box-shadow: 0 1px 2px rgb(0 0 0 / .04);
+}
+.cu-dia--hoy { border-color: color-mix(in srgb, #ff4f8b 55%, var(--border)); box-shadow: 0 0 0 3px color-mix(in srgb, #ff4f8b 14%, transparent); }
+.cu-dia--pasado { opacity: .72; }
+.cu-dia__cab { display: flex; flex-direction: column; align-items: stretch; gap: 10px; }
+.cu-dia__fecha { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cu-dia__fecha strong { display: block; font-size: .98rem; }
+/* «Viernes, 16 de octubre» (capitalize daría «16 De Octubre»). */
+.cu-dia__fecha strong::first-letter { text-transform: uppercase; }
+.cu-dia__rel { font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; color: var(--primary); }
+.cu-dia--hoy .cu-dia__rel { color: #e0245e; }
+.cu-dia__anim { display: flex; align-items: flex-end; gap: 8px; flex-wrap: wrap; min-width: 0; }
+.cu-dia__sel { min-width: min(220px, 100%); flex: 1 1 220px; }
+.cu-probar { min-height: 40px !important; padding: 7px 12px; }
+
+.cu-gente { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.cu-gente__vacio { padding: 8px 2px; }
+.cu-persona { display: flex; align-items: center; gap: 12px; padding: 8px; border-radius: 11px; background: var(--surface-2, rgb(0 0 0 / .03)); min-width: 0; }
+.cu-persona__foto { flex: none; width: 52px; height: 52px; border-radius: 50%; overflow: hidden; background: var(--surface-3, #e5e7eb); }
+.cu-persona__foto img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cu-persona__ini {
+  display: grid; place-items: center; width: 100%; height: 100%; color: #fff; font-weight: 800;
+  background: linear-gradient(135deg, #ff4f8b, #ffb13d);
+}
+.cu-persona__datos { display: flex; flex-direction: column; gap: 2px; min-width: 0; flex: 1 1 auto; }
+.cu-persona__datos strong { font-size: .92rem; overflow-wrap: anywhere; }
+.cu-persona__datos small { color: var(--muted); font-size: .78rem; overflow-wrap: anywhere; }
+.cu-persona__acc { display: flex; gap: 6px; flex: none; }
+
+.cu-chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 3px; }
+.cu-chip {
+  display: inline-flex; align-items: center; gap: 3px; padding: 2px 8px; border-radius: 999px; font-size: .7rem; font-weight: 700;
+  background: var(--surface-3, #eef0f6); color: var(--text);
+}
+.cu-chip .mat-icon { font-size: 13px; width: 13px; height: 13px; }
+.cu-chip--etq { gap: 2px; font-size: .86rem; padding: 1px 8px; letter-spacing: 1px; }
+.cu-chip--ok { background: color-mix(in srgb, #16a34a 16%, var(--surface)); color: #15803d; color: light-dark(#15803d, #86efac); }
+.cu-personalizar { color: #e0245e; border-color: color-mix(in srgb, #e0245e 40%, var(--border)) !important; }
+.cu-chip--aviso { background: color-mix(in srgb, #f59e0b 18%, var(--surface)); color: #92400e; color: light-dark(#92400e, #fcd34d); }
+
+.cu-dia__pie { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 16px; }
+.cu-metrica { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: .76rem; color: var(--muted); }
+.cu-metrica .mat-icon { font-size: 15px; width: 15px; height: 15px; }
+.cu-textos { display: flex; flex-direction: column; gap: 10px; padding: 12px; border-radius: 11px; background: var(--surface-2, rgb(0 0 0 / .03)); }
+
+.cu-vacio {
+  grid-column: 1 / -1; display: flex; flex-direction: column; align-items: center; gap: 6px; text-align: center;
+  padding: 34px 16px; border-radius: 16px; border: 1.5px dashed var(--border);
+}
+.cu-vacio p { margin: 0; }
+.cu-vacio__icono {
+  display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; margin-bottom: 4px;
+  background: linear-gradient(135deg, #ff4f8b, #ffb13d); color: #fff;
+}
+.cu-vacio__icono .mat-icon { font-size: 32px; width: 32px; height: 32px; }
+
+/* ── galería de plantillas ─────────────────────────────────────────────── */
+
+.cu-galeria { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr)); gap: 12px; }
+.cu-pl { display: flex; flex-direction: column; border-radius: 14px; overflow: hidden; background: var(--surface); border: 1px solid var(--border); }
+.cu-pl--off { opacity: .55; }
+.cu-pl__info { display: flex; flex-direction: column; gap: 4px; padding: 10px 12px 4px; min-width: 0; }
+.cu-pl__info strong { font-size: .92rem; }
+.cu-pl__info small { color: var(--muted); font-size: .76rem; line-height: 1.4; }
+.cu-pl__acc { display: flex; align-items: center; gap: 6px; padding: 8px 12px 12px; margin-top: auto; }
+.cu-pl__acc .cu-probar { flex: 1 1 auto; justify-content: center; }
+
+/* Muestra estática de cada motor (la animación de verdad está en «Probar»). */
+.cu-pl__muestra {
+  position: relative; aspect-ratio: 16 / 9; overflow: hidden; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  color: var(--m-texto);
+  /* Con fondo animado se ve su póster (el fondo real); si no, el degradado de la plantilla. */
+  background: var(--m-poster, none) center / cover no-repeat, radial-gradient(110% 90% at 50% 35%, var(--m-fondo), var(--m-fondo-2));
+}
+.cu-pl__muestra .cu-pl__titulo { text-shadow: 0 2px 10px rgb(0 0 0 / .35); }
+.cu-pl__muestra--grande { width: 100%; border-radius: 12px; }
+.cu-pl__icono { position: absolute; top: 8px; left: 8px; opacity: .55; font-size: 18px; width: 18px; height: 18px; }
+.cu-pl__avatar {
+  width: 26%; aspect-ratio: 1; border-radius: 50%; padding: 3px; display: grid;
+  background: conic-gradient(var(--m-acento), var(--m-acento-2), var(--m-acento));
+}
+.cu-pl__avatar span {
+  display: grid; place-items: center; border-radius: inherit; color: #fff; font-weight: 800; font-size: .8rem;
+  background: linear-gradient(135deg, color-mix(in srgb, var(--m-acento) 70%, #000), color-mix(in srgb, var(--m-acento-2) 70%, #000));
+  border: 2px solid var(--m-fondo);
+}
+.cu-pl__titulo { font: 700 clamp(15px, 1.3vw, 20px)/1.05 var(--m-fuente); text-align: center; padding: 0 10px; }
+.cu-pl__muestra--grande .cu-pl__titulo { font-size: 24px; }
+.cu-pl__puntos { position: absolute; inset: 0; pointer-events: none; }
+.cu-pl__puntos i { position: absolute; width: 7px; height: 11px; border-radius: 2px; background: var(--m-acento); rotate: 24deg; }
+.cu-pl__puntos i:nth-child(1) { left: 12%; top: 22%; }
+.cu-pl__puntos i:nth-child(2) { left: 82%; top: 16%; background: var(--m-acento-2); rotate: -30deg; }
+.cu-pl__puntos i:nth-child(3) { left: 74%; top: 70%; rotate: 60deg; }
+.cu-pl__puntos i:nth-child(4) { left: 20%; top: 76%; background: var(--m-acento-2); rotate: -12deg; }
+.cu-pl__puntos i:nth-child(5) { left: 90%; top: 46%; width: 8px; height: 8px; border-radius: 50%; }
+.cu-pl__muestra--globos .cu-pl__puntos i { width: 16px; height: 20px; border-radius: 50% 50% 46% 46%; rotate: 0deg; }
+.cu-pl__muestra--globos .cu-pl__avatar, .cu-pl__muestra--polaroid .cu-pl__avatar { border-radius: 18%; background: #fff; }
+.cu-pl__muestra--globos .cu-pl__avatar span, .cu-pl__muestra--polaroid .cu-pl__avatar span { border-radius: 14%; border: 0; }
+.cu-pl__muestra--fuegos .cu-pl__puntos i { width: 4px; height: 4px; border-radius: 50%; box-shadow: 0 0 10px 4px var(--m-acento); background: #fff; }
+.cu-pl__muestra--gala::after { content: ''; position: absolute; inset: 8px; border: 1px solid var(--m-acento); pointer-events: none; }
+.cu-pl__muestra--gala .cu-pl__titulo { font-style: italic; color: var(--m-acento); }
+.cu-pl__muestra--gala .cu-pl__avatar { border-radius: 999px 999px 8px 8px; aspect-ratio: 4 / 5; width: 21%; background: var(--m-acento); }
+.cu-pl__muestra--gala .cu-pl__avatar span { border-radius: inherit; }
+.cu-pl__muestra--gala .cu-pl__puntos i { width: 5px; height: 5px; rotate: 45deg; border-radius: 1px; }
+.cu-pl__muestra--polaroid { background: var(--m-poster, none) center / cover no-repeat, linear-gradient(180deg, var(--m-fondo), var(--m-fondo-2)); }
+.cu-pl__muestra--polaroid .cu-pl__avatar { rotate: -5deg; padding: 4px 4px 12px; box-shadow: 0 6px 14px -6px rgb(0 0 0 / .4); }
+.cu-pl__muestra--polaroid .cu-pl__titulo { color: var(--m-acento); font-size: 24px; }
+.cu-pl__muestra--pastel .cu-pl__titulo { color: var(--m-acento); }
+.cu-pl__muestra--pastel .cu-pl__puntos i { width: 9%; height: 11%; border-radius: 0; clip-path: polygon(0 0, 100% 0, 50% 100%); top: 0; rotate: 0deg; }
+.cu-pl__muestra--pastel .cu-pl__puntos i:nth-child(1) { left: 6%; }
+.cu-pl__muestra--pastel .cu-pl__puntos i:nth-child(2) { left: 26%; }
+.cu-pl__muestra--pastel .cu-pl__puntos i:nth-child(3) { left: 46%; }
+.cu-pl__muestra--pastel .cu-pl__puntos i:nth-child(4) { left: 66%; }
+.cu-pl__muestra--pastel .cu-pl__puntos i:nth-child(5) { left: 86%; width: 9%; height: 11%; border-radius: 0; }
+
+/* ── formulario ─────────────────────────────────────────────────────────── */
+
+.cu-form { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 18px; }
+.cu-form__datos, .cu-form__foto { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.cu-form__rotulo { font-size: .8rem; font-weight: 600; color: var(--muted); }
+.cu-donde { display: flex; flex-direction: column; gap: 6px; font-size: .8rem; }
+.cu-donde > span { font-weight: 600; color: var(--muted); }
+.cu-nota { display: flex; gap: 6px; align-items: flex-start; }
+.cu-nota .mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; color: var(--primary); }
+
+.cu-soltar {
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; text-align: center; cursor: pointer;
+  min-height: 220px; padding: 18px; border-radius: 14px; border: 2px dashed var(--border); background: var(--surface-2, rgb(0 0 0 / .02));
+  transition: border-color .15s, background .15s;
+}
+.cu-soltar:hover { border-color: var(--primary); background: color-mix(in srgb, var(--primary) 6%, var(--surface)); }
+.cu-soltar .mat-icon { font-size: 34px; width: 34px; height: 34px; color: var(--primary); }
+.cu-soltar small { color: var(--muted); font-size: .74rem; line-height: 1.4; max-width: 30ch; }
+
+.cu-foto { display: flex; flex-direction: column; gap: 10px; }
+/* La caja se ajusta a la imagen (sin bandas): así el clic cae sobre la foto y no sobre un
+   relleno, y el porcentaje que se guarda es el del archivo. */
+.cu-foto__caja { display: flex; justify-content: center; border-radius: 12px; overflow: hidden; background: #111; }
+.cu-foto__completa { position: relative; line-height: 0; cursor: crosshair; }
+.cu-foto__completa img { display: block; width: auto; height: auto; max-width: 100%; max-height: 260px; user-select: none; }
+.cu-foto__mira {
+  position: absolute; width: 34px; height: 34px; translate: -50% -50%; border-radius: 50%; pointer-events: none;
+  border: 2px solid #fff; box-shadow: 0 0 0 2px rgb(0 0 0 / .45), inset 0 0 0 2px rgb(0 0 0 / .25);
+}
+.cu-foto__mira::after { content: ''; position: absolute; left: 50%; top: 50%; width: 4px; height: 4px; translate: -50% -50%; border-radius: 50%; background: #fff; }
+.cu-foto__marcos { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.cu-foto__marcos small { flex: 1 1 140px; color: var(--muted); font-size: .74rem; line-height: 1.4; }
+.cu-foto__circulo, .cu-foto__arco { flex: none; overflow: hidden; background: #ddd; }
+.cu-foto__circulo { width: 72px; height: 72px; border-radius: 50%; box-shadow: 0 0 0 3px #ffc83d; }
+.cu-foto__arco { width: 58px; height: 72px; border-radius: 999px 999px 6px 6px; box-shadow: 0 0 0 2px #d4af37; }
+.cu-foto__circulo img, .cu-foto__arco img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cu-foto__acc { display: flex; gap: 8px; flex-wrap: wrap; }
+.cu-foto__acc .btn { min-height: 38px; }
+
+@media (max-width: 760px) {
+  .cu-form { grid-template-columns: 1fr; }
+  .cu-dias { grid-template-columns: 1fr; }
+  .cu-acciones .btn { flex: 1 1 auto; justify-content: center; }
+  .cu-metrica { margin-left: 0; }
+}
+
+/* ── Correo de cumpleaños (padrón de ms-payroll) unido al calendario ───────────────── */
+.cu-aviso-correo {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; margin-top: 12px; padding: 12px 14px; border-radius: 14px;
+  background: color-mix(in srgb, #f59e0b 12%, var(--surface)); border: 1px solid color-mix(in srgb, #f59e0b 35%, var(--border));
+  font-size: .86rem; line-height: 1.45;
+}
+.cu-aviso-correo > .mat-icon { flex: none; color: #b45309; }
+.cu-aviso-correo > span { flex: 1 1 320px; min-width: 0; }
+.cu-aviso-correo .btn { text-decoration: none; min-height: 40px; }
+
+.cu-chip--c-ok { background: color-mix(in srgb, #16a34a 14%, var(--surface)); color: #15803d; color: light-dark(#15803d, #86efac); }
+.cu-chip--c-aviso { background: color-mix(in srgb, #f59e0b 16%, var(--surface)); color: #92400e; color: light-dark(#92400e, #fcd34d); }
+/* «Agregar al padrón»: un chip que se toca, al lado del chip del correo. */
+.cu-chip--accion {
+  border: 1px solid color-mix(in srgb, var(--primary) 45%, var(--border)); background: var(--surface); color: var(--primary);
+  font: inherit; font-size: .7rem; font-weight: 700; cursor: pointer;
+  /* !important: styles.css fuerza 48 px a todo <button>. */
+  min-height: 0 !important; line-height: 1.3;
+}
+.cu-chip--accion:hover { background: color-mix(in srgb, var(--primary) 10%, var(--surface)); }
+.cu-nota--aviso .mat-icon { color: #b45309; }
+.cu-sacar { margin-right: auto; color: #b0174a; color: light-dark(#b0174a, #fda4af); }
+.cu-chip--c-error { background: color-mix(in srgb, #e0245e 14%, var(--surface)); color: #b0174a; color: light-dark(#b0174a, #fda4af); }
+
+.cu-padron { margin-top: 8px; border-radius: 12px; border: 1px dashed var(--border); background: var(--surface-2, rgb(0 0 0 / .02)); }
+.cu-padron--on { border-style: solid; }
+.cu-padron__cab {
+  display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 12px; border: 0; background: transparent; font: inherit;
+  color: var(--text); text-align: left; cursor: pointer; min-height: 0 !important; border-radius: 12px;
+}
+.cu-padron__cab:hover { background: color-mix(in srgb, #2b59f0 6%, transparent); }
+.cu-padron__cab > .mat-icon:first-child { flex: none; color: #2b59f0; }
+.cu-padron__cab > span { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; font-size: .84rem; }
+.cu-padron__cab small { color: var(--muted); font-size: .74rem; }
+.cu-padron__flecha { flex: none; color: var(--muted); }
+.cu-padron__lista { list-style: none; margin: 0; padding: 0 8px 8px; display: flex; flex-direction: column; gap: 4px; max-height: 320px; overflow: auto; }
+.cu-padron__lista li { display: flex; align-items: center; gap: 10px; padding: 7px 8px; border-radius: 10px; background: var(--surface); }
+.cu-padron__ini { flex: none; width: 30px; height: 30px; border-radius: 50%; display: grid; place-items: center; font-size: .7rem; font-weight: 800;
+  color: #fff; background: linear-gradient(135deg, #6c8cff, #2b59f0); }
+.cu-padron__datos { display: flex; flex-direction: column; min-width: 0; flex: 1 1 auto; }
+.cu-padron__datos strong { font-size: .84rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cu-padron__datos small { color: var(--muted); font-size: .72rem; }
+.cu-padron__sin { color: #b45309; font-weight: 700; }
+.cu-padron__ya { flex: none; white-space: nowrap; }
+.cu-celebrar { flex: none; min-height: 34px !important; padding: 4px 10px; font-size: .78rem; }
+.cu-padron__todos { margin: 0 12px 10px; }
+
+.cu-metrica--btn { border: 0; background: transparent; font: inherit; cursor: pointer; padding: 4px 6px; border-radius: 8px; min-height: 0 !important; }
+.cu-metrica--btn:not(:disabled):hover { color: #e0245e; background: color-mix(in srgb, #e0245e 8%, transparent); }
+.cu-metrica--btn:disabled { cursor: default; }
+.cu-metrica__ir { margin-left: -2px; }

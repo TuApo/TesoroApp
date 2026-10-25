@@ -29,6 +29,7 @@ import { getLocalStorageItem, setLocalStorageItem } from '../../../../core/utils
 import { ThemeService } from '../../../../core/services/theme.service';
 import { NavegacionService } from '../../../../core/services/navegacion.service';
 import { SesionService } from '../../../../core/services/sesion.service';
+import { SedeScopeService } from '../../../../shared/services/sede-scope/sede-scope.service';
 
 export interface PermNode {
   id: string;
@@ -61,6 +62,7 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
   public readonly theme = inject(ThemeService);
   private readonly navegacion = inject(NavegacionService);
   private readonly sesion = inject(SesionService);
+  private readonly sedeScope = inject(SedeScopeService);
 
   public isSidebarHidden = false;
   public isMobile = false;
@@ -746,6 +748,9 @@ export class NavbarComponent implements OnInit, AfterViewInit, OnDestroy {
         next: (resp) => {
           this.lsSet('user', JSON.stringify(resp));
           this.loadPermTreeFromStorage();
+          // Este detalle trae solo las sedes asignadas y no el alcance (todas_sedes):
+          // se vuelve a poner encima para no perderlo según qué respuesta llegue última.
+          void this.sedeScope.sincronizar();
         },
         error: (err) => console.error('Error fetching dynamic perms', err),
       });

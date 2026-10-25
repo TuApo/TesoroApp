@@ -18,7 +18,79 @@
     <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
   }
 
-  @if (pedidos().length === 0) {
+  <nav class="pestanas-pedidos" role="tablist">
+    <button type="button" role="tab" [class.activa]="pestana() === 'bandeja'" (click)="pestana.set('bandeja')"><mat-icon>inbox</mat-icon> Por atender
+      @if (pedidos().length) { <span class="n">{{ pedidos().length }}</span> }</button>
+    <button type="button" role="tab" [class.activa]="pestana() === 'registro'" (click)="verRegistro()"><mat-icon>history</mat-icon> Registro de pedidos</button>
+  </nav>
+
+  @if (pestana() === 'registro') {
+    <section class="tienda-tarjeta registro">
+      <div class="tienda-barra">
+        <div class="campo"><label>Desde</label><input type="date" [(ngModel)]="filtro.desde" /></div>
+        <div class="campo"><label>Hasta</label><input type="date" [(ngModel)]="filtro.hasta" /></div>
+        <div class="campo"><label>Estado</label>
+          <select [(ngModel)]="filtro.estado">
+            <option value="">Todos</option>
+            <option value="PAGO_PENDIENTE">Con pagos sin verificar</option>
+            @for (e of ['CREADO','CONFIRMADO','ALISTANDO','LISTO','EN_RUTA','ENTREGADO','CANCELADO','RECHAZADO']; track e) { <option [value]="e">{{ e }}</option> }
+          </select></div>
+        <div class="campo"><label>Pago</label>
+          <select [(ngModel)]="filtro.metodo">
+            <option value="">Todos</option>
+            @for (m of ['NOMINA','EFECTIVO','BONO','NEQUI','DAVIPLATA','LLAVE','TRANSFERENCIA','TARJETA','OTRO']; track m) { <option [value]="m">{{ METODO[m] }}</option> }
+          </select></div>
+        <div class="campo campo-ancho"><label>Buscar</label><input [(ngModel)]="filtro.q" (keyup.enter)="cargarRegistro(0)" placeholder="Número, cédula o nombre" /></div>
+        <button type="button" class="boton" (click)="cargarRegistro(0)"><mat-icon>search</mat-icon> Buscar</button>
+        <button type="button" class="boton secundario" (click)="exportar()" [disabled]="!registro()?.total"><mat-icon>download</mat-icon> Excel</button>
+      </div>
+
+      @if (registro(); as r) {
+        <div class="kpis">
+          <div><small>Pedidos</small><b>{{ r.resumen.pedidos }}</b></div>
+          <div><small>Vendido</small><b>{{ r.resumen.vendido | currency:'COP':'symbol-narrow':'1.0-0' }}</b></div>
+          <div><small>Entregados</small><b>{{ r.resumen.entregados }}</b></div>
+          <div><small>Cancelados</small><b>{{ r.resumen.cancelados }}</b></div>
+          @for (m of metodosDelRegistro(); track m) {
+            <div class="kpi-metodo"><small>{{ METODO[m] || m }}</small><b>{{ totalMetodo(m) | currency:'COP':'symbol-narrow':'1.0-0' }}</b>
+              @if (totalMetodo(m, 'PREVISTO')) { <em>{{ totalMetodo(m, 'PREVISTO') | currency:'COP':'symbol-narrow':'1.0-0' }} sin verificar</em> }</div>
+          }
+        </div>
+        <div class="tabla-registro">
+          <table>
+            <thead><tr><th>Pedido</th><th>Fecha</th><th>Cliente</th><th>Tienda</th><th>Estado</th><th>Pago</th><th class="num">Total</th></tr></thead>
+            <tbody>
+              @for (x of r.pedidos; track x.id) {
+                <tr>
+                  <td><b>{{ x.numero }}</b>@if (x.grupo) { <small>{{ x.grupo }}</small> }</td>
+                  <td>{{ x.creado_en | date:'d MMM y, h:mm a' }}</td>
+                  <td>{{ x.cliente_nombre || '—' }}<small>{{ x.cliente_cedula }}</small></td>
+                  <td>{{ x.tienda }}</td>
+                  <td><span class="insignia" [class]="'insignia ' + claseEstado(x.estado)">{{ x.estado }}</span></td>
+                  <td class="pagos-celda">
+                    @for (pg of x.pagos; track $index) {
+                      <span class="chip-pago" [attr.data-estado]="pg.estado" [title]="pg.referencia ? 'Ref. ' + pg.referencia : ''">
+                        {{ METODO[pg.metodo] || pg.metodo }} {{ pg.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                    }
+                  </td>
+                  <td class="num"><b>{{ x.total | currency:'COP':'symbol-narrow':'1.0-0' }}</b></td>
+                </tr>
+              } @empty {
+                <tr><td colspan="7" class="vacio">No hay pedidos con ese filtro.</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+        <div class="paginas">
+          <button type="button" class="boton secundario" [disabled]="paginaRegistro() === 0 || cargandoRegistro()" (click)="cargarRegistro(paginaRegistro() - 1)">Anterior</button>
+          <span>{{ paginaRegistro() * TAM + 1 }}–{{ paginaRegistro() * TAM + r.pedidos.length }} de {{ r.total }}</span>
+          <button type="button" class="boton secundario" [disabled]="(paginaRegistro() + 1) * TAM >= r.total || cargandoRegistro()" (click)="cargarRegistro(paginaRegistro() + 1)">Siguiente</button>
+        </div>
+      } @else if (cargandoRegistro()) {
+        <p class="nota">Cargando…</p>
+      }
+    </section>
+  } @else if (pedidos().length === 0) {
     <div class="tienda-tarjeta tienda-vacio">
       <mat-icon>inbox</mat-icon>
       <p>No hay pedidos pendientes en esta tienda.</p>
@@ -52,13 +124,20 @@
 
           <div class="pedido-acciones">
             <button type="button" class="boton secundario" (click)="ver(p)">Ver detalle</button>
+            @if (p.estado === 'CONFIRMADO' || p.estado === 'ALISTANDO' || p.estado === 'LISTO') {
+              <a class="boton" [routerLink]="['/dashboard/tienda/alistar', p.id]"><mat-icon>inventory</mat-icon> {{ p.estado === 'LISTO' ? 'Sticker' : 'Alistar y sticker' }}</a>
+            }
             @if (p.estado === 'CREADO') {
               <button type="button" class="boton" (click)="confirmar(p)">
                 <mat-icon>check</mat-icon> Confirmar y apartar
               </button>
             }
             @for (s of siguientes[p.estado] ?? []; track s.codigo) {
-              <button type="button" class="boton" (click)="avanzar(p, s.codigo)">{{ s.nombre }}</button>
+              @if (s.codigo === 'ENTREGADO') {
+                <a class="boton" [routerLink]="['/dashboard/tienda/entregar', p.id]"><mat-icon>how_to_reg</mat-icon> Entregar con acta</a>
+              } @else {
+                <button type="button" class="boton" (click)="avanzar(p, s.codigo)">{{ s.nombre }}</button>
+              }
             }
           </div>
 
@@ -76,6 +155,48 @@
                   </li>
                 }
               </ul>
+
+              <h3>Pago <small class="nota">verificado {{ verificado() | currency:'COP':'symbol-narrow':'1.0-0' }} de {{ totalAbierto() | currency:'COP':'symbol-narrow':'1.0-0' }}</small></h3>
+              <ul class="pagos-pedido">
+                @for (pg of pagos(); track pg.id) {
+                  <li [attr.data-estado]="pg.estado">
+                    <div class="pago-fila">
+                      <b>{{ METODO[pg.metodo] || pg.metodo }}</b>
+                      <span class="numero">{{ pg.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
+                      <span class="insignia" [class.exito]="pg.estado === 'VERIFICADO'" [class.peligro]="pg.estado === 'RECHAZADO'" [class.aviso]="pg.estado === 'PREVISTO'">
+                        {{ pg.estado === 'PREVISTO' ? 'Por verificar' : pg.estado === 'VERIFICADO' ? 'Verificado' : 'Rechazado' }}</span>
+                      @if (pg.origen === 'TIENDA') { <span class="insignia info">registrado en tienda</span> }
+                    </div>
+                    <small class="nota">
+                      @if (pg.reportado_en) { Reportado {{ pg.reportado_en | date:'short' }} · }
+                      @if (pg.comprobante_doc_id) { <button type="button" class="enlace" (click)="verComprobante(pg.comprobante_doc_id)"><mat-icon>receipt</mat-icon> Ver comprobante</button> · }
+                      @if (pg.referencia) { Ref. {{ pg.referencia }} · }
+                      @if (pg.verificado_por_nombre) { {{ pg.verificado_por_nombre }} · {{ pg.verificado_en | date:'short' }} }
+                      @if (pg.nota) { · {{ pg.nota }} }
+                    </small>
+                    @if (pg.metodo !== 'NOMINA' && pg.estado !== 'VERIFICADO') {
+                      <div class="pago-acciones">
+                        <input [(ngModel)]="refPago[pg.id]" [placeholder]="pg.referencia || 'Referencia / código del bono'" />
+                        <input [(ngModel)]="notaPago[pg.id]" placeholder="Nota (obligatoria si rechaza)" />
+                        <button type="button" class="boton" (click)="verificarPago(p, pg, 'VERIFICADO')"><mat-icon>verified</mat-icon> Verificar</button>
+                        <button type="button" class="boton peligro" (click)="verificarPago(p, pg, 'RECHAZADO')">Rechazar</button>
+                      </div>
+                    } @else if (pg.metodo !== 'NOMINA' && pg.estado === 'VERIFICADO' && p.estado !== 'ENTREGADO') {
+                      <button type="button" class="enlace" (click)="verificarPago(p, pg, 'PREVISTO')">Deshacer verificación</button>
+                    }
+                  </li>
+                } @empty {
+                  <li class="nota">Este pedido no tiene desglose de pago.</li>
+                }
+              </ul>
+              <div class="agregar-pago">
+                <strong>Registrar un pago</strong>
+                <select [(ngModel)]="nuevoPago.metodo">@for (m of metodosTienda; track m) { <option [value]="m">{{ METODO[m] }}</option> }</select>
+                <input type="number" min="0" [(ngModel)]="nuevoPago.monto" [placeholder]="faltante() ? 'Falta ' + faltante() : 'Monto'" />
+                <input [(ngModel)]="nuevoPago.referencia" placeholder="Referencia" />
+                <label class="casilla"><input type="checkbox" [(ngModel)]="nuevoPago.verificado" /> Ya lo recibí</label>
+                <button type="button" class="boton secundario" (click)="agregarPago(p)"><mat-icon>add</mat-icon> Registrar</button>
+              </div>
 
               <h3>Seguimiento</h3>
               <ol class="seguimiento">

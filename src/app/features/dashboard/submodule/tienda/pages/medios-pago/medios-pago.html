@@ -1,0 +1,115 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>account_balance_wallet</mat-icon> Medios de pago</h1>
+      <p class="tienda-subtitulo">Con qué le pagan a esta tienda lo que no va por bono mercado. La persona ve estos datos al pagar, sube su comprobante y usted lo verifica en Pedidos.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  @if (ctx.tiendaId()) {
+    <ul class="medios">
+      @for (m of medios(); track $index; let i = $index) {
+        <li class="tienda-tarjeta medio" [class.inactivo]="!m.activo">
+          <div class="m-cabeza">
+            <span class="m-tipo"><mat-icon>{{ TIPOS[m.metodo!]?.icono }}</mat-icon> {{ TIPOS[m.metodo!]?.nombre || m.metodo }}</span>
+            <label class="chk"><input type="checkbox" [ngModel]="!!m.activo" (ngModelChange)="cambiar(i, 'activo', $event)" [name]="'a' + i" /> Activo</label>
+            <button type="button" class="icono" (click)="quitar(i)" aria-label="Quitar"><mat-icon>delete</mat-icon></button>
+          </div>
+          @if (m.metodo !== 'EFECTIVO') {
+            <div class="campos">
+              <label>Nombre que ve la persona<input class="campo-texto" [ngModel]="m.nombre" (ngModelChange)="cambiar(i, 'nombre', $event)" [name]="'n' + i" placeholder="Ej. Nequi Tienda Cajicá" /></label>
+              @if (TIPOS[m.metodo!]?.numero) {
+                <label>{{ TIPOS[m.metodo!]?.numero }} *<input class="campo-texto" [ngModel]="m.numero" (ngModelChange)="cambiar(i, 'numero', $event)" [name]="'nu' + i" /></label>
+              }
+              @if (m.metodo === 'TRANSFERENCIA') {
+                <label>Banco<input class="campo-texto" [ngModel]="m.entidad" (ngModelChange)="cambiar(i, 'entidad', $event)" [name]="'e' + i" /></label>
+                <label>Tipo de cuenta
+                  <select class="campo-texto" [ngModel]="m.tipo_cuenta" (ngModelChange)="cambiar(i, 'tipo_cuenta', $event)" [name]="'tc' + i">
+                    <option [ngValue]="null">—</option><option value="AHORROS">Ahorros</option><option value="CORRIENTE">Corriente</option>
+                  </select></label>
+              }
+              @if (TIPOS[m.metodo!]?.enlace) {
+                <label class="ancho">Link de pago (Wompi, Bold, Mercado Pago, ePayco…)<input class="campo-texto" [ngModel]="m.enlace_pago" (ngModelChange)="cambiar(i, 'enlace_pago', $event)" [name]="'en' + i" placeholder="https://" /></label>
+              }
+              <label class="qr">Imagen del QR{{ m.metodo === 'QR' ? ' *' : ' (opcional)' }}
+                <span class="boton secundario"><mat-icon>{{ m.qr_doc_id ? 'check_circle' : 'qr_code_2' }}</mat-icon> {{ subiendoQr() === i ? 'Subiendo…' : m.qr_doc_id ? 'QR cargado (cambiar)' : 'Subir imagen del QR' }}</span>
+                <input type="file" accept="image/*" (change)="subirQr(i, $event)" hidden /></label>
+              <label>Titular<input class="campo-texto" [ngModel]="m.titular" (ngModelChange)="cambiar(i, 'titular', $event)" [name]="'ti' + i" /></label>
+              <label>NIT / cédula del titular<input class="campo-texto" [ngModel]="m.documento_titular" (ngModelChange)="cambiar(i, 'documento_titular', $event)" [name]="'dt' + i" /></label>
+              <label class="ancho">Instrucciones<textarea rows="2" class="campo-texto" [ngModel]="m.instrucciones" (ngModelChange)="cambiar(i, 'instrucciones', $event)" [name]="'in' + i" placeholder="Ej. En el concepto ponga el número del pedido"></textarea></label>
+            </div>
+          } @else {
+            <p class="muted">Se paga al recibir: en el punto o al repartidor.</p>
+          }
+        </li>
+      } @empty {
+        <li class="tienda-vacio">Sin medios configurados: la tienda solo recibe efectivo (y bono mercado si da crédito).</li>
+      }
+    </ul>
+    <div class="agregar">
+      <span>Agregar:</span>
+      @for (t of LISTA; track t) { <button type="button" class="boton secundario" (click)="agregar(t)"><mat-icon>{{ TIPOS[t].icono }}</mat-icon> {{ TIPOS[t].nombre }}</button> }
+    </div>
+    <div class="pie">
+      <button type="button" class="boton" [disabled]="guardando()" (click)="guardar()"><mat-icon>save</mat-icon> Guardar</button>
+    </div>
+
+    <!-- ── Pasarela: cobros que se confirman solos ─────────────────────── -->
+    @if (pasarela(); as p) {
+      <section class="tienda-tarjeta pasarela">
+        <h2 class="p-titulo"><mat-icon>bolt</mat-icon> Pasarela de pago (confirmación automática)</h2>
+        <p class="nota">
+          Con una cuenta de comercio en <b>Wompi</b> (Bancolombia), la caja genera un QR de cobro, la persona paga desde
+          su celular con Nequi, PSE, tarjeta o Bancolombia, y el pago queda <b>verificado solo</b>, sin foto del comprobante.
+          Las llaves se sacan del panel de Wompi en <i>Desarrolladores</i>. Los medios que no marque abajo siguen con
+          los datos de cuenta de arriba + foto del comprobante.
+        </p>
+        @if (!p.cifrado_disponible) {
+          <div class="tienda-error"><mat-icon>lock</mat-icon> Falta la clave de cifrado del servidor (STORE_CLAVE_CIFRADO): no se pueden guardar las llaves privadas todavía.</div>
+        }
+        <div class="p-estado">
+          <span class="insignia" [class.exito]="p.activo" [class.aviso]="!p.activo">{{ p.activo ? 'Activa' : 'Inactiva' }}</span>
+          @if (p.nombre_comercio) { <span>Comercio: <b>{{ p.nombre_comercio }}</b></span> }
+          @if (p.verificado_en) { <span class="nota sin-margen">probada {{ p.verificado_en | date:'d MMM, h:mm a' }}</span> }
+        </div>
+        <div class="p-campos">
+          <div class="campo"><label>Ambiente</label>
+            <select [(ngModel)]="formPasarela.ambiente" name="p-amb">
+              <option value="SANDBOX">Pruebas (sandbox)</option>
+              <option value="PRODUCCION">Producción (dinero real)</option>
+            </select></div>
+          <div class="campo"><label>Llave pública</label>
+            <input [(ngModel)]="formPasarela.llave_publica" name="p-pub" placeholder="pub_test_… o pub_prod_…" autocomplete="off" /></div>
+          <div class="campo"><label>Llave privada @if (p.tiene_llave_privada) { <small>(guardada)</small> }</label>
+            <input type="password" [(ngModel)]="formPasarela.llave_privada" name="p-prv" [placeholder]="p.tiene_llave_privada ? 'Déjela vacía para conservarla' : 'prv_test_… o prv_prod_…'" autocomplete="new-password" /></div>
+          <div class="campo"><label>Secreto de integridad @if (p.tiene_secreto_integridad) { <small>(guardado)</small> }</label>
+            <input type="password" [(ngModel)]="formPasarela.secreto_integridad" name="p-int" autocomplete="new-password" /></div>
+          <div class="campo"><label>Secreto de eventos @if (p.tiene_secreto_eventos) { <small>(guardado)</small> }</label>
+            <input type="password" [(ngModel)]="formPasarela.secreto_eventos" name="p-ev" autocomplete="new-password" /></div>
+        </div>
+        <p class="nota">Medios que se cobran por la pasarela en la caja:</p>
+        <div class="p-metodos">
+          @for (m of METODOS_PASARELA; track m) {
+            <label class="chk"><input type="checkbox" [checked]="formPasarela.metodos.includes(m)" (change)="alternarMetodoPasarela(m)" /> {{ TIPOS[m]?.nombre || m }}</label>
+          }
+        </div>
+        <p class="nota">URL de eventos para configurar en Wompi (opcional, adelanta la confirmación): <span class="mono">{{ p.url_eventos }}</span></p>
+        <div class="pie">
+          <button type="button" class="boton secundario" [disabled]="guardandoPasarela()" (click)="guardarPasarela()"><mat-icon>save</mat-icon> Guardar</button>
+          @if (p.configurada) { <button type="button" class="boton secundario" (click)="probarPasarela()"><mat-icon>wifi_tethering</mat-icon> Probar conexión</button> }
+          @if (!p.activo) {
+            <button type="button" class="boton" [disabled]="guardandoPasarela() || !p.cifrado_disponible" (click)="guardarPasarela(true)"><mat-icon>bolt</mat-icon> Guardar y activar</button>
+          } @else {
+            <button type="button" class="boton secundario" [disabled]="guardandoPasarela()" (click)="guardarPasarela(false)"><mat-icon>pause</mat-icon> Desactivar</button>
+          }
+        </div>
+      </section>
+    }
+  } @else {
+    <div class="tienda-vacio">Elija una tienda.</div>
+  }
+</div>

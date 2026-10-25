@@ -1,0 +1,77 @@
+<div class="fp">
+  @if (error()) { <div class="msg mal"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="msg bien"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="publicadas">
+    @for (f of fotos(); track f.id) {
+      <figure class="foto" [class.principal]="f.principal">
+        <button type="button" class="ver" (click)="ver(f)" [attr.aria-label]="'Ver foto ' + ($index + 1)">
+          @if (miniaturas()[f.doc_id]) { <img [src]="miniaturas()[f.doc_id]" alt="" /> } @else { <mat-icon>image</mat-icon> }
+        </button>
+        @if (f.principal) { <span class="sello">Principal</span> }
+        @if (editable()) {
+          <div class="acciones">
+            @if (!f.principal) { <button type="button" (click)="principal(f)" title="Usar como principal" aria-label="Usar como principal"><mat-icon>star</mat-icon></button> }
+            <button type="button" (click)="quitar(f)" title="Quitar" aria-label="Quitar foto"><mat-icon>delete</mat-icon></button>
+          </div>
+        }
+      </figure>
+    } @empty { <p class="vacio">Este producto aún no tiene fotos: en la tienda sale con un ícono.</p> }
+  </div>
+
+  @if (editable()) {
+    <div class="agregar-fila">
+      <label class="boton-foto"><mat-icon>photo_camera</mat-icon> Tomar foto
+        <input type="file" accept="image/*" capture="environment" (change)="elegir($event)" hidden /></label>
+      <label class="boton-foto"><mat-icon>add_photo_alternate</mat-icon> Elegir fotos
+        <input type="file" accept="image/*" multiple (change)="elegir($event)" hidden /></label>
+      <button type="button" class="boton-foto ia-btn" [class.activo]="verIa()" (click)="verIa.set(!verIa())">
+        <mat-icon>auto_awesome</mat-icon> {{ verIa() ? 'Cerrar mejora con IA' : 'Mejorar con IA' }}</button>
+    </div>
+
+    @if (pendientes().length) {
+      <section class="mejora">
+        <label class="interruptor">
+          <input type="checkbox" [checked]="mejorar()" (change)="ponerMejorar($any($event.target).checked)" />
+          <span><mat-icon>auto_fix_high</mat-icon> <b>Mejorar antes de publicar</b></span>
+        </label>
+        @if (mejorar()) {
+          <div class="opciones">
+            <label><input type="checkbox" [checked]="opciones().luzYColor" (change)="ponerOpcion('luzYColor', $any($event.target).checked)" /> Luz y color</label>
+            <label><input type="checkbox" [checked]="opciones().nitidez" (change)="ponerOpcion('nitidez', $any($event.target).checked)" /> Nitidez</label>
+            <label><input type="checkbox" [checked]="opciones().limpiarFondo" (change)="ponerOpcion('limpiarFondo', $any($event.target).checked)" /> Fondo blanco</label>
+            <label><input type="checkbox" [checked]="opciones().cuadroBlanco" (change)="ponerOpcion('cuadroBlanco', $any($event.target).checked)" /> Centrar en cuadro</label>
+          </div>
+          <small class="nota">Corrige luz, balance de blancos y nitidez en su equipo. «Fondo blanco» funciona con fotos tomadas sobre una superficie clara y lisa. Toque una foto para comparar antes y después.</small>
+        }
+
+        <div class="pendientes">
+          @for (p of pendientes(); track p.id) {
+            <figure class="pend">
+              <button type="button" class="ver" (pointerdown)="comparando.set(p.id)" (pointerup)="comparando.set(null)" (pointerleave)="comparando.set(null)"
+                      [attr.aria-label]="'Mantenga presionado para ver la original de ' + p.nombre">
+                <img [src]="vaMejorada(p) && comparando() !== p.id ? p.urlMejorada : p.urlOriginal" alt="" />
+                @if (p.procesando) { <span class="cargando"><mat-icon>hourglass_top</mat-icon></span> }
+                @if (mejorar() && p.mejorada) { <span class="etq">{{ vaMejorada(p) && comparando() !== p.id ? 'Mejorada' : 'Original' }}</span> }
+              </button>
+              <div class="pie-pend">
+                @if (mejorar() && p.mejorada) {
+                  <label class="mini-sw"><input type="checkbox" [checked]="p.usarMejorada" (change)="cambiar(p.id, { usarMejorada: $any($event.target).checked })" /> Usar mejorada</label>
+                }
+                <button type="button" class="quitar" (click)="quitarPendiente(p.id)" aria-label="Descartar"><mat-icon>close</mat-icon></button>
+              </div>
+            </figure>
+          }
+        </div>
+        <div class="pie">
+          <button type="button" class="boton secundario" (click)="descartar()">Descartar</button>
+          <button type="button" class="boton" [disabled]="subiendo() || procesando()" (click)="subir()">
+            <mat-icon>cloud_upload</mat-icon> {{ subiendo() ? 'Publicando…' : 'Publicar ' + pendientes().length + (pendientes().length === 1 ? ' foto' : ' fotos') }}
+          </button>
+        </div>
+      </section>
+    }
+
+    @if (verIa()) { <app-fotos-ia [productoId]="productoId()" [fotos]="fotos()" (publicada)="cargar(productoId())" /> }
+  }
+</div>

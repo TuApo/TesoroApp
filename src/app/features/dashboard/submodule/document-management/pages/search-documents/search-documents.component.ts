@@ -715,7 +715,8 @@ export class SearchDocumentsComponent implements OnInit {
                   Swal.fire({
                     icon: 'error',
                     title: 'Error al Subir',
-                    text: 'No se pudo subir el documento editado.'
+                    // 409 = no está chuleado para la requisición de la persona: se dice por qué.
+                    text: err?.error?.error || 'No se pudo subir el documento editado.'
                   });
                 }
               });

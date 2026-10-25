@@ -1,9 +1,10 @@
 <div class="cia" [class.cia--arrastrando]="arrastrando()">
   @if (cabecera()) {
     <header class="cia-cab">
-      <app-chat-ia-robot [tam]="38" [pensando]="pendiente()" [hablando]="reproductor.sonando() !== null" [nivel]="reproductor.nivel()" />
+      <app-avatar-agente [personaje]="personaje()" [tam]="40" [insignia]="true" [nivel]="reproductor.nivel()"
+                         [estado]="pendiente() ? 'pensando' : reproductor.sonando() !== null ? 'hablando' : 'reposo'" />
       <div class="cia-cab-texto">
-        <strong>Tu Apo IA</strong>
+        <strong>{{ personaje().nombre }} <small class="cia-cab-cargo">· {{ personaje().cargo }}</small></strong>
         <span class="cia-cab-ctx">
           <mat-icon>apps</mat-icon>{{ nombreModulo() }}
           @if (nombreTienda()) { <span class="cia-punto">·</span><mat-icon>storefront</mat-icon>{{ nombreTienda() }} }
@@ -42,8 +43,10 @@
       <div class="cia-centro"><mat-spinner diameter="30" /></div>
     } @else if (!mensajes().length) {
       <section class="cia-inicio">
-        <app-chat-ia-robot [tam]="72" [pensando]="false" />
-        <h2>{{ primerNombre() ? 'Hola, ' + primerNombre() : 'Hola' }}. ¿En qué te ayudo?</h2>
+        <app-avatar-agente [personaje]="personaje()" [tam]="88" [insignia]="true" />
+        <h2>{{ primerNombre() ? 'Hola, ' + primerNombre() : 'Hola' }}. Soy {{ personaje().nombreCorto }}.</h2>
+        <p class="cia-inicio-cargo">{{ personaje().cargo }}</p>
+        @if (personaje().saludo) { <p>{{ personaje().saludo }}</p> }
         <p>
           Estoy en <b>{{ nombreModulo() }}</b>@if (nombreTienda()) { · <b>{{ nombreTienda() }}</b> }.
           @if ((modulo()?.fuentes?.length ?? 0) > 0) { Consulto sus datos con tus permisos, }
@@ -82,10 +85,36 @@
             </div>
           </div>
         } @else if (m.rol === 'assistant') {
+          @if (traspasos().get(m.id); as antes) {
+            <div class="cia-traspaso" role="note">
+              <app-avatar-agente [personaje]="antes" [tam]="20" [animado]="false" />
+              <span>{{ antes.nombreCorto }}</span><mat-icon>arrow_forward</mat-icon>
+              <app-avatar-agente [personaje]="quien(m)" [tam]="20" [animado]="false" />
+              <span>le pasa la palabra a <b>{{ quien(m).nombreCorto }}</b>, {{ quien(m).cargo }}</span>
+            </div>
+          }
+          @let tr = tramos().get(m.id);
+          @if (m.estado === 'LISTO' && tr && tr.length > 1) {
+            <!-- Dos o más áreas respondieron juntas: una burbuja por personaje. -->
+            @for (t of tr; track $index; let ultimo = $last) {
+              <div class="cia-fila cia-fila--tramo" [style.--cia-p]="t.p.colorPrimario">
+                <app-avatar-agente class="cia-avatar" [personaje]="t.p" [tam]="32" [animado]="false" />
+                <div class="cia-burbuja cia-burbuja--tramo">
+                  <span class="cia-quien">{{ t.p.nombre }} <small>· {{ t.p.cargo }}</small></span>
+                  <app-markdown-message [content]="t.texto" [interactivo]="!soloLectura() && puedeEnviar()" (pregunta)="usarSugerencia($event)" />
+                  @if (ultimo) {
+                    <ng-container *ngTemplateOutlet="pieRespuesta; context: { $implicit: m }" />
+                  }
+                </div>
+              </div>
+            }
+          } @else {
           <div class="cia-fila">
-            <app-chat-ia-robot class="cia-avatar" [tam]="30" [pensando]="m.estado === 'PENDIENTE'"
-                               [hablando]="reproductor.sonando() === m.id" [nivel]="reproductor.nivel()" />
+            <app-avatar-agente class="cia-avatar" [personaje]="quien(m)" [tam]="32" [animado]="m.estado === 'PENDIENTE' || reproductor.sonando() === m.id"
+                               [estado]="m.estado === 'PENDIENTE' ? 'pensando' : reproductor.sonando() === m.id ? 'hablando' : 'reposo'"
+                               [nivel]="reproductor.nivel()" />
             <div class="cia-burbuja">
+              <span class="cia-quien">{{ quien(m).nombre }} <small>· {{ quien(m).cargo }}</small></span>
               @switch (m.estado) {
                 @case ('PENDIENTE') {
                   <div class="cia-pensando">
@@ -101,7 +130,19 @@
                   </div>
                 }
                 @default {
-                  <app-markdown-message [content]="m.contenido" />
+                  <app-markdown-message [content]="tr?.[0]?.texto ?? m.contenido" [interactivo]="!soloLectura() && puedeEnviar()" (pregunta)="usarSugerencia($event)" />
+                  <ng-container *ngTemplateOutlet="pieRespuesta; context: { $implicit: m }" />
+                }
+              }
+            </div>
+          </div>
+          }
+        }
+      }
+    }
+  </div>
+
+  <ng-template #pieRespuesta let-m>
                   @if (m.archivos.length) {
                     <div class="cia-archivos">
                       @for (a of m.archivos; track a.id; let i = $index) {
@@ -128,14 +169,7 @@
                     </button>
                     @if (m.createdAt) { <small class="cia-hora">{{ m.createdAt | date: 'd MMM, h:mm a' }}</small> }
                   </div>
-                }
-              }
-            </div>
-          </div>
-        }
-      }
-    }
-  </div>
+  </ng-template>
 
   @if (aviso()) {
     <div class="cia-aviso" role="alert">

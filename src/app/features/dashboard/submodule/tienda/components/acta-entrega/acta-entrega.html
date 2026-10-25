@@ -1,0 +1,183 @@
+<div class="acta">
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+
+  @if (estado(); as e) {
+    @if (e.acta) {
+      <div class="hecho">
+        <mat-icon>task_alt</mat-icon>
+        <span>
+          Acta registrada: recibió {{ e.acta.receptor_nombre }} ({{ e.acta.receptor_cedula }}) · {{ e.acta.via === 'BIOMETRIA' ? 'rostro' : 'cédula en persona' }}
+          @if (e.acta.modo_autorizacion && e.acta.modo_autorizacion !== 'SIN_PRESTAMO') { · autorización {{ e.acta.modo_autorizacion === 'DIGITAL' ? 'firmada en pantalla' : 'en papel' }} }
+          @if (e.acta.acta_sha256) { <small class="huella">Huella del acta: {{ e.acta.acta_sha256.slice(0, 24) }}…</small> }
+        </span>
+      </div>
+    } @else {
+      <!-- 1. Quién recibe -->
+      <section class="paso">
+        <h3><span>1</span> ¿Quién recibe?</h3>
+        <div class="opciones">
+          <button type="button" class="opcion" [class.activa]="receptor() === null" (click)="elegir(null)">
+            <mat-icon>person</mat-icon><span><b>{{ e.cliente_nombre }}</b><small>Titular · C.C. {{ e.cliente_cedula }}</small></span></button>
+          @for (t of e.terceros; track t.id) {
+            <button type="button" class="opcion" [class.activa]="receptor() === t.id" (click)="elegir(t.id)" [disabled]="sinFirmar()">
+              <mat-icon>group</mat-icon><span><b>{{ t.nombre }}</b><small>Autorizado{{ t.parentesco ? ' · ' + t.parentesco : '' }} · C.C. {{ t.cedula }}</small></span></button>
+          }
+        </div>
+        @if (e.recibe === 'TERCERO' && !e.terceros.length) { <p class="warn">La persona dijo que recibiría otra persona pero no la autorizó en la app: solo puede recibir el titular.</p> }
+        @if (sinFirmar()) { <p class="warn">La autorización de descuento no está firmada: solo puede recibir el titular, que la firma aquí (en pantalla con su rostro, o en papel).</p> }
+      </section>
+
+      @if (receptor() !== undefined && simple()) {
+        <!-- Entrega simple: foto de quien recibe y se cierra -->
+        <section class="paso">
+          <h3><span>2</span> Foto de {{ nombreReceptor() }} recibiendo</h3>
+          <label class="foto" [class.lista]="fotoReceptor()">
+            <mat-icon>{{ fotoReceptor() ? 'check_circle' : 'photo_camera' }}</mat-icon>
+            {{ subiendo() === 'receptor' ? 'Subiendo…' : fotoReceptor() ? 'Foto tomada (tocar para repetir)' : 'Tomar foto de quien recibe' }}
+            @if (fotoReceptor()) { <small class="huella">#{{ huella(fotoReceptor()) }}</small> }
+            <input type="file" accept="image/*" capture="environment" (change)="foto('receptor', $event)" hidden />
+          </label>
+          <label class="campo-col">Cédula de quien recibe<input class="campo-texto" inputmode="numeric" [ngModel]="cedulaRecibe()" (ngModelChange)="cedulaRecibe.set($event)" /></label>
+          <label class="chk"><input type="checkbox" [checked]="vioCedula()" (change)="vioCedula.set($any($event.target).checked)" /> Vi la cédula original y es la persona</label>
+        </section>
+        @if (doc(); as d) {
+          <section class="paso">
+            <h3><span>3</span> Formato de mercado · {{ d.numero }}</h3>
+            @if (firmadaDigital()) {
+              <p class="ok"><mat-icon>draw</mat-icon> Ya está firmado electrónicamente.</p>
+            } @else {
+              <p class="muted">El titular firma el formato (y pone la huella) que va con la orden. Si no lo tiene, imprímalo aquí.</p>
+              <div class="botones">
+                @if (imp.lista()) { <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="imprimirPortatil()"><mat-icon>print</mat-icon> En la portátil</button> }
+                <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="imprimir()"><mat-icon>picture_as_pdf</mat-icon> PDF</button>
+              </div>
+              <label class="foto" [class.lista]="papelFirmado()">
+                <mat-icon>{{ papelFirmado() ? 'check_circle' : 'document_scanner' }}</mat-icon>
+                {{ subiendo() === 'papel' ? 'Subiendo…' : papelFirmado() ? 'Formato firmado escaneado (tocar para repetir)' : 'Escanear ya el formato firmado (foto)' }}
+                @if (papelFirmado()) { <small class="huella">#{{ huella(papelFirmado()) }}</small> }
+                <input type="file" accept="image/*" capture="environment" (change)="foto('papel', $event)" hidden />
+              </label>
+              @if (!papelFirmado()) {
+                <label class="chk"><input type="checkbox" [checked]="papelDespues()" (change)="papelDespues.set($any($event.target).checked)" />
+                  El titular ya lo firmó: lo escaneo después y lo entrego en la tienda</label>
+              }
+            }
+          </section>
+        }
+        <div class="final">
+          <button type="button" class="boton secundario" (click)="cancelar.emit()">Volver</button>
+          <button type="button" class="boton" [disabled]="!completoSimple() || ocupado()" (click)="entregarSimple()"><mat-icon>task_alt</mat-icon> Entregar y cerrar</button>
+        </div>
+        <button type="button" class="enlace-modo" (click)="simple.set(false)">Usar verificación completa (rostro, documento y firma en pantalla)</button>
+      }
+
+      @if (receptor() !== undefined && !simple()) {
+        @if (canal() === 'DOMICILIO') { <button type="button" class="enlace-modo" (click)="simple.set(true)">Volver a la entrega simple (foto de quien recibe)</button> }
+        <!-- 2. Verificar -->
+        <section class="paso">
+          <h3><span>2</span> Verificar a {{ nombreReceptor() }}</h3>
+          @if (verificacion()?.aprueba) {
+            <p class="ok"><mat-icon>verified_user</mat-icon> Verificado {{ verificacion()!.via === 'BIOMETRIA' ? 'con rostro' : 'con cédula en persona' }}
+              @if (verificacion()!.puntaje != null) { <small class="muted"> · coincidencia {{ +verificacion()!.puntaje! | number:'1.2-2' }}</small> }</p>
+          } @else {
+            <div class="segmentos">
+              <button type="button" [class.activo]="modo() === 'rostro'" (click)="modo.set('rostro')">Rostro</button>
+              <button type="button" [class.activo]="modo() === 'cedula'" (click)="modo.set('cedula')">Cédula en persona</button>
+            </div>
+            @if (modo() === 'rostro') {
+              @if (!aceptaBio()) {
+                <div class="legal">{{ textoConsentimiento() }}</div>
+                <label class="chk"><input type="checkbox" (change)="aceptaBio.set($any($event.target).checked)" /> La persona leyó y autoriza la verificación con su rostro</label>
+                <small class="muted">Si no autoriza, use "Cédula en persona"{{ sinFirmar() ? ' (y la autorización se firma en papel)' : '' }}.</small>
+              } @else {
+                <eco-captura-rostro [frontal]="false" [conVivacidad]="true" (capturado)="conRostro($event)" />
+              }
+            } @else {
+              <label class="campo-col">Cédula que le presentan<input class="campo-texto" inputmode="numeric" [ngModel]="cedulaVista()" (ngModelChange)="cedulaVista.set($event)" [placeholder]="cedulaReceptor()" /></label>
+              <label class="campo-col">Qué verificó<textarea class="campo-texto" rows="2" [ngModel]="comentario()" (ngModelChange)="comentario.set($event)"></textarea></label>
+              <button type="button" class="boton" [disabled]="ocupado() || !cedulaVista().trim()" (click)="conCedula()">Registrar verificación</button>
+            }
+          }
+        </section>
+
+        @if (verificacion()?.aprueba) {
+          <!-- 3. Documento -->
+          <section class="paso">
+            <h3><span>3</span> Foto del documento de quien recibe</h3>
+            <label class="foto" [class.lista]="fotoDocumento()">
+              <mat-icon>{{ fotoDocumento() ? 'check_circle' : 'badge' }}</mat-icon>
+              {{ subiendo() === 'documento' ? 'Subiendo…' : fotoDocumento() ? 'Documento fotografiado (tocar para repetir)' : 'Tomar foto de la cédula' }}
+              @if (fotoDocumento()) { <small class="huella">#{{ huella(fotoDocumento()) }}</small> }
+              <input type="file" accept="image/*" capture="environment" (change)="foto('documento', $event)" hidden />
+            </label>
+            @if (!fotoReceptor()) {
+              <label class="foto secundaria">
+                <mat-icon>photo_camera</mat-icon> {{ subiendo() === 'receptor' ? 'Subiendo…' : 'Foto de la persona recibiendo (opcional)' }}
+                <input type="file" accept="image/*" capture="environment" (change)="foto('receptor', $event)" hidden />
+              </label>
+            }
+          </section>
+
+          <!-- 4. Autorización de descuento (bono mercado) -->
+          @if (doc(); as d) {
+            <section class="paso">
+              <h3><span>4</span> Autorización de descuento · {{ d.numero }}</h3>
+              @if (firmadaDigital()) {
+                <p class="ok"><mat-icon>draw</mat-icon> Firmada electrónicamente {{ d.firma_canal === 'ENTREGA' ? 'en esta entrega' : 'por el titular en su app' }}.</p>
+                <p class="muted">El papel es opcional: si la persona quiere su copia, imprímala.</p>
+                <div class="botones">
+                  @if (imp.lista()) { <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="imprimirPortatil()"><mat-icon>print</mat-icon> Copia en la portátil</button> }
+                  <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="imprimir()"><mat-icon>picture_as_pdf</mat-icon> Copia en PDF</button>
+                </div>
+              } @else {
+                <div class="segmentos">
+                  <button type="button" [class.activo]="autoriza() === 'digital'" (click)="autoriza.set('digital')">Firma en pantalla</button>
+                  <button type="button" [class.activo]="autoriza() === 'papel'" (click)="autoriza.set('papel')">Firma en papel</button>
+                </div>
+                @if (autoriza() === 'digital') {
+                  @if (!puedeFirmarDigital()) {
+                    <p class="warn">La firma en pantalla exige verificar al titular con su <b>rostro</b> (paso 2). Si no autoriza la biometría, use "Firma en papel".</p>
+                  } @else {
+                    <div class="legal texto">{{ d.texto }}</div>
+                    <label class="chk"><input type="checkbox" (change)="aceptaTexto.set($any($event.target).checked)" /> {{ e.cliente_nombre }} leyó la autorización y la acepta</label>
+                    @if (aceptaTexto()) {
+                      <eco-firma texto="Firma del titular" [pie]="'Autorizo el descuento · C.C. ' + e.cliente_cedula" (firma)="firmaAutoriza.set($event)" />
+                      <button type="button" class="boton" [disabled]="!firmaAutoriza() || ocupado()" (click)="firmarDigital()"><mat-icon>draw</mat-icon> Firmar autorización</button>
+                      <small class="muted">Queda con la huella del texto, de la firma y de la verificación facial.</small>
+                    }
+                  }
+                } @else {
+                  <p class="muted">Va impresa dentro del paquete · impresa {{ d.impresiones || 0 }} {{ (d.impresiones || 0) === 1 ? 'vez' : 'veces' }}. Si no la tiene, imprímala aquí.</p>
+                  <div class="botones">
+                    @if (imp.lista()) { <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="imprimirPortatil()"><mat-icon>print</mat-icon> En la portátil</button> }
+                    <button type="button" class="boton secundario" [disabled]="ocupado()" (click)="imprimir()"><mat-icon>picture_as_pdf</mat-icon> PDF (2 copias)</button>
+                  </div>
+                  <p class="muted">El titular firma la copia de custodia; la otra queda con la persona. Tómele una foto completa y nítida (que se vea el QR): esa es la digitalización.</p>
+                  <label class="foto" [class.lista]="papelFirmado()">
+                    <mat-icon>{{ papelFirmado() ? 'check_circle' : 'document_scanner' }}</mat-icon>
+                    {{ subiendo() === 'papel' ? 'Subiendo…' : papelFirmado() ? 'Papel firmado digitalizado (tocar para repetir)' : 'Foto del papel ya firmado' }}
+                    @if (papelFirmado()) { <small class="huella">#{{ huella(papelFirmado()) }}</small> }
+                    <input type="file" accept="image/*" capture="environment" (change)="foto('papel', $event)" hidden />
+                  </label>
+                }
+              }
+            </section>
+          }
+
+          <!-- 5. Firma de recibido -->
+          <section class="paso">
+            <h3><span>{{ doc() ? 5 : 4 }}</span> Firma de quien recibe</h3>
+            <eco-firma texto="Firma de recibido" [pie]="'Recibo a satisfacción · ' + (nombreReceptor() || '')" (firma)="firma.set($event)" />
+          </section>
+
+          <div class="final">
+            <button type="button" class="boton secundario" (click)="cancelar.emit()">Volver</button>
+            <button type="button" class="boton" [disabled]="!completo() || ocupado()" (click)="registrar()"><mat-icon>task_alt</mat-icon> Registrar acta y entregar</button>
+          </div>
+        }
+      }
+    }
+  } @else if (!error()) {
+    <p class="muted">Cargando…</p>
+  }
+</div>

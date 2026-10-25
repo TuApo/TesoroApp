@@ -32,6 +32,19 @@ export const routes: Routes = [
       { path: 'soporte', canActivate: [puedeVerSoporte], loadComponent: () => import('./pages/soporte/soporte.component').then(m => m.SoporteComponent) },
       { path: 'configuracion', loadComponent: () => import('./pages/configuracion/configuracion.component').then(m => m.ConfiguracionComponent) },
       { path: 'tarea/:id', loadComponent: () => import('./pages/tarea/tarea-page.component').then(m => m.TareaPageComponent) },
+      // Bandeja: correo y WhatsApp de cada persona como un CRM ligado a las tareas (ms-seguimiento).
+      {
+        path: 'bandeja',
+        loadComponent: () => import('./bandeja/bandeja-shell.component').then(m => m.BandejaShellComponent),
+        children: [
+          { path: '', loadComponent: () => import('./bandeja/entrada/entrada.component').then(m => m.EntradaComponent) },
+          { path: 'compromisos', loadComponent: () => import('./bandeja/compromisos/compromisos.component').then(m => m.CompromisosComponent) },
+          { path: 'contactos', loadComponent: () => import('./bandeja/contactos/contactos.component').then(m => m.ContactosComponent) },
+          { path: 'contactos/:id', loadComponent: () => import('./bandeja/contactos/contacto-detalle.component').then(m => m.ContactoDetalleComponent) },
+          { path: 'cuentas', loadComponent: () => import('./bandeja/cuentas/cuentas.component').then(m => m.CuentasComponent) },
+          { path: 'equipo', loadComponent: () => import('./bandeja/equipo/equipo.component').then(m => m.EquipoComponent) },
+        ],
+      },
 
       // Formas viejas (links de avisos ya enviados y del menú en caché).
       { path: 'cards/:id', redirectTo: 'tarea/:id' },

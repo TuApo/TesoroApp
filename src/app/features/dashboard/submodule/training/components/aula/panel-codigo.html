@@ -1,0 +1,60 @@
+<div class="pc">
+  <div class="pc-archivos">
+    @for (a of archivos(); track a.id) {
+      <button type="button" class="pc-tab" [class.activo]="actual()?.id === a.id" (click)="abrir(a)">
+        <mat-icon>description</mat-icon>{{ a.nombre }}
+      </button>
+    }
+    <details class="pc-nuevo">
+      <summary><mat-icon>add</mat-icon> Archivo</summary>
+      <div class="pc-nuevo__form">
+        <select [(ngModel)]="nuevoLenguaje" aria-label="Lenguaje">
+          @for (l of lenguajes; track l.id) {
+            <option [value]="l.id" [disabled]="l.donde === 'servidor' && !ejecutorServidor">{{ l.nombre }}{{ l.donde === 'servidor' && !ejecutorServidor ? ' (falta Piston)' : '' }}</option>
+          }
+        </select>
+        <input [(ngModel)]="nuevoNombre" placeholder="Nombre (opcional)" aria-label="Nombre del archivo" />
+        <button type="button" class="pc-btn pc-btn--primario" [disabled]="creando()" (click)="crear()">Crear</button>
+      </div>
+    </details>
+  </div>
+
+  @if (actual(); as a) {
+    <div class="pc-barra">
+      <span class="pc-lenguaje">{{ a.lenguaje }} · corre {{ dondeCorre() }}</span>
+      <span class="pc-espacio"></span>
+      @if (dirijo) {
+        <button type="button" class="pc-btn" (click)="alEscenario.emit(a.id)" title="Que todos lo vean en el escenario"><mat-icon>present_to_all</mat-icon></button>
+      }
+      <button type="button" class="pc-btn" (click)="guardarAhora()" title="Guardar ahora"><mat-icon>save</mat-icon></button>
+      <button type="button" class="pc-btn" (click)="entregar()"><mat-icon>assignment_turned_in</mat-icon> Entregar</button>
+      <button type="button" class="pc-btn pc-btn--lima" [disabled]="ejecutando()" (click)="ejecutar()">
+        <mat-icon>{{ ejecutando() ? 'hourglass_top' : 'play_arrow' }}</mat-icon> {{ ejecutando() ? 'Ejecutando…' : 'Ejecutar' }}
+      </button>
+    </div>
+  } @else {
+    <p class="pc-vacio">No hay archivos todavía. Crea uno con <strong>+ Archivo</strong>: todos lo editan a la vez.</p>
+  }
+
+  <div class="pc-editor" #editor [class.oculto]="!actual()"></div>
+
+  @if (actual() && (lenguaje() !== 'html')) {
+    <details class="pc-entrada">
+      <summary>Entrada del programa (stdin)</summary>
+      <textarea rows="2" [(ngModel)]="entrada" placeholder="Lo que el programa leerá con input() / Scanner"></textarea>
+    </details>
+  }
+
+  @if (vista(); as v) {
+    <iframe class="pc-vista" sandbox="allow-scripts" [srcdoc]="v" title="Vista previa del HTML"></iframe>
+  }
+  @if (salida(); as s) {
+    <div class="pc-salida" [class.mal]="!s.ok">
+      <div class="pc-salida__cab"><mat-icon>{{ s.ok ? 'check_circle' : 'error' }}</mat-icon> {{ s.ok ? 'Terminó' : 'Con errores' }} · {{ s.ms }} ms</div>
+      @if (s.salida) { <pre>{{ s.salida }}</pre> }
+      @if (s.errores) { <pre class="err">{{ s.errores }}</pre> }
+      @if (!s.salida && !s.errores && !vista()) { <pre class="tenue">(sin salida)</pre> }
+    </div>
+  }
+  <div #ejecutor class="pc-ejecutor"></div>
+</div>

@@ -19,7 +19,17 @@
     </div>
   }
 
-  @if (alcanceEsTodas) {
+  @if (alcanceEsTodas && sedeTransversal) {
+    <div class="notice notice--info">
+      <mat-icon fontSet="material-symbols-outlined">shield_person</mat-icon>
+      <span>
+        Perteneces a <b>{{ sedeTransversal }}</b>, que atiende a todas las oficinas: operas
+        sobre <b>todas las sedes</b>. La que marques como <b>activa</b> es la oficina con la
+        que quedan etiquetados tus registros; si dejas {{ sedeTransversal }} como activa, cada
+        registro te preguntará a qué oficina pertenece.
+      </span>
+    </div>
+  } @else if (alcanceEsTodas) {
     <div class="notice notice--info">
       <mat-icon fontSet="material-symbols-outlined">shield_person</mat-icon>
       <span>

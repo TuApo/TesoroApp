@@ -1,0 +1,209 @@
+<div class="pagina ancha">
+  <header class="cabecera">
+    <div class="titulo">
+      <h1>Agenda de visitas</h1>
+      <p>{{ supervisa() ? 'Visitas programadas del equipo a las fincas.' : 'Tus visitas programadas a las fincas.' }}</p>
+    </div>
+    @if (puedeProgramar()) {
+      <button type="button" class="boton primario" (click)="nueva()"><mat-icon>event</mat-icon> Programar visita</button>
+    }
+  </header>
+
+  @if (aviso(); as a) {
+    <div class="aviso" [class.mal]="a.tipo === 'mal'" role="status">
+      <mat-icon>{{ a.tipo === 'ok' ? 'check_circle' : 'error' }}</mat-icon>
+      <span>{{ a.texto }}</span>
+      <button type="button" class="cerrar" (click)="aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @if (desdePaquete()) {
+    <div class="estado-red sin"><mat-icon>signal_wifi_off</mat-icon> Sin señal: estás viendo tu agenda guardada en el teléfono.</div>
+  }
+
+  <div class="tarjeta controles">
+    <div class="navegacion">
+      <button type="button" class="boton icono" (click)="semana(-1)" aria-label="Semana anterior"><mat-icon>chevron_left</mat-icon></button>
+      <strong class="rango">{{ titulo() }}</strong>
+      <button type="button" class="boton icono" (click)="semana(1)" aria-label="Semana siguiente"><mat-icon>chevron_right</mat-icon></button>
+      <button type="button" class="boton" (click)="irAHoy()" [disabled]="esEstaSemana()">Hoy</button>
+    </div>
+    @if (supervisa()) {
+      <select class="selector" [ngModel]="coordinador()" (ngModelChange)="filtrar($event)" aria-label="Filtrar por coordinador">
+        <option value="">Todo el equipo</option>
+        @for (m of equipo(); track m.usuario_id) { <option [value]="m.usuario_id">{{ m.nombre }}</option> }
+      </select>
+    }
+    <div class="resumen">
+      <span class="chip">{{ resumen().total }} visitas</span>
+      <span class="chip ok">{{ resumen().cumplidas }} cumplidas</span>
+      @if (resumen().incumplidas) { <span class="chip mal">{{ resumen().incumplidas }} incumplidas</span> }
+      @if (cargando()) { <span class="chip info">Actualizando…</span> }
+    </div>
+  </div>
+
+  @if (error(); as e) {
+    <div class="tarjeta vacio">
+      <mat-icon>cloud_off</mat-icon>
+      <span>{{ e }}</span>
+      <button type="button" class="boton" (click)="cargar()"><mat-icon>refresh</mat-icon> Reintentar</button>
+    </div>
+  } @else {
+    <div class="semana">
+      @for (d of dias(); track d.iso) {
+        <section class="dia" [class.hoy]="d.hoy" [class.pasado]="d.pasado" [class.sin-visitas]="!d.visitas.length">
+          <header class="dia-cab">
+            <span class="dia-nombre">{{ d.nombre }}</span>
+            <span class="dia-num">{{ d.numero }} <small>{{ d.mes }}</small></span>
+            @if (d.hoy) { <span class="chip info">Hoy</span> }
+            @if (puedeProgramar() && !d.pasado) {
+              <button type="button" class="agregar" (click)="nueva(d.iso)" [attr.aria-label]="'Programar visita el ' + d.nombre">
+                <mat-icon>add</mat-icon>
+              </button>
+            }
+          </header>
+          @for (v of d.visitas; track v.id) {
+            <button type="button" class="visita" [class]="'visita ' + claseEstado(v.estado)" (click)="abrir(v)">
+              <span class="hora">
+                {{ v.hora_inicio ? v.hora_inicio.slice(0, 5) : 'Sin hora' }}@if (v.hora_fin) { – {{ v.hora_fin.slice(0, 5) }} }
+              </span>
+              <strong class="finca">{{ v.finca_nombre }}</strong>
+              @if (supervisa()) { <span class="quien"><mat-icon>person</mat-icon> {{ v.coordinador_nombre }}</span> }
+              <span class="pie">
+                <span class="chip" [class]="'chip ' + claseEstado(v.estado)">{{ ETIQUETA_VISITA[v.estado] }}</span>
+                @if (v.tareas_pendientes) {
+                  <span class="chip aviso" title="Tareas pendientes"><mat-icon>task_alt</mat-icon> {{ v.tareas_pendientes }}</span>
+                }
+              </span>
+              @if (v.entrada_ms || v.salida_ms) {
+                <span class="real">
+                  @if (v.entrada_ms) { <span><mat-icon>login</mat-icon> {{ horaCorta(v.entrada_ms) }}</span> }
+                  @if (v.salida_ms) { <span><mat-icon>logout</mat-icon> {{ horaCorta(v.salida_ms) }}</span> }
+                </span>
+              }
+            </button>
+          } @empty {
+            <p class="nada">Sin visitas</p>
+          }
+        </section>
+      }
+    </div>
+    @if (!cargando() && !resumen().total && !visitas().length) {
+      <div class="vacio">
+        <mat-icon>event_available</mat-icon>
+        No hay visitas esta semana.
+        @if (puedeProgramar()) { <button type="button" class="boton" (click)="nueva()">Programar una</button> }
+      </div>
+    }
+  }
+</div>
+
+<!-- ─── Hoja: visita ─────────────────────────────────────────────────────── -->
+@if (form(); as f) {
+  <div class="panel-flotante" (click)="form.set(null)">
+    <div class="hoja" (click)="$event.stopPropagation()" role="dialog" aria-label="Visita">
+      <h3>{{ f.id == null ? 'Programar visita' : (f.editable ? 'Editar visita' : 'Visita') }}</h3>
+
+      @if (f.visita; as v) {
+        <div class="detalle">
+          <span class="chip" [class]="'chip ' + claseEstado(v.estado)">{{ ETIQUETA_VISITA[v.estado] }}</span>
+          @if (v.entrada_ms) { <span class="chip ok"><mat-icon>login</mat-icon> Llegó {{ horaCorta(v.entrada_ms) }}</span> }
+          @if (v.salida_ms) { <span class="chip ok"><mat-icon>logout</mat-icon> Salió {{ horaCorta(v.salida_ms) }}</span> }
+          @if (v.tareas_pendientes) { <span class="chip aviso">{{ v.tareas_pendientes }} tarea(s) pendiente(s)</span> }
+        </div>
+      }
+
+      @if (f.editable) {
+        <div class="formulario dos">
+          @if (supervisa()) {
+            <div class="campo ancho">
+              <label for="v-coord">Coordinador</label>
+              <select id="v-coord" [ngModel]="f.coordinador_id" (ngModelChange)="poner('coordinador_id', $event)">
+                <option value="" disabled>Elige una persona</option>
+                @if (f.visita && !nombreCoordinador(f.coordinador_id)) {
+                  <option [value]="f.coordinador_id">{{ f.visita.coordinador_nombre }}</option>
+                }
+                @for (m of equipo(); track m.usuario_id) { <option [value]="m.usuario_id">{{ m.nombre }}</option> }
+              </select>
+            </div>
+          }
+          <div class="campo ancho">
+            <label for="v-finca">Finca</label>
+            @if (f.finca_id != null) {
+              <div class="elegida">
+                <mat-icon>agriculture</mat-icon> <strong>{{ f.finca_nombre }}</strong>
+                <button type="button" class="boton chico" (click)="quitarFinca()">Cambiar</button>
+              </div>
+            } @else {
+              <input id="v-finca" class="buscador" type="search" placeholder="Busca la finca por nombre"
+                     [ngModel]="fincaQ()" (ngModelChange)="fincaQ.set($event)" />
+              <ul class="lista sugerencias">
+                @for (x of fincasSugeridas(); track x.id) {
+                  <li class="fila clic" (click)="elegirFinca(x)" (keydown.enter)="elegirFinca(x)" tabindex="0">
+                    <mat-icon>location_on</mat-icon>
+                    <div class="cuerpo"><strong>{{ x.nombre }}</strong><small>{{ x.zona_nombre || 'Sin zona' }}</small></div>
+                  </li>
+                } @empty {
+                  <li class="tenue">{{ fincaQ() ? 'Ninguna finca coincide' : 'Escribe para buscar entre las fincas' }}</li>
+                }
+              </ul>
+            }
+          </div>
+          <div class="campo">
+            <label for="v-fecha">Fecha</label>
+            <input id="v-fecha" type="date" [ngModel]="f.fecha" (ngModelChange)="poner('fecha', $event)" />
+          </div>
+          <div class="horas">
+            <div class="campo">
+              <label for="v-ini">Desde</label>
+              <input id="v-ini" type="time" [ngModel]="f.hora_inicio" (ngModelChange)="poner('hora_inicio', $event)" />
+            </div>
+            <div class="campo">
+              <label for="v-fin">Hasta</label>
+              <input id="v-fin" type="time" [ngModel]="f.hora_fin" (ngModelChange)="poner('hora_fin', $event)" />
+            </div>
+          </div>
+          <div class="campo ancho">
+            <label for="v-obj">Objetivo</label>
+            <input id="v-obj" [ngModel]="f.objetivo" (ngModelChange)="poner('objetivo', $event)" maxlength="250"
+                   placeholder="Ej.: revisar novedades del personal" />
+          </div>
+          <div class="campo ancho">
+            <label for="v-notas">Notas</label>
+            <textarea id="v-notas" [ngModel]="f.notas" (ngModelChange)="poner('notas', $event)"></textarea>
+          </div>
+        </div>
+      } @else {
+        @if (f.visita; as v) {
+        <dl class="ficha">
+          <dt>Finca</dt><dd>{{ v.finca_nombre }}</dd>
+          @if (supervisa()) { <dt>Coordinador</dt><dd>{{ v.coordinador_nombre }}</dd> }
+          <dt>Fecha</dt><dd>{{ fechaLarga(v.fecha) }}</dd>
+          <dt>Horario</dt><dd>{{ v.hora_inicio ? v.hora_inicio.slice(0, 5) : 'Sin hora' }}@if (v.hora_fin) { – {{ v.hora_fin.slice(0, 5) }} }</dd>
+          @if (v.objetivo) { <dt>Objetivo</dt><dd>{{ v.objetivo }}</dd> }
+          @if (v.notas) { <dt>Notas</dt><dd>{{ v.notas }}</dd> }
+          <dt>Programada por</dt><dd>{{ v.creado_por_nombre }}</dd>
+        </dl>
+        @if (v.entrada_id) { <p class="tenue">Ya tiene marcación de llegada: no se puede modificar.</p> }
+      }
+      }
+
+      <div class="acciones">
+        @if (f.visita && f.editable) {
+          <button type="button" class="boton peligro" (click)="cancelar()" [disabled]="trabajando()"><mat-icon>event_busy</mat-icon> Cancelar visita</button>
+        }
+        <button type="button" class="boton" (click)="form.set(null)">Cerrar</button>
+        @if (f.visita && puedeMarcar(f.visita)) {
+          <button type="button" class="boton oscuro" (click)="marcar(f.visita)">
+            <mat-icon>qr_code_scanner</mat-icon> {{ f.visita.estado === 'EN_CURSO' ? 'Marcar salida' : 'Marcar llegada' }}
+          </button>
+        }
+        @if (f.editable) {
+          <button type="button" class="boton primario" (click)="guardar()" [disabled]="trabajando()">
+            <mat-icon>save</mat-icon> {{ f.id == null ? 'Programar' : 'Guardar' }}
+          </button>
+        }
+      </div>
+    </div>
+  </div>
+}

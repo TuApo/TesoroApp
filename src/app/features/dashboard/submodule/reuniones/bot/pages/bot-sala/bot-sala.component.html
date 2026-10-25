@@ -1,0 +1,361 @@
+<section class="sala">
+  <nav class="migas">
+    <a routerLink="/dashboard/reuniones/bot" class="btn fantasma chico"><mat-icon>arrow_back</mat-icon> Asistente de reuniones</a>
+  </nav>
+
+  @if (error()) {
+    <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ error() }}</span></p>
+  } @else if (cargando() && !sesion()) {
+    <div class="esq" style="height: 84px"></div>
+    <div class="esq" style="height: 420px"></div>
+  } @else if (sesion(); as s) {
+    <!-- ── Cabecera ─────────────────────────────────────────────────────── -->
+    <header class="cabecera">
+      <div class="cab-principal">
+        <span class="plataforma" [matTooltip]="plataforma().etiqueta"><mat-icon>{{ plataforma().icono }}</mat-icon></span>
+        <div class="cab-textos">
+          <h1>{{ s.titulo || 'Reunión sin título' }}</h1>
+          <div class="cab-meta">
+            <span class="tono" [attr.data-tono]="estado().tono"><mat-icon>{{ estado().icono }}</mat-icon>{{ estado().etiqueta }}</span>
+            <span class="tc reloj" aria-label="Tiempo en la reunión">{{ cronometro() }}</span>
+            <span class="chip">{{ plataforma().etiqueta }}{{ s.modo === 'CAPTURA' ? ' · captura' : '' }}</span>
+            @if (s.meeting_code) { <span class="chip">{{ s.meeting_code }}</span> }
+            @if (sinConexion()) { <span class="tono" data-tono="aviso"><mat-icon>wifi_off</mat-icon>Reconectando…</span> }
+            @if (pausado()) { <span class="tono" data-tono="aviso"><mat-icon>pause</mat-icon>En pausa</span> }
+          </div>
+          @if (s.estado_detalle) { <p class="detalle">{{ s.estado_detalle }}</p> }
+        </div>
+      </div>
+
+      @if (!terminal()) {
+        <div class="controles" role="toolbar" aria-label="Controles del bot">
+          <button type="button" class="btn chico" [disabled]="!enCurso() || !!ocupado()" (click)="pantallazo()">
+            <mat-icon>photo_camera</mat-icon> Pantallazo</button>
+          <button type="button" class="btn chico" [disabled]="!enCurso() || !!ocupado()" (click)="marcarMomento()">
+            <mat-icon>bookmark_add</mat-icon> Marcar momento</button>
+          @if (!esCaptura()) {
+            <button type="button" class="btn chico" [disabled]="!enCurso()" (click)="escribiendoReunion.set(!escribiendoReunion())">
+              <mat-icon>chat</mat-icon> Escribir en la reunión</button>
+          }
+          <button type="button" class="btn chico" [disabled]="!enCurso() || !!ocupado()" (click)="alternarPausa()">
+            <mat-icon>{{ pausado() ? 'play_arrow' : 'pause' }}</mat-icon> {{ pausado() ? 'Reanudar' : 'Pausar' }}</button>
+          <button type="button" class="btn chico peligro" [disabled]="!!ocupado()" (click)="confirmarSalida.set(true)">
+            <mat-icon>logout</mat-icon> {{ esCaptura() ? 'Terminar' : 'Sacar al bot' }}</button>
+        </div>
+      } @else if (s.recording_id) {
+        <a class="btn primario" [routerLink]="['/dashboard/reuniones', s.meeting_id]">
+          <mat-icon>graphic_eq</mat-icon> Ver la reunión completa</a>
+      }
+    </header>
+
+    @if (confirmarSalida()) {
+      <div class="alerta aviso confirmar" role="alertdialog" aria-label="Confirmar salida">
+        <mat-icon>help</mat-icon>
+        <span class="alerta-texto">{{ esCaptura() ? '¿Terminar la captura? Lo grabado se procesa igual.' : '¿Sacar al bot de la reunión? Deja de grabar y la grabación completa pasa a procesarse.' }}</span>
+        <button type="button" class="btn chico" (click)="confirmarSalida.set(false)">No</button>
+        <button type="button" class="btn chico peligro" (click)="sacarBot()">Sí, {{ esCaptura() ? 'terminar' : 'sacarlo' }}</button>
+      </div>
+    }
+
+    @if (escribiendoReunion() && !terminal()) {
+      <form class="mensaje-reunion" (submit)="$event.preventDefault(); enviarAReunion()">
+        <input type="text" maxlength="500" placeholder="Lo que el bot escribirá en el chat de la reunión…"
+               aria-label="Mensaje para el chat de la reunión"
+               [value]="mensajeReunion()" (input)="mensajeReunion.set($any($event.target).value)" />
+        <button type="submit" class="btn primario chico" [disabled]="!mensajeReunion().trim() || !!ocupado()"><mat-icon>send</mat-icon> Enviar</button>
+      </form>
+    }
+
+    @if (s.estado === 'SALA_ESPERA') {
+      <p class="alerta info"><mat-icon>hourglass_top</mat-icon>
+        <span class="alerta-texto">El bot está en la sala de espera como «{{ s.bot_nombre }}». Pide al anfitrión que lo admita.</span></p>
+    }
+
+    @if (esCaptura() && !terminal()) {
+      <app-captura-dispositivo [sessionId]="s.id" [habilitada]="!terminal()" />
+    }
+
+    @if (s.participantes?.length) {
+      <div class="participantes" aria-label="Participantes">
+        <mat-icon aria-hidden="true">group</mat-icon>
+        @for (p of s.participantes; track $index) { <span class="chip">{{ p.nombre }}</span> }
+      </div>
+    }
+
+    <!-- ── Selector de columna en móvil ─────────────────────────────────── -->
+    <div class="pestanas-movil" role="tablist" aria-label="Secciones de la sala">
+      <button type="button" role="tab" [attr.aria-selected]="columnaMovil() === 'transcripcion'" (click)="columnaMovil.set('transcripcion')">
+        <mat-icon>subject</mat-icon> En vivo</button>
+      <button type="button" role="tab" [attr.aria-selected]="columnaMovil() === 'panel'" (click)="columnaMovil.set('panel')">
+        <mat-icon>sticky_note_2</mat-icon> Notas</button>
+      <button type="button" role="tab" [attr.aria-selected]="columnaMovil() === 'chat'" (click)="columnaMovil.set('chat')">
+        <mat-icon>auto_awesome</mat-icon> IA
+        @if (preguntaPendiente()) { <span class="punto" aria-label="Pensando"></span> }</button>
+    </div>
+
+    <div class="columnas" [attr.data-movil]="columnaMovil()">
+      <!-- ── 1. Transcripción ──────────────────────────────────────────── -->
+      <section class="col col-transcripcion" aria-label="Transcripción en vivo">
+        <div class="col-cab">
+          <h2>Transcripción</h2>
+          <input type="search" class="buscar" placeholder="Buscar…" aria-label="Buscar en la transcripción"
+                 [value]="busqueda()" (input)="busqueda.set($any($event.target).value)" />
+          @if (haySubtitulos() && hayTranscripcion()) {
+            <label class="check" matTooltip="Los subtítulos de la plataforma traen el nombre de quien habla">
+              <input type="checkbox" [checked]="verSubtitulos()" (change)="verSubtitulos.set($any($event.target).checked)" /> Subtítulos
+            </label>
+          }
+        </div>
+        <div class="lista" #lista (scroll)="alDesplazar(lista)">
+          @for (e of lineas(); track e.id) {
+            <div class="linea" [class]="claseLinea(e)" [class.resaltada]="resaltado() === e.id" [attr.data-ev]="e.id"
+                 [attr.data-tipo]="e.tipo">
+              <span class="tc">{{ reloj(e.t_ms) }}</span>
+              @switch (e.tipo) {
+                @case ('MARCA') { <p><mat-icon>bookmark</mat-icon><strong>Marca:</strong> {{ e.texto }}</p> }
+                @case ('ESTADO') { <p><mat-icon>info</mat-icon>{{ e.texto }}</p> }
+                @case ('PARTICIPANTE') { <p><mat-icon>person</mat-icon>{{ e.texto }}</p> }
+                @case ('CHAT_REUNION') { <p><mat-icon>chat_bubble</mat-icon><strong>{{ e.hablante || 'Chat' }}:</strong> {{ e.texto }}</p> }
+                @default {
+                  <p>@if (e.hablante) { <strong class="hablante">{{ e.hablante }}</strong> }
+                    <span>{{ e.texto }}</span>
+                    @if (e.tipo === 'SUBTITULO') { <small class="sub">subtítulo</small> }</p>
+                }
+              }
+            </div>
+          } @empty {
+            <div class="vacio">
+              <mat-icon>{{ busqueda() ? 'search_off' : 'hearing' }}</mat-icon>
+              <h3>{{ busqueda() ? 'Nada coincide' : (enVivo() ? 'Escuchando…' : 'Aún no hay transcripción') }}</h3>
+              <p>{{ busqueda() ? 'Prueba con otra palabra.' : 'Lo que se diga aparecerá aquí en segundos.' }}</p>
+            </div>
+          }
+        </div>
+        @if (!seguir() && lineas().length) {
+          <button type="button" class="btn chico ir-final" (click)="alFinal()"><mat-icon>south</mat-icon> Ir a lo último</button>
+        }
+      </section>
+
+      <!-- ── 2. Notas, compromisos, capturas, clips ───────────────────── -->
+      <section class="col col-panel" aria-label="Notas de la reunión">
+        <div class="pestanas" role="tablist">
+          <button type="button" role="tab" [attr.aria-selected]="pestana() === 'notas'" (click)="pestana.set('notas')">Notas</button>
+          <button type="button" role="tab" [attr.aria-selected]="pestana() === 'compromisos'" (click)="pestana.set('compromisos')">
+            Compromisos @if (compromisosVisibles().length) { <span class="cuenta">{{ compromisosVisibles().length }}</span> }</button>
+          <button type="button" role="tab" [attr.aria-selected]="pestana() === 'capturas'" (click)="pestana.set('capturas')">
+            Capturas @if (totalCapturas()) { <span class="cuenta">{{ totalCapturas() }}</span> }</button>
+          <button type="button" role="tab" [attr.aria-selected]="pestana() === 'clips'" (click)="pestana.set('clips')">
+            Clips @if (clips().length) { <span class="cuenta">{{ clips().length }}</span> }</button>
+        </div>
+
+        <div class="panel-cuerpo">
+          @switch (pestana()) {
+            @case ('notas') {
+              @if (notas(); as n) {
+                <p class="tc actualizado">Actualizado {{ fechaHora(n.actualizado_en) }} · v{{ n.version }}</p>
+                @if (n.error) {
+                  <p class="aviso-notas" role="status">La IA no pudo actualizar las notas: {{ n.error }}. La transcripción sigue llegando.</p>
+                }
+                @if (n.resumen) { <div class="resumen" [innerHTML]="resumenHtml()"></div> }
+                @if (n.momentos_clave.length) {
+                  <h3 class="rotulo">Momentos clave</h3>
+                  <ul class="items">
+                    @for (m of n.momentos_clave; track momentoTrack(m, $index)) {
+                      <li><button type="button" class="enlace" (click)="irA(m.t_ms)">
+                        <span class="tc">{{ reloj(m.t_ms) }}</span> <strong>{{ m.titulo }}</strong>
+                        @if (m.motivo) { <small> — {{ m.motivo }}</small> }</button></li>
+                    }
+                  </ul>
+                }
+                @if (n.temas.length) {
+                  <h3 class="rotulo">Temas</h3>
+                  <ul class="items">
+                    @for (t of n.temas; track $index) {
+                      <li><button type="button" class="enlace" (click)="irA(t.desde_ms)"><span class="tc">{{ reloj(t.desde_ms) }}</span> {{ t.titulo }}</button></li>
+                    }
+                  </ul>
+                }
+                @if (n.decisiones.length) {
+                  <h3 class="rotulo">Decisiones</h3>
+                  <ul class="items">
+                    @for (d of n.decisiones; track $index) {
+                      <li><button type="button" class="enlace" (click)="irA(d.t_ms)"><mat-icon>gavel</mat-icon> {{ d.texto }}</button></li>
+                    }
+                  </ul>
+                }
+                @if (n.preguntas_abiertas.length) {
+                  <h3 class="rotulo">Preguntas abiertas</h3>
+                  <ul class="items simple">@for (q of n.preguntas_abiertas; track $index) { <li>{{ q }}</li> }</ul>
+                }
+                @if (n.riesgos.length) {
+                  <h3 class="rotulo">Riesgos</h3>
+                  <ul class="items simple riesgos">@for (r of n.riesgos; track $index) { <li>{{ r }}</li> }</ul>
+                }
+              } @else {
+                <div class="vacio"><mat-icon>edit_note</mat-icon><h3>Las notas se arman solas</h3>
+                  <p>Cuando haya algo de conversación, la IA escribe el resumen, los temas y las decisiones.</p></div>
+              }
+            }
+
+            @case ('compromisos') {
+              <div class="comp-cab">
+                <p class="rotulo">Quién se comprometió a qué</p>
+                <button type="button" class="btn chico" (click)="abrirNuevoCompromiso()"><mat-icon>add</mat-icon> Agregar</button>
+              </div>
+              @if (nuevoCompromiso(); as b) {
+                <form class="comp-form" (submit)="$event.preventDefault(); crearCompromiso()">
+                  <input type="text" placeholder="Compromiso" aria-label="Compromiso" [value]="b.texto" (input)="campoNuevo('texto', $any($event.target).value)" required />
+                  <input type="text" placeholder="Responsable" aria-label="Responsable" [value]="b.responsable" (input)="campoNuevo('responsable', $any($event.target).value)" />
+                  <input type="date" aria-label="Fecha límite" [value]="b.fecha_limite" (input)="campoNuevo('fecha_limite', $any($event.target).value)" />
+                  <div class="fila-acciones">
+                    <button type="button" class="btn chico fantasma" (click)="nuevoCompromiso.set(null)">Cancelar</button>
+                    <button type="submit" class="btn chico primario" [disabled]="!b.texto.trim()">Guardar</button>
+                  </div>
+                </form>
+              }
+              <ul class="compromisos">
+                @for (c of compromisosVisibles(); track c.id) {
+                  <li [attr.data-estado]="c.estado">
+                    @if (editando() === c.id) {
+                      <form class="comp-form" (submit)="$event.preventDefault(); guardarEdicion(c)">
+                        <input type="text" aria-label="Compromiso" [value]="borrador().texto" (input)="campoBorrador('texto', $any($event.target).value)" />
+                        <input type="text" aria-label="Responsable" placeholder="Responsable" [value]="borrador().responsable" (input)="campoBorrador('responsable', $any($event.target).value)" />
+                        <input type="date" aria-label="Fecha límite" [value]="borrador().fecha_limite" (input)="campoBorrador('fecha_limite', $any($event.target).value)" />
+                        <div class="fila-acciones">
+                          <button type="button" class="btn chico fantasma" (click)="editando.set(null)">Cancelar</button>
+                          <button type="submit" class="btn chico primario">Guardar</button>
+                        </div>
+                      </form>
+                    } @else {
+                      <div class="comp-texto">
+                        <p>{{ c.texto }}</p>
+                        <small>
+                          <mat-icon>person</mat-icon>{{ c.responsable || 'Sin responsable' }}
+                          @if (c.fecha_limite) { · <mat-icon>event</mat-icon>{{ c.fecha_limite }} }
+                          · {{ c.origen === 'IA' ? 'detectado por la IA' : 'agregado a mano' }}
+                          @if (c.t_ms != null) { · <button type="button" class="enlace tc" (click)="irA(c.t_ms)">{{ reloj(c.t_ms) }}</button> }
+                        </small>
+                      </div>
+                      <div class="comp-acciones">
+                        <span class="tono" [attr.data-tono]="c.estado === 'HECHO' ? 'ok' : c.estado === 'CONFIRMADO' ? 'progreso' : 'aviso'">{{ c.estado === 'PROPUESTO' ? 'Propuesto' : c.estado === 'CONFIRMADO' ? 'Confirmado' : 'Hecho' }}</span>
+                        @if (c.estado === 'PROPUESTO') {
+                          <button type="button" class="icono" matTooltip="Confirmar" aria-label="Confirmar" (click)="cambiarEstado(c, 'CONFIRMADO')"><mat-icon>check</mat-icon></button>
+                        }
+                        @if (c.estado !== 'HECHO') {
+                          <button type="button" class="icono" matTooltip="Marcar hecho" aria-label="Marcar hecho" (click)="cambiarEstado(c, 'HECHO')"><mat-icon>task_alt</mat-icon></button>
+                        }
+                        <button type="button" class="icono" matTooltip="Editar" aria-label="Editar" (click)="editar(c)"><mat-icon>edit</mat-icon></button>
+                        <button type="button" class="icono" matTooltip="Descartar" aria-label="Descartar" (click)="cambiarEstado(c, 'DESCARTADO')"><mat-icon>close</mat-icon></button>
+                      </div>
+                    }
+                  </li>
+                } @empty {
+                  @if (!nuevoCompromiso()) {
+                    <div class="vacio"><mat-icon>handshake</mat-icon><h3>Sin compromisos todavía</h3>
+                      <p>La IA los propone cuando alguien dice «yo me encargo», «para el viernes»…</p></div>
+                  }
+                }
+              </ul>
+              @if (compromisosDescartados()) { <p class="tc">{{ compromisosDescartados() }} descartado(s)</p> }
+            }
+
+            @case ('capturas') {
+              <div class="comp-cab">
+                <label class="check"><input type="checkbox" [checked]="soloImportantes()" (change)="soloImportantes.set($any($event.target).checked)" /> Solo importantes</label>
+              </div>
+              <div class="galeria">
+                @for (e of capturas(); track e.id) {
+                  <button type="button" class="miniatura" [class.importante]="e.importante" (click)="lightbox.set(e)"
+                          [attr.aria-label]="'Captura del minuto ' + reloj(e.t_ms)">
+                    @if (url(e); as u) { <img [src]="u" alt="" loading="lazy" (error)="alFallarArchivo(e)" /> }
+                    @else { <span class="esq"></span> }
+                    <span class="mini-pie"><span class="tc">{{ reloj(e.t_ms) }}</span>
+                      @if (e.importante) { <mat-icon>star</mat-icon> }</span>
+                  </button>
+                } @empty {
+                  <div class="vacio"><mat-icon>photo_library</mat-icon><h3>Sin capturas</h3>
+                    <p>El bot guarda la pantalla cuando cambia (una presentación, un documento compartido).</p></div>
+                }
+              </div>
+            }
+
+            @case ('clips') {
+              <ul class="clips">
+                @for (e of clips(); track e.id) {
+                  <li>
+                    <div class="clip-cab"><strong>{{ motivoClip(e) }}</strong> <span class="tc">{{ rangoClip(e) }}</span></div>
+                    @if (e.archivo) {
+                      @if (url(e); as u) { <video [src]="u" controls preload="metadata" (error)="alFallarArchivo(e)"></video> }
+                      @else { <span class="esq" style="height: 160px"></span> }
+                    } @else { <p class="tc">Preparando el clip…</p> }
+                  </li>
+                } @empty {
+                  <div class="vacio"><mat-icon>movie</mat-icon><h3>Sin clips</h3>
+                    <p>Marca un momento o deja que la IA guarde los importantes.</p></div>
+                }
+              </ul>
+            }
+          }
+        </div>
+      </section>
+
+      <!-- ── 3. Chat con la IA ─────────────────────────────────────────── -->
+      <section class="col col-chat" aria-label="Pregúntale a la IA sobre la reunión">
+        <div class="col-cab"><h2><mat-icon>auto_awesome</mat-icon> Pregúntale a la IA</h2></div>
+        <div class="chat-lista" #chatLista aria-live="polite">
+          @for (t of turnosChat(); track t.pregunta.id) {
+            <div class="burbuja yo">{{ t.pregunta.texto }}</div>
+            @if (t.respuesta; as r) {
+              @if (errorDe(r); as err) {
+                <div class="burbuja ia error"><mat-icon>error</mat-icon> {{ err }}</div>
+              } @else {
+                <div class="burbuja ia">{{ r.texto }}
+                  @for (sg of sugerencias(r); track $index) {
+                    <div class="sugerencia">
+                      <p>«{{ sg.texto }}»</p>
+                      <button type="button" class="btn chico" [disabled]="!enCurso() || esCaptura() || !!ocupado()" (click)="enviarAReunion(sg.texto)">
+                        <mat-icon>send</mat-icon> Enviar a la reunión</button>
+                    </div>
+                  }
+                </div>
+              }
+            } @else if (t.esperando) {
+              <div class="burbuja ia pensando"><span class="girando"></span> Pensando…</div>
+            } @else if (t.vencida) {
+              <div class="burbuja ia error"><mat-icon>schedule</mat-icon> La IA no respondió a tiempo. Vuelve a preguntar.</div>
+            }
+          } @empty {
+            <div class="chat-vacio">
+              <p>La IA conoce la reunión hasta este segundo. Pregúntale lo que quieras o pídele que proponga algo.</p>
+            </div>
+          }
+        </div>
+        <div class="rapidas">
+          @for (q of PREGUNTAS; track q) {
+            <button type="button" class="chip boton-chip" [disabled]="enviandoPregunta()" (click)="preguntar(q)">{{ q }}</button>
+          }
+        </div>
+        @if (errorChat()) { <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ errorChat() }}</span></p> }
+        <form class="preguntar" (submit)="$event.preventDefault(); preguntar()">
+          <textarea rows="2" placeholder="Escribe tu pregunta…" aria-label="Pregunta para la IA"
+                    [value]="pregunta()" (input)="pregunta.set($any($event.target).value)" (keydown)="alTeclaPregunta($event)"></textarea>
+          <button type="submit" class="btn primario" [disabled]="!pregunta().trim() || enviandoPregunta()" aria-label="Preguntar">
+            <mat-icon>send</mat-icon></button>
+        </form>
+      </section>
+    </div>
+  }
+
+  @if (lightbox(); as e) {
+    <div class="lightbox" role="dialog" aria-modal="true" aria-label="Captura ampliada" (click)="lightbox.set(null)" (keydown.escape)="lightbox.set(null)" tabindex="-1">
+      <figure (click)="$event.stopPropagation()">
+        @if (url(e); as u) { <img [src]="u" alt="Captura de la reunión" /> } @else { <span class="esq" style="height: 50vh"></span> }
+        <figcaption><span class="tc">{{ reloj(e.t_ms) }}</span> {{ e.texto }}
+          <button type="button" class="btn chico" (click)="irA(e.t_ms); lightbox.set(null)">Ver qué se decía</button>
+          <button type="button" class="btn chico fantasma" (click)="lightbox.set(null)">Cerrar</button></figcaption>
+      </figure>
+    </div>
+  }
+
+  @if (toast()) { <div class="toast" role="status">{{ toast() }}</div> }
+</section>

@@ -1,0 +1,185 @@
+/* =============================================================================
+   EconomiAPP — piezas compartidas por todas las pantallas.
+
+   Los colores de superficie y texto son los semánticos de la plataforma
+   (src/theme/tokens.css): así el modo oscuro funciona sin tocar nada aquí.
+   Lo único propio es el acento de la tienda (--eco), que es un token para
+   poder cambiarlo en un solo lugar.
+   ========================================================================== */
+
+:host {
+  --eco: #0E9F6E;
+  --eco-fuerte: #047857;
+  --eco-soft: #E7F7F0;
+  --eco-ink: #047857;
+  --eco-fg: #FFFFFF;
+  --eco-acento: #9BD441;
+  display: block;
+  font-family: var(--font-sans, "Manrope", system-ui, sans-serif);
+  color: var(--text);
+}
+:host-context(html[data-theme='dark']) {
+  --eco: #10B981;
+  --eco-fuerte: #34D399;
+  --eco-soft: rgba(16, 185, 129, .14);
+  --eco-ink: #6EE7B7;
+  --eco-fg: #04221A;
+}
+
+/* Temporada Halloween (src/theme/temporadas): naranja calabaza y morado. */
+:host-context(html[data-temporada='halloween']) {
+  --eco: #EA580C;
+  --eco-fuerte: #9A3412;
+  --eco-soft: #FFEDD5;
+  --eco-ink: #C2410C;
+  --eco-fg: #FFFFFF;
+  --eco-acento: #A855F7;
+}
+:host-context(html[data-theme='dark'][data-temporada='halloween']) {
+  --eco: #FB923C;
+  --eco-fuerte: #FDBA74;
+  --eco-soft: rgba(251, 146, 60, .16);
+  --eco-ink: #FDBA74;
+  --eco-fg: #2A0E04;
+  --eco-acento: #C084FC;
+}
+
+* { box-sizing: border-box; }
+h1, h2, h3 { margin: 0; letter-spacing: -.015em; }
+p { margin: 0; }
+
+.pagina { max-width: 1280px; margin: 0 auto; padding: 16px 16px 32px; display: flex; flex-direction: column; gap: 22px; }
+
+/* ── Botones ─────────────────────────────────────────────────────────── */
+.eco-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+  min-height: 48px; padding: 0 20px; border-radius: 14px; border: 0;
+  background: var(--eco); color: var(--eco-fg);
+  font: inherit; font-weight: 800; font-size: 15px; cursor: pointer; text-decoration: none;
+  transition: filter .15s ease, transform .1s ease;
+}
+.eco-btn:hover { filter: brightness(1.05); }
+.eco-btn:active { transform: scale(.98); }
+.eco-btn:disabled { opacity: .5; cursor: default; filter: none; transform: none; }
+.eco-btn.secundario { background: var(--surface); color: var(--text); border: 1px solid var(--border-strong, var(--border)); }
+.eco-btn.peligro { background: var(--danger-bg); color: var(--danger-fg); border: 1px solid var(--danger-border); }
+.eco-btn.ancho { width: 100%; }
+.eco-btn mat-icon { font-size: 20px; width: 20px; height: 20px; }
+
+.icono-btn {
+  width: 42px; height: 42px; min-height: 42px; border-radius: 12px; border: 0;
+  display: inline-grid; place-items: center; background: transparent; color: inherit; cursor: pointer;
+  text-decoration: none;
+}
+.icono-btn:hover { background: var(--surface-3); }
+
+.enlace { color: var(--eco-ink); font-weight: 700; text-decoration: none; background: none; border: 0; cursor: pointer; font: inherit; padding: 0; min-height: 0; }
+.enlace:hover { text-decoration: underline; }
+
+/* ── Secciones y rieles ──────────────────────────────────────────────── */
+.seccion { display: flex; flex-direction: column; gap: 12px; }
+.seccion-cabeza { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; }
+.seccion-cabeza h2 { font-size: 20px; font-weight: 800; }
+.seccion-cabeza p { color: var(--muted); font-size: 13px; margin-top: 2px; }
+
+.riel {
+  display: grid; grid-auto-flow: column; grid-auto-columns: minmax(158px, 190px);
+  gap: 12px; overflow-x: auto; padding: 2px 2px 8px; scroll-snap-type: x mandatory;
+  scrollbar-width: thin;
+}
+.riel > * { scroll-snap-align: start; }
+
+.rejilla {
+  display: grid; gap: 14px;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+}
+@media (max-width: 600px) {
+  .rejilla { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+  .riel { grid-auto-columns: 46%; }
+}
+
+/* ── Chips ───────────────────────────────────────────────────────────── */
+.chip {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 9px; border-radius: 999px; font-size: 11.5px; font-weight: 700; font-style: normal;
+  background: var(--surface-3); color: var(--text-2); border: 1px solid var(--border);
+}
+.chip.ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+.chip.warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+.chip.danger { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+.chip.info { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+.chip mat-icon { font-size: 14px; width: 14px; height: 14px; }
+
+.filtros { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+.eco-filtro {
+  flex: none; display: inline-flex; align-items: center; gap: 6px;
+  min-height: 40px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--border); background: var(--surface); color: var(--text-2);
+  font: inherit; font-size: 13.5px; font-weight: 700; cursor: pointer; white-space: nowrap;
+}
+.eco-filtro mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.eco-filtro.activo { background: var(--text); color: var(--surface); border-color: var(--text); }
+
+/* ── Avisos ──────────────────────────────────────────────────────────── */
+.aviso {
+  display: flex; align-items: flex-start; gap: 10px;
+  padding: 12px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.45;
+  background: var(--info-bg); color: var(--info-fg); border: 1px solid var(--info-border);
+}
+.aviso mat-icon { flex: none; font-size: 20px; width: 20px; height: 20px; }
+.aviso.warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+.aviso.ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+.aviso.danger { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+
+/* ── Tarjeta genérica ────────────────────────────────────────────────── */
+.tarjeta { background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: 16px; }
+
+/* ── Estados vacíos y carga ──────────────────────────────────────────── */
+.estado-vacio {
+  display: flex; flex-direction: column; align-items: center; text-align: center; gap: 10px;
+  padding: 56px 16px; color: var(--muted); max-width: 420px; margin: 0 auto;
+}
+.estado-vacio > mat-icon { font-size: 56px; width: 56px; height: 56px; color: var(--eco); opacity: .8; }
+.estado-vacio h2 { color: var(--text); font-size: 20px; }
+
+.esqueleto {
+  border-radius: 18px; background: linear-gradient(90deg, var(--surface-3), var(--surface-2), var(--surface-3));
+  background-size: 200% 100%; animation: brillo 1.2s ease-in-out infinite; min-height: 240px;
+}
+@keyframes brillo { from { background-position: 200% 0; } to { background-position: -200% 0; } }
+
+/* ── Hoja inferior / diálogo ─────────────────────────────────────────── */
+.velo { position: fixed; inset: 0; background: var(--overlay, rgba(15,23,42,.45)); z-index: 60; animation: aparecer .15s ease; }
+.hoja {
+  position: fixed; z-index: 61; left: 50%; top: 50%; transform: translate(-50%, -50%);
+  width: min(520px, calc(100vw - 32px)); max-height: min(80vh, 720px); overflow: auto;
+  background: var(--surface); border-radius: 22px; padding: 18px;
+  box-shadow: var(--shadow-lg, 0 24px 70px rgba(15,23,42,.26));
+  display: flex; flex-direction: column; gap: 12px; animation: aparecer .18s ease;
+}
+@media (max-width: 600px) {
+  .hoja {
+    left: 0; right: 0; bottom: 0; top: auto; transform: none; width: 100%;
+    border-radius: 22px 22px 0 0; max-height: 86vh; padding-bottom: calc(18px + env(safe-area-inset-bottom));
+    animation: subir .2s ease;
+  }
+}
+.hoja-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.hoja-cabeza h2 { font-size: 19px; font-weight: 800; }
+.hoja-sub { color: var(--muted); font-size: 13.5px; }
+@keyframes aparecer { from { opacity: 0; } to { opacity: 1; } }
+@keyframes subir { from { transform: translateY(40px); opacity: 0; } to { transform: none; opacity: 1; } }
+
+.campo { display: flex; flex-direction: column; gap: 6px; }
+.campo > span { font-size: 13px; font-weight: 700; color: var(--text-2); }
+.campo input, .campo textarea, .campo select {
+  font: inherit; font-size: 15px; color: var(--text);
+  min-height: 48px; padding: 10px 14px; border-radius: 12px;
+  background: var(--surface-2); border: 1px solid var(--border); outline: none; width: 100%; max-width: 100%;
+}
+.campo textarea { min-height: 76px; resize: vertical; }
+.campo input:focus, .campo textarea:focus, .campo select:focus { border-color: var(--eco); box-shadow: 0 0 0 4px color-mix(in srgb, var(--eco) 18%, transparent); }
+.campo small { color: var(--muted); font-size: 12px; }
+
+.precio-grande { font-size: 26px; font-weight: 800; letter-spacing: -.02em; }
+.muted { color: var(--muted); }

@@ -1,0 +1,288 @@
+<div class="asesor">
+  <!-- ── Panel: conversaciones y listas ── -->
+  @if (panelAbierto()) { <div class="velo" (click)="panelAbierto.set(false)"></div> }
+  <aside class="panel" [class.abierto]="panelAbierto()" aria-label="Historial y listas">
+    <button type="button" class="eco-btn nueva" (click)="nueva()"><mat-icon>add_comment</mat-icon> Nueva conversación</button>
+    <div class="filtros pestanas" role="tablist">
+      <button type="button" role="tab" class="eco-filtro" [class.activo]="panel() === 'conversaciones'" (click)="panel.set('conversaciones')"><mat-icon>forum</mat-icon> Historial</button>
+      <button type="button" role="tab" class="eco-filtro" [class.activo]="panel() === 'listas'" (click)="panel.set('listas')"><mat-icon>checklist</mat-icon> Mis listas
+        @if (listas().length) { <span class="cuenta">{{ listas().length }}</span> }</button>
+    </div>
+
+    @if (panel() === 'conversaciones') {
+      <ul class="items">
+        @for (c of conversaciones(); track c.id) {
+          <li>
+            <button type="button" class="item" [class.activo]="actual() === c.id" (click)="abrir(c.id)">
+              <span class="item-texto"><b>{{ c.titulo }}</b><small>{{ resumen(c.ultimo) }}</small></span>
+              <span class="item-fecha">{{ c.actualizado_en | date: 'd MMM' : undefined : 'es-CO' }}</span>
+            </button>
+            <button type="button" class="quitar" (click)="borrar(c, $event)" aria-label="Borrar conversación"><mat-icon>delete_outline</mat-icon></button>
+          </li>
+        } @empty {
+          <li class="vacio-panel">Aquí quedan sus conversaciones con MatIA.</li>
+        }
+      </ul>
+    } @else {
+      <ul class="items">
+        @for (l of listas(); track l.id) {
+          <li>
+            <button type="button" class="item" [class.activo]="listaAbierta()?.id === l.id" (click)="abrirLista(l.id)">
+              <span class="item-texto"><b>{{ l.nombre }}</b><small>{{ l.items }} producto{{ l.items === 1 ? '' : 's' }}</small></span>
+              <mat-icon>chevron_right</mat-icon>
+            </button>
+          </li>
+        } @empty {
+          <li class="vacio-panel">Pídale a MatIA que le arme una lista: "una lista para el regalo de mi mamá", "lo del colegio"…</li>
+        }
+      </ul>
+    }
+  </aside>
+
+  <!-- ── Chat ── -->
+  <section class="chat" [class.arrastrando]="arrastrando()" (paste)="alPegar($event)" (dragenter)="alArrastrar($event)"
+           (dragover)="alArrastrar($event)" (dragleave)="alSalir($event)" (drop)="alSoltar($event)">
+    <header class="chat-cabeza">
+      <a class="icono-btn solo-celular" routerLink="/economiapp" aria-label="Volver a la tienda"><mat-icon>arrow_back</mat-icon></a>
+      <app-avatar-agente class="avatar-agente" [personaje]="matia()" [tam]="38" [estado]="enviando() ? 'pensando' : sonando() !== null ? 'hablando' : 'reposo'" />
+      <div class="chat-titulo"><b>{{ titulo() }}</b><small>{{ matia().nombre }} · {{ matia().cargo }}</small></div>
+      <button type="button" class="icono-btn equipo" (click)="pasarAlEquipo()" [title]="'Préstamos, nómina y otras consultas: ' + colega().nombreCorto + ' y el equipo'"
+              aria-label="Préstamos, nómina y otras consultas con el equipo de TuApo">
+        <app-avatar-agente [personaje]="colega()" [tam]="26" [animado]="false" [conTitulo]="false" />
+      </button>
+      <button type="button" class="icono-btn" [class.activo]="leerSiempre()" (click)="alternarLeer()" [attr.aria-pressed]="leerSiempre()"
+              [attr.aria-label]="leerSiempre() ? 'Dejar de leer las respuestas en voz alta' : 'Leer las respuestas en voz alta'"
+              [title]="leerSiempre() ? 'Leyendo en voz alta' : 'Leer en voz alta'"><mat-icon>{{ leerSiempre() ? 'volume_up' : 'volume_off' }}</mat-icon></button>
+      <button type="button" class="icono-btn solo-celular" (click)="panelAbierto.set(true)" aria-label="Historial y listas"><mat-icon>history</mat-icon></button>
+      <button type="button" class="icono-btn" (click)="nueva()" aria-label="Nueva conversación" title="Nueva conversación"><mat-icon>add_comment</mat-icon></button>
+    </header>
+
+    <div class="hilo" #hilo>
+      @if (disponible() === false) {
+        <p class="aviso warn"><mat-icon>info</mat-icon> MatIA no está disponible en este momento. Puede seguir comprando en Explorar.</p>
+      }
+      @if (cargando()) {
+        <div class="esqueleto"></div><div class="esqueleto corto"></div>
+      } @else if (vacio()) {
+        <div class="bienvenida">
+          <app-avatar-agente [personaje]="matia()" [tam]="96" [insignia]="true" />
+          <h1>Hola, soy {{ matia().nombreCorto }}. ¿En qué le ayudo hoy?</h1>
+          <p class="muted">Soy la asistente con IA de EconomiAPP: le planeo el mercado según su presupuesto o su bono, le doy recetas con lo que hay en la tienda, comparo productos, armo listas, las paso al carrito y le cuento cómo va su pedido.</p>
+          <div class="sugerencias">
+            @for (s of sugerencias; track s.texto) {
+              <button type="button" (click)="usar(s.texto)" [disabled]="enviando() || disponible() === false"><mat-icon>{{ s.icono }}</mat-icon><span>{{ s.texto }}</span></button>
+            }
+          </div>
+          <button type="button" class="traspaso" (click)="pasarAlEquipo()">
+            <app-avatar-agente [personaje]="colega()" [tam]="28" [animado]="false" [conTitulo]="false" />
+            <span>¿Préstamos, nómina u otra consulta? <b>Le paso con {{ colega().nombreCorto }} y el equipo de TuApo</b></span>
+            <mat-icon>arrow_forward</mat-icon>
+          </button>
+        </div>
+      } @else {
+        @for (m of mensajes(); track $index) {
+          @if (m.rol === 'USUARIO') {
+            @let p = partes(m.contenido);
+            <div class="burbuja yo">
+              @if (p.voz) { <span class="marca-voz"><mat-icon>mic</mat-icon> Nota de voz</span> }
+              @if (p.texto) { <span>{{ p.texto }}</span> }
+              @for (a of p.adjuntos; track $index) { <span class="chip-adj"><mat-icon>attach_file</mat-icon>{{ a }}</span> }
+            </div>
+          } @else {
+            <div class="respuesta">
+              <app-avatar-agente class="avatar-agente" [personaje]="matia()" [tam]="32" [animado]="!!m.pendiente || sonando() === $index"
+                                 [estado]="m.pendiente ? 'pensando' : sonando() === $index ? 'hablando' : 'reposo'" />
+              <div class="respuesta-cuerpo">
+                @if (m.pendiente) {
+                  <div class="escribiendo" aria-label="MatIA está escribiendo"><i></i><i></i><i></i></div>
+                } @else {
+                  <div class="texto" [innerHTML]="html(m.contenido)"></div>
+                  @if (m.contenido) {
+                    <button type="button" class="escuchar" [class.activo]="sonando() === $index" (click)="escuchar($index)"
+                            [attr.aria-label]="sonando() === $index ? 'Detener' : 'Escuchar la respuesta'">
+                      <mat-icon>{{ cargandoVoz() === $index ? 'hourglass_top' : sonando() === $index ? 'stop_circle' : 'volume_up' }}</mat-icon>
+                      {{ cargandoVoz() === $index ? 'Preparando…' : sonando() === $index ? 'Detener' : 'Escuchar' }}
+                    </button>
+                  }
+                }
+                @for (b of m.bloques; track $index) {
+                  @switch (b.tipo) {
+                    @case ('productos') {
+                      <div class="bloque">
+                        @if (b.titulo) { <h3>{{ b.titulo }}</h3> }
+                        <div class="riel">
+                          @for (a of b.productos; track a.id) { <eco-producto [a]="a" [icono]="icono(a)" /> }
+                        </div>
+                      </div>
+                    }
+                    @case ('comparacion') {
+                      <div class="bloque">
+                        <h3>Comparación</h3>
+                        <div class="tabla-cmp">
+                          <table>
+                            <thead>
+                              <tr>
+                                <th></th>
+                                @for (p of b.productos; track p.id) {
+                                  <th>
+                                    <a class="cmp-prod" [routerLink]="['/economiapp/producto', p.id]">
+                                      <span class="cmp-foto"><eco-imagen [doc]="p.imagen" [nombre]="p.nombre" [icono]="icono(p)" /></span>
+                                      <b>{{ p.nombre }}</b>
+                                    </a>
+                                    <span class="cmp-precio">@if (p.con_opciones) { <small>Desde</small> }{{ pesos(p.precio_promo ?? p.precio) }}</span>
+                                  </th>
+                                }
+                              </tr>
+                            </thead>
+                            <tbody>
+                              @for (f of filasComparacion(b); track f.nombre) {
+                                <tr><th>{{ f.nombre }}</th>@for (v of f.valores; track $index) { <td>{{ v }}</td> }</tr>
+                              }
+                              <tr>
+                                <th></th>
+                                @for (p of b.productos; track p.id) {
+                                  <td><button type="button" class="eco-btn mini" (click)="agregar(p)">
+                                    <mat-icon>{{ p.con_opciones ? 'tune' : 'add_shopping_cart' }}</mat-icon>{{ p.con_opciones ? 'Elegir' : 'Agregar' }}</button></td>
+                                }
+                              </tr>
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    }
+                    @case ('pedido') {
+                      <a class="bloque tarjeta-pedido" [routerLink]="['/economiapp/pedidos', b.pedido.id]">
+                        <span class="icono-estado" [attr.data-tono]="ESTADO[b.pedido.estado]?.tono || 'neutro'"><mat-icon>{{ ESTADO[b.pedido.estado]?.icono || 'local_mall' }}</mat-icon></span>
+                        <span class="pedido-texto">
+                          <b>{{ ESTADO[b.pedido.estado]?.texto || b.pedido.estado }}</b>
+                          <small>Pedido {{ b.pedido.numero }} · {{ b.lineas.length }} producto{{ b.lineas.length === 1 ? '' : 's' }}
+                            @if (b.pedido.fecha_estimada) { · llega aprox. {{ b.pedido.fecha_estimada | date: 'EEE d MMM' : undefined : 'es-CO' }} }</small>
+                        </span>
+                        <span class="pedido-total">{{ pesos(b.pedido.total) }}</span>
+                        <mat-icon>chevron_right</mat-icon>
+                      </a>
+                    }
+                    @case ('lista') {
+                      <div class="bloque tarjeta-lista">
+                        <div class="lista-cabeza">
+                          <mat-icon>checklist</mat-icon>
+                          <b>{{ b.lista.nombre }}</b>
+                          <span class="muted">{{ b.lista.items.length }} producto{{ b.lista.items.length === 1 ? '' : 's' }} · {{ pesos(b.lista.total) }}</span>
+                        </div>
+                        <ul>
+                          @for (i of b.lista.items; track i.item_id) {
+                            <li>
+                              <span class="mini-foto"><eco-imagen [doc]="i.imagen" [nombre]="i.nombre" [icono]="icono(i)" /></span>
+                              <a [routerLink]="['/economiapp/producto', i.id]">{{ i.nombre }}@if (i.variante_nombre) { <small> · {{ i.variante_nombre }}</small> }</a>
+                              <span class="muted">x{{ i.cantidad }}</span>
+                              <b>{{ pesos(i.precio) }}</b>
+                            </li>
+                          }
+                        </ul>
+                        <div class="acciones">
+                          <button type="button" class="eco-btn" (click)="listaAlCarrito(b.lista.id)" [disabled]="ocupadoLista()"><mat-icon>add_shopping_cart</mat-icon> Agregar todo al carrito</button>
+                          <button type="button" class="eco-btn secundario" (click)="panel.set('listas'); abrirLista(b.lista.id); panelAbierto.set(true)"><mat-icon>edit</mat-icon> Ver lista</button>
+                        </div>
+                      </div>
+                    }
+                    @case ('ticket') {
+                      <a class="bloque tarjeta-pedido tarjeta-ticket" [routerLink]="['/economiapp/soporte', b.ticket.id]">
+                        <span class="icono-estado" data-tono="info"><mat-icon>support_agent</mat-icon></span>
+                        <span class="pedido-texto">
+                          <b>Solicitud {{ b.ticket.numero }}</b>
+                          <small>{{ b.ticket.asunto }} · le avisamos por notificación</small>
+                        </span>
+                        <mat-icon>chevron_right</mat-icon>
+                      </a>
+                    }
+                    @case ('carrito') {
+                      <a class="bloque tarjeta-carrito" routerLink="/economiapp/carrito">
+                        <mat-icon>shopping_cart</mat-icon>
+                        <span><b>Su carrito</b><small>{{ store.unidades() }} producto{{ store.unidades() === 1 ? '' : 's' }} · {{ pesos(store.total()) }}</small></span>
+                        <span class="eco-btn mini">Ir a pagar</span>
+                      </a>
+                    }
+                  }
+                }
+              </div>
+            </div>
+          }
+        }
+      }
+    </div>
+
+    @if (adjuntos().length) {
+      <div class="adjuntos">
+        @for (a of adjuntos(); track a.id) {
+          <span class="adj" [attr.data-estado]="a.estado" [title]="a.error || a.texto || a.nombre">
+            @if (a.vista) { <img [src]="a.vista" alt="" /> } @else { <mat-icon>{{ a.tipo === 'DOCUMENTO' || a.nombre.endsWith('.pdf') ? 'picture_as_pdf' : 'description' }}</mat-icon> }
+            <span class="adj-texto"><b>{{ a.nombre }}</b><small>{{ a.estado === 'leyendo' ? 'MatIA lo está leyendo…' : a.estado === 'error' ? a.error : 'Listo' }}</small></span>
+            <button type="button" (click)="quitarAdjunto(a.id)" aria-label="Quitar archivo"><mat-icon>close</mat-icon></button>
+          </span>
+        }
+      </div>
+    }
+    @if (grabando()) {
+      <div class="grabando">
+        <button type="button" class="redondo gris" (click)="pararGrabacion(true)" aria-label="Cancelar nota de voz"><mat-icon>delete</mat-icon></button>
+        <span class="punto-rojo" [style.transform]="'scale(' + (1 + grabadora.nivel() * 0.9) + ')'"></span><b>{{ minutos(segundos()) }}</b><span class="muted">Grabando… toque enviar al terminar</span>
+        <button type="button" class="enviar" (click)="pararGrabacion(false)" aria-label="Enviar nota de voz"><mat-icon>send</mat-icon></button>
+      </div>
+    } @else {
+      <form class="redactar" (ngSubmit)="enviarFormulario()">
+        @if (medios()) {
+          <label class="redondo" [class.deshabilitado]="!puedeEnviar()" aria-label="Adjuntar foto o archivo" title="Adjuntar foto, PDF o texto">
+            <mat-icon>attach_file</mat-icon>
+            <input type="file" hidden multiple accept="image/*,application/pdf,text/plain,text/csv,.pdf,.txt,.csv" (change)="elegirArchivos($event)" [disabled]="!puedeEnviar()" />
+          </label>
+          <label class="redondo solo-celular" [class.deshabilitado]="!puedeEnviar()" aria-label="Tomar foto" title="Tomar foto">
+            <mat-icon>photo_camera</mat-icon>
+            <input type="file" hidden accept="image/*" capture="environment" (change)="elegirArchivos($event)" [disabled]="!puedeEnviar()" />
+          </label>
+        }
+        <textarea name="texto" [(ngModel)]="texto" (keydown)="teclado($event)" rows="1" maxlength="2000"
+                  [placeholder]="transcribiendo() ? 'Escuchando su nota de voz…' : 'Escríbale a MatIA…'" [disabled]="disponible() === false || transcribiendo()"
+                  aria-label="Mensaje para MatIA"></textarea>
+        @if (medios() && !texto.trim() && !adjuntos().length) {
+          <button type="button" class="enviar" (click)="alternarGrabacion()" [disabled]="!puedeEnviar() || transcribiendo()" aria-label="Grabar nota de voz">
+            <mat-icon>{{ transcribiendo() || enviando() ? 'hourglass_top' : 'mic' }}</mat-icon>
+          </button>
+        } @else {
+          <button type="submit" class="enviar" [disabled]="!puedeEnviar() || (!texto.trim() && !adjuntos().length)" aria-label="Enviar">
+            <mat-icon>{{ enviando() || leyendoAdjuntos() ? 'hourglass_top' : 'send' }}</mat-icon>
+          </button>
+        }
+      </form>
+    }
+    <p class="pie muted">MatIA puede equivocarse: revise precio y opción antes de pagar. Los precios y la disponibilidad salen del catálogo.</p>
+  </section>
+
+  <!-- ── Lista abierta ── -->
+  @if (listaAbierta(); as l) {
+    <div class="velo" (click)="listaAbierta.set(null)"></div>
+    <section class="hoja-lista" role="dialog" aria-modal="true" [attr.aria-label]="l.nombre">
+      <header><b>{{ l.nombre }}</b><button type="button" class="icono-btn" (click)="listaAbierta.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button></header>
+      <ul>
+        @for (i of l.items; track i.item_id) {
+          <li [class.inactivo]="!i.activo">
+            <span class="mini-foto"><eco-imagen [doc]="i.imagen" [nombre]="i.nombre" [icono]="icono(i)" /></span>
+            <span class="li-texto"><a [routerLink]="['/economiapp/producto', i.id]" (click)="listaAbierta.set(null)">{{ i.nombre }}</a>
+              <small>@if (i.variante_nombre) { {{ i.variante_nombre }} · } {{ pesos(i.precio) }} · {{ llegada(i) }}</small></span>
+            <span class="stepper">
+              <button type="button" (click)="cantidadLista(l, i.item_id, i.cantidad - 1)" aria-label="Menos"><mat-icon>{{ i.cantidad <= 1 ? 'delete' : 'remove' }}</mat-icon></button>
+              <span>{{ i.cantidad }}</span>
+              <button type="button" (click)="cantidadLista(l, i.item_id, +i.cantidad + 1)" aria-label="Más"><mat-icon>add</mat-icon></button>
+            </span>
+          </li>
+        } @empty {
+          <li class="muted">La lista está vacía.</li>
+        }
+      </ul>
+      <footer>
+        <span>Total aprox. <b>{{ pesos(l.total) }}</b></span>
+        <button type="button" class="eco-btn secundario" (click)="borrarLista(l)"><mat-icon>delete</mat-icon> Borrar</button>
+        <button type="button" class="eco-btn" (click)="listaAlCarrito(l.id)" [disabled]="ocupadoLista() || !l.items.length"><mat-icon>add_shopping_cart</mat-icon> Todo al carrito</button>
+      </footer>
+    </section>
+  }
+</div>

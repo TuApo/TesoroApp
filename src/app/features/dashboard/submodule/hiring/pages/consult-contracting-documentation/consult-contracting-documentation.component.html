@@ -232,6 +232,15 @@
       <div class="table-frame">
         <app-standard-filter-table [data]="checklistRows" [columnDefinitions]="checklistColumns" [tableTitle]="''"
           [isLoading]="isLoadingChecklist" [defaultPageSize]="20" [pageSizeOptions]="[10, 20, 50, 100]">
+          <!-- Expediente por contrato (separa los documentos de cada vínculo) -->
+          <ng-template #actionsTemplate let-row>
+            <button type="button" mat-icon-button class="btn-expediente"
+              (click)="verExpediente(row, $event)"
+              [matTooltip]="(row?.contratos ?? 0) > 1 ? 'Ver expediente por contrato (' + row.contratos + ' contratos)' : 'Ver expediente del contrato'"
+              matTooltipPosition="above" aria-label="Ver expediente del contrato">
+              <mat-icon>{{ (row?.contratos ?? 0) > 1 ? 'folder_copy' : 'folder_shared' }}</mat-icon>
+            </button>
+          </ng-template>
           <!-- Action Template para Columna de Tipos -->
           <ng-template #headerActionTemplate let-col>
             @if (col.type === 'status') {
@@ -308,6 +317,14 @@
                 <h4 class="c-name">{{ row.nombre || 'Sin Nombre' }}</h4>
                 <span class="c-cedula">CC: {{ row.cedula }}</span>
               </div>
+              <button type="button" mat-stroked-button class="btn-expediente-movil"
+                (click)="verExpediente(row, $event)" aria-label="Ver expediente del contrato">
+                <mat-icon>folder_shared</mat-icon>
+                Expediente
+                @if ((row?.contratos ?? 0) > 1) {
+                  <span class="badge-contratos">{{ row.contratos }}</span>
+                }
+              </button>
             </div>
             <div class="card-body">
               <!-- Docs Grid with Icons -->

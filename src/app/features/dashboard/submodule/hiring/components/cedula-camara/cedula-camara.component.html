@@ -1,0 +1,25 @@
+<button type="button" class="cc-btn"
+        [class.cc-compacto]="variante() === 'compacto'"
+        [class.cc-trabajando]="trabajando()"
+        [disabled]="deshabilitado() || trabajando()"
+        [attr.aria-busy]="trabajando()"
+        [attr.aria-label]="ayuda()"
+        [matTooltip]="variante() === 'compacto' ? ayuda() : ''"
+        (click)="tomar()">
+  <mat-icon aria-hidden="true" [class.cc-gira]="trabajando()">
+    {{ trabajando() ? 'autorenew' : 'photo_camera' }}
+  </mat-icon>
+  @if (variante() === 'boton') {
+    <span class="cc-texto">{{ etiqueta() }}</span>
+  }
+</button>
+
+@if (variante() === 'boton' && trabajando() && paso() !== 'abriendo') {
+  <div class="cc-progreso" role="progressbar" aria-label="Avance de la carga"
+       aria-valuemin="0" aria-valuemax="100" [attr.aria-valuenow]="porcentaje()">
+    <span [style.width.%]="porcentaje()"></span>
+  </div>
+}
+
+<!-- Para lectores de pantalla: el texto del botón compacto no se ve. -->
+<span class="cc-sr" aria-live="polite">{{ trabajando() ? etiqueta() : '' }}</span>

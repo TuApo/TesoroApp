@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { environment } from '@/environments/environment';
 import { NetworkStatusService } from './network-status.service';
 import { PermissionsService } from './permissions.service';
+import { tokenVigente } from '../utils/sesion-vigente';
 
 /**
  * Precarga los datos del pipeline de contratación para uso offline.
@@ -42,6 +43,8 @@ export class PipelinePreloadService {
 
   async preloadPipelineData(): Promise<void> {
     if (this.isPreloading || !this.networkService.isOnline) return;
+    // Sin sesión o con el token vencido no se pide nada: un 401 borraría la caché offline.
+    if (!tokenVigente()) return;
 
     const rol = this.permissions.getNormalizedRoleName() || '(vacio)';
     console.log(`[Preload] Rol detectado: "${rol}".`);

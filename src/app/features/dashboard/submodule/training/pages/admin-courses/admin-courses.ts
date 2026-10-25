@@ -3,9 +3,10 @@ import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router } from '@angular/router';
 import { MatIconModule } from '@angular/material/icon';
+import { RouterLink } from '@angular/router';
 import Swal from 'sweetalert2';
 import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
-import { TrainingAdminService, Curso, CursoRequest } from '../../service/training-admin.service';
+import { TrainingAdminService, Curso, CursoRequest, PlantillaCertificado } from '../../service/training-admin.service';
 
 /**
  * Catálogo de cursos: la pantalla desde la que se crea la formación.
@@ -17,7 +18,7 @@ import { TrainingAdminService, Curso, CursoRequest } from '../../service/trainin
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
   selector: 'app-admin-courses',
-  imports: [CommonModule, FormsModule, MatIconModule, ...TABLA_ESTANDAR],
+  imports: [CommonModule, FormsModule, MatIconModule, RouterLink, ...TABLA_ESTANDAR],
   templateUrl: './admin-courses.html',
   styleUrl: './admin-courses.css'
 })
@@ -32,6 +33,12 @@ export class AdminCourses implements OnInit {
 
   /** Formulario del curso que se está creando o editando; null = panel cerrado. */
   readonly editando = signal<(CursoRequest & { id?: string }) | null>(null);
+  /** Plantillas de certificado, para el selector. Falla en silencio: el curso se crea igual. */
+  readonly plantillas = signal<PlantillaCertificado[]>([]);
+
+  irAPlantillas(): void {
+    this.router.navigate(['/dashboard/capacitaciones/plantillas-certificados']);
+  }
 
   /** La búsqueda por nombre o código, el orden y los filtros los hace la tabla estándar. */
   readonly columnas: ColumnaTabla<Curso>[] = [
@@ -55,6 +62,7 @@ export class AdminCourses implements OnInit {
     try {
       const pagina = await this.api.listarCursos(0, 100);
       this.cursos.set(pagina.content ?? []);
+      this.api.listarPlantillas().then(p => this.plantillas.set(p)).catch(() => {});
     } catch (e: any) {
       this.error.set(e?.status === 403
         ? 'Tu rol no tiene permiso para administrar formación.'
@@ -68,6 +76,8 @@ export class AdminCourses implements OnInit {
     this.editando.set({
       codigo: '', nombre: '', descripcion: '', obligatorio: true,
       modalidad_default: 'AUTOGESTIONADO', entidad_capacitadora: 'Apoyo Laboral TS',
+      certificate_template_id: null, intensidad_horas: null,
+      acceso: 'ASIGNADO', contexto: 'CORPORATIVO',
     });
   }
 
@@ -76,6 +86,9 @@ export class AdminCourses implements OnInit {
       id: c.id, codigo: c.codigo, nombre: c.nombre, descripcion: c.descripcion,
       obligatorio: c.obligatorio, vigencia_meses: c.vigencia_meses,
       entidad_capacitadora: c.entidad_capacitadora, modalidad_default: c.modalidad_default,
+      certificate_template_id: c.certificate_template_id ?? null,
+      intensidad_horas: c.intensidad_horas ?? null,
+      acceso: c.acceso ?? 'ASIGNADO', contexto: c.contexto ?? 'CORPORATIVO',
     });
   }
 

@@ -2,7 +2,7 @@
   <div class="ges-contenido">
     <mat-card class="disab-card">
       <!-- ════════ HERO ════════ -->
-      <div class="disab-hero disab-hero-informes">
+      <div class="disab-hero disab-hero-informes" data-acciones="propias">
         <div class="disab-hero-icon"><mat-icon>insights</mat-icon></div>
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">Informes de incapacidades</h1>
@@ -13,7 +13,7 @@
           </p>
         </div>
         <div class="hero-acciones">
-          <button type="button" mat-flat-button class="hero-btn hero-btn-primario" (click)="exportarGlobal()" [disabled]="!global()">
+          <button type="button" mat-flat-button class="hero-btn hero-btn-primario" data-guia="exportar" (click)="exportarGlobal()" [disabled]="!global()">
             <mat-icon>download</mat-icon><span>Exportar a Excel</span>
           </button>
           <button type="button" mat-stroked-button class="hero-btn hero-btn-secundario" (click)="cargar()" [disabled]="cargando()">
@@ -23,7 +23,7 @@
       </div>
 
       <!-- ════════ FILTROS ════════ -->
-      <div class="ges-filtros">
+      <div class="ges-filtros" data-guia="filtros">
         <mat-form-field appearance="outline" subscriptSizing="dynamic">
           <mat-label>Desde (fecha de inicio)</mat-label>
           <input matInput type="date" [(ngModel)]="desde" (change)="cargar()" />
@@ -63,7 +63,7 @@
 
       <!-- ════════ TABS ════════ -->
       <div class="ges-cuerpo">
-        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms">
+        <mat-tab-group [selectedIndex]="tab()" (selectedIndexChange)="tab.set($event)" animationDuration="150ms" data-guia="pestanas">
           <mat-tab label="Global">
             <ng-template matTabContent>
               @if (global(); as g) {
@@ -171,3 +171,6 @@
     </mat-card>
   </div>
 </div>
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

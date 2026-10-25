@@ -1,10 +1,11 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpErrorResponse, HttpHeaders, HttpParams } from '@angular/common/http';
-import { Observable, of, throwError } from 'rxjs';
+import { Observable, forkJoin, of, throwError } from 'rxjs';
 import { catchError, map, shareReplay, tap, timeout } from 'rxjs/operators';
 import { isPlatformBrowser } from '@angular/common';
 import { environment } from '@/environments/environment';
 import { sinTildes } from '../../shared/sin-tildes.helper';
+import { ExpedienteContrato, procesoValido } from './expediente-contrato.model';
 
 @Injectable({
   providedIn: 'root',
@@ -26,6 +27,11 @@ export class GestionDocumentalService {
    * Si la persona NO es CC, hay que pasar `tipo_documento` (ej: "CE", "PPT");
    * el backend prefijará automáticamente owner_id con "x" para evitar
    * colisiones entre CC y non-CC con el mismo número de cédula.
+   *
+   * `proceso_id` = id del proceso de contratación (`entrevistas[i].proceso.id`,
+   * que también es la llave del contrato en ms-hr). Con él el documento queda
+   * atado a SU contrato (ms-documents V21): el examen o el contrato del 2º
+   * vínculo ya no se confunden con los del 1º. Si no llega, todo sigue como antes.
    */
   guardarDocumento(
     title: any,
@@ -33,7 +39,8 @@ export class GestionDocumentalService {
     type: number,
     file: File,
     contract_number?: string,
-    tipo_documento?: string
+    tipo_documento?: string,
+    proceso_id?: number | string | null,
   ): Observable<any> {
     const formData = new FormData();
     // El título queda guardado en gestion_documental: sin tildes ni ñ.
@@ -44,9 +51,14 @@ export class GestionDocumentalService {
     formData.append('file', file);
     if (contract_number) formData.append('contract_number', contract_number);
     if (tipo_documento) formData.append('tipo_documento', tipo_documento);
+    const proceso = procesoValido(proceso_id);
+    if (proceso) formData.append('proceso_id', proceso);
 
+    // Carga VALIDADA (ms-templates): si el tipo no está chuleado en el parametrizador para la
+    // requisición de la persona responde 409 con el motivo en error/detail/message y no llega a
+    // gestión documental. Si pasa, la guarda ms-documents igual que antes (misma respuesta).
     return this.http.post(
-      `${this.apiUrl}/gestion_documental/documentos/`,
+      `${this.apiUrl}/plantillas/excel/documentos/cargar`,
       formData
     ).pipe(
       // El expediente de esa cédula cambió: la próxima lectura debe ir al servidor.
@@ -90,12 +102,43 @@ export class GestionDocumentalService {
    * subidas por OTROS servicios (p. ej. la foto) deben llamar
    * `invalidarDocumentos(cedula)`.
    */
-  getDocumentosDeCandidato(cedula: string | number, opts?: { force?: boolean }): Observable<any[]> {
+  getDocumentosDeCandidato(
+    cedula: string | number,
+    opts?: { force?: boolean; tipoDoc?: string | null },
+  ): Observable<any[]> {
     const clave = String(cedula ?? '').trim();
     if (!clave) return of([]);
+    // Documento que no es CC (PPT/PET, CE, PEP, TI…): la flota de robots sube sus PDF con
+    // owner_id `x<cédula>` (make_owner_id) y ms-documents filtra el owner TAL CUAL, así que
+    // con la cédula pelada no salían. Se piden las dos llaves y se juntan. No se hace para CC:
+    // una cédula vieja de 7 dígitos puede coincidir con el PPT de OTRA persona.
+    const conX = /^\d+$/.test(clave) && GestionDocumentalService.tipoConPrefijo(opts?.tipoDoc);
+    if (!conX) return this.expedientePorOwner(clave, opts?.force);
+    return forkJoin([
+      this.expedientePorOwner(clave, opts?.force),
+      this.expedientePorOwner(`x${clave}`, opts?.force),
+    ]).pipe(
+      map(([planos, conPrefijo]) => {
+        // Mismo orden que el backend (id DESC): quien toma "el primero por tipo" sigue
+        // quedándose con el más reciente.
+        const vistos = new Set<unknown>();
+        return [...planos, ...conPrefijo]
+          .filter((d) => (vistos.has(d?.id) ? false : (vistos.add(d?.id), true)))
+          .sort((a, b) => Number(b?.id ?? 0) - Number(a?.id ?? 0));
+      }),
+    );
+  }
 
+  /** Regla de `make_owner_id` (Django): CC o sin tipo → cédula pelada; cualquier otro → `x`. */
+  static tipoConPrefijo(tipoDoc: string | null | undefined): boolean {
+    const t = String(tipoDoc ?? '').toUpperCase().replace(/[^A-Z]/g, '');
+    return !!t && t !== 'CC';
+  }
+
+  /** Un owner_id exacto, con caché. Ver `getDocumentosDeCandidato`. */
+  private expedientePorOwner(clave: string, force?: boolean): Observable<any[]> {
     const hit = this.docsPorCedula.get(clave);
-    if (hit && !opts?.force && Date.now() - hit.creadoEn < GestionDocumentalService.DOCS_TTL_MS) {
+    if (hit && !force && Date.now() - hit.creadoEn < GestionDocumentalService.DOCS_TTL_MS) {
       return hit.obs;
     }
 
@@ -138,7 +181,11 @@ export class GestionDocumentalService {
       this.docsPorCedula.clear();
       return;
     }
-    this.docsPorCedula.delete(String(cedula).trim());
+    const original = String(cedula).trim();
+    const clave = original.replace(/^x/i, '');
+    this.docsPorCedula.delete(original);
+    this.docsPorCedula.delete(clave);
+    this.docsPorCedula.delete(`x${clave}`);
   }
 
   /** Expedientes ya pedidos, por cédula. Ver `getDocumentosDeCandidato`. */
@@ -152,8 +199,14 @@ export class GestionDocumentalService {
 
   /**
    * Obtiene documentos filtrados por cédula (obligatoria) y opcionalmente tipo o contrato.
+   *
+   * Con `contract_number` o `proceso_id` el backend devuelve SOLO los documentos
+   * etiquetados con ese contrato (lo histórico casi nunca lo está). Para ver un
+   * contrato completo, con lo de la persona y lo sin asignar, usar
+   * `getExpedienteContrato`.
    */
-  getDocuments(cedula: string, type?: number, contract_number?: string): Observable<any> {
+  getDocuments(cedula: string, type?: number, contract_number?: string,
+    proceso_id?: number | string | null): Observable<any> {
     let params = new HttpParams().set('cedula', cedula);
     if (type !== undefined && type !== null) {
       params = params.set('type', type.toString());
@@ -161,7 +214,40 @@ export class GestionDocumentalService {
     if (contract_number) {
       params = params.set('contract_number', contract_number);
     }
+    const proceso = procesoValido(proceso_id);
+    if (proceso) params = params.set('proceso_id', proceso);
     return this.http.get(`${this.apiUrl}/gestion_documental/documentos/`, { params });
+  }
+
+  // ------------------ EXPEDIENTE POR CONTRATO ------------------
+
+  /**
+   * GET /gestion_documental/expediente-contrato
+   *
+   * Documentos de UN contrato + los de la persona (cédula, hoja de vida, foto,
+   * firma, huella, antecedentes) + los exigidos con su estado. Basta la cédula
+   * (toma su último contrato) o el proceso. `tipos` reemplaza los exigidos por
+   * defecto (mismos ids que las columnas del checklist).
+   */
+  getExpedienteContrato(filtro: {
+    cedula?: string | number | null;
+    proceso_id?: number | string | null;
+    contract_number?: string | null;
+    tipos?: number[] | null;
+  }): Observable<ExpedienteContrato> {
+    let params = new HttpParams();
+    const ced = String(filtro?.cedula ?? '').trim();
+    if (ced) params = params.set('cedula', ced);
+    const proceso = procesoValido(filtro?.proceso_id);
+    if (proceso) params = params.set('proceso_id', proceso);
+    const cn = String(filtro?.contract_number ?? '').trim();
+    if (cn) params = params.set('contract_number', cn);
+    const tipos = filtro?.tipos;
+    if (Array.isArray(tipos) && tipos.length) {
+      params = params.set('tipos', tipos.join(','));
+    }
+    return this.http.get<ExpedienteContrato>(
+      `${this.apiUrl}/gestion_documental/expediente-contrato`, { params });
   }
 
   // Alias para compatibilidad regresiva (si es necesario)
@@ -244,13 +330,23 @@ export class GestionDocumentalService {
    * Envía SOLO cédulas; el backend usa los tipos por defecto si no envías 'tipos'.
    * @param cedulas array de cédulas (string|number) -> se envían como string
    * @param tipos   opcional para override puntual
+   * @param contrato opcional: solo cuentan los documentos de ESE contrato en los
+   *   tipos de contrato (la cédula, la foto y los antecedentes no se filtran).
+   *   Viaja en la query para no cambiar el cuerpo.
    */
-  getDocumentosChecklist(cedulas: Array<string | number>, tipos?: number[]): Observable<any> {
+  getDocumentosChecklist(cedulas: Array<string | number>, tipos?: number[],
+    contrato?: { proceso_id?: number | string | null; contract_number?: string | null }): Observable<any> {
     const body: any = { cedulas: cedulas.map(String) };
     if (Array.isArray(tipos) && tipos.length) body.tipos = tipos;
+    let params = new HttpParams();
+    const proceso = procesoValido(contrato?.proceso_id);
+    if (proceso) params = params.set('proceso_id', proceso);
+    const cn = String(contrato?.contract_number ?? '').trim();
+    if (cn) params = params.set('contract_number', cn);
     return this.http.post(
       `${this.apiUrl}/gestion_documental/documentos-checklist/`,
-      body
+      body,
+      { params }
     );
   }
 

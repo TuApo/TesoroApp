@@ -1,0 +1,106 @@
+<div class="kbc">
+  <!-- ── Conversación ───────────────────────────────────────────────── -->
+  <section class="kbc-chat" aria-label="Conversación con la IA">
+    <header class="kbc-cab">
+      <mat-icon>forum</mat-icon>
+      <div>
+        <h3>Construir con IA</h3>
+        <p>{{ documentoId() ? 'Editando una base existente' : 'Base nueva' }} · lo que se escriba aquí es lo que sabrá la IA de la plataforma</p>
+      </div>
+      <button mat-icon-button matTooltip="Empezar una base nueva" (click)="nueva()" aria-label="Nueva base"><mat-icon>add_comment</mat-icon></button>
+    </header>
+
+    <div class="kbc-hilo" #hilo>
+      @for (b of burbujas(); track $index) {
+        <div class="kbc-msg" [class.ia]="b.rol === 'ia'" [class.persona]="b.rol === 'persona'">
+          @if (b.adjunto) { <span class="kbc-adj-tag"><mat-icon>attach_file</mat-icon>{{ b.adjunto }}</span> }
+          <div class="kbc-burbuja kbc-md" [innerHTML]="b.html"></div>
+        </div>
+      }
+      @if (pensando()) {
+        <div class="kbc-msg ia"><div class="kbc-burbuja kbc-escribiendo"><span></span><span></span><span></span></div></div>
+      }
+    </div>
+
+    @if (sugerencias().length && !pensando()) {
+      <div class="kbc-sugs">
+        @for (s of sugerencias(); track s) {
+          <button type="button" class="kbc-sug" (click)="enviar(s)">{{ s }}</button>
+        }
+      </div>
+    }
+
+    @if (error()) {
+      <div class="kbc-error"><mat-icon>error_outline</mat-icon>{{ error() }}
+        <button mat-icon-button (click)="error.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button></div>
+    }
+
+    @if (adjunto(); as a) {
+      <div class="kbc-adjunto">
+        <mat-icon>{{ a.motor === 'docling' ? 'auto_awesome' : 'description' }}</mat-icon>
+        <span><b>{{ a.nombre }}</b> listo ({{ a.markdown.length | number }} caracteres{{ a.motor === 'docling' ? ', Docling' : '' }})</span>
+        @if (a.aviso) { <small>{{ a.aviso }}</small> }
+        <button mat-icon-button (click)="adjunto.set(null)" aria-label="Quitar adjunto"><mat-icon>close</mat-icon></button>
+      </div>
+    }
+
+    <div class="kbc-entrada">
+      <button mat-icon-button (click)="abrirArchivo()" [disabled]="leyendoAdjunto()" matTooltip="Adjuntar archivo (se convierte con Docling)" aria-label="Adjuntar">
+        @if (leyendoAdjunto()) { <mat-progress-spinner mode="indeterminate" diameter="18"></mat-progress-spinner> }
+        @else { <mat-icon>attach_file</mat-icon> }
+      </button>
+      <input #archivo type="file" hidden (change)="alElegirArchivo($event)"
+             accept=".pdf,.docx,.doc,.xlsx,.xls,.pptx,.ppt,.html,.htm,.md,.txt,.csv,.json,.xml,.yaml,.yml,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp">
+      <textarea rows="2" placeholder="Cuéntale a la IA qué debe saber… (Enter envía, Shift+Enter salto de línea)"
+                [ngModel]="mensaje()" (ngModelChange)="mensaje.set($event)" (keydown)="alTeclear($event)"
+                [disabled]="pensando()" aria-label="Mensaje"></textarea>
+      <button mat-flat-button color="primary" (click)="enviar()" [disabled]="pensando() || (!mensaje().trim() && !adjunto())" aria-label="Enviar">
+        <mat-icon>send</mat-icon>
+      </button>
+    </div>
+  </section>
+
+  <!-- ── Borrador ───────────────────────────────────────────────────── -->
+  <section class="kbc-borrador" aria-label="Borrador de la base">
+    <header class="kbc-bcab">
+      <input class="kbc-nombre" placeholder="Nombre de la base" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" aria-label="Nombre de la base">
+      <mat-button-toggle-group [value]="vistaBorrador()" (change)="vistaBorrador.set($event.value)" hideSingleSelectionIndicator aria-label="Modo del borrador">
+        <mat-button-toggle value="vista" matTooltip="Vista previa"><mat-icon>visibility</mat-icon></mat-button-toggle>
+        <mat-button-toggle value="editar" matTooltip="Editar a mano"><mat-icon>edit_note</mat-icon></mat-button-toggle>
+      </mat-button-toggle-group>
+    </header>
+
+    <div class="kbc-mods">
+      @for (m of modulos(); track m.clave) {
+        <button type="button" class="kbc-chip" [class.on]="moduloActivo(m.clave)" (click)="toggleModulo(m.clave)" [attr.aria-pressed]="moduloActivo(m.clave)">
+          <mat-icon>{{ moduloActivo(m.clave) ? 'check' : m.icono }}</mat-icon>{{ m.nombre }}
+        </button>
+      }
+    </div>
+
+    <div class="kbc-doc">
+      @if (vistaBorrador() === 'editar') {
+        <textarea class="kbc-editor" [ngModel]="borrador()" (ngModelChange)="borrador.set($event)"
+                  placeholder="# Título&#10;&#10;El documento en Markdown…" aria-label="Borrador en Markdown"></textarea>
+      } @else if (borrador().trim()) {
+        <div class="kbc-md kbc-preview" [innerHTML]="htmlBorrador()"></div>
+      } @else {
+        <div class="kbc-vacio">
+          <mat-icon>edit_document</mat-icon>
+          <p>El documento aparecerá aquí mientras conversas.</p>
+        </div>
+      }
+    </div>
+
+    @if (aviso()) { <div class="kbc-ok"><mat-icon>check_circle</mat-icon>{{ aviso() }}</div> }
+
+    <footer class="kbc-pie">
+      <span class="kbc-cuenta">{{ palabras() | number }} palabras</span>
+      <button mat-flat-button color="primary" (click)="guardar()" [disabled]="!puedeGuardar()">
+        @if (guardando()) { <mat-progress-spinner mode="indeterminate" diameter="16"></mat-progress-spinner> }
+        @else { <mat-icon>save</mat-icon> }
+        {{ documentoId() ? 'Actualizar base' : 'Guardar como base' }}
+      </button>
+    </footer>
+  </section>
+</div>

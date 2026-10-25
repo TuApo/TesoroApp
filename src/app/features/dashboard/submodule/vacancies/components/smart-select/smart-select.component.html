@@ -1,4 +1,4 @@
-<mat-form-field class="ss-field" [subscriptSizing]="compacto ? 'dynamic' : 'fixed'" [title]="textoSeleccion">
+<mat-form-field class="ss-field" [class.ss-invalido]="invalido" [subscriptSizing]="compacto ? 'dynamic' : 'fixed'" [title]="textoSeleccion">
   <mat-label>{{ label }}@if (requerido) {<span class="ss-ast" aria-hidden="true">*</span>}</mat-label>
 
   <mat-select
@@ -64,8 +64,11 @@
     <mat-icon matPrefix class="ss-icono">{{ icono }}</mat-icon>
   }
 
+  <!-- `mat-hint` y no `mat-error`: el `mat-select` no lleva el control del
+       formulario, así que Material nunca lo da por inválido y el `mat-error` no
+       se mostraba. El estado lo decide `invalido`. -->
   @if (invalido && mensajeError) {
-    <mat-error>{{ mensajeError }}</mat-error>
+    <mat-hint class="ss-error">{{ mensajeError }}</mat-hint>
   } @else if (ayuda) {
     <mat-hint>{{ ayuda }}</mat-hint>
   }

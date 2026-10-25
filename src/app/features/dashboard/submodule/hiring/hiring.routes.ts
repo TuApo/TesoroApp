@@ -17,8 +17,15 @@ import { ManageContractsComponent } from './pages/manage-contracts/manage-contra
 export const routes: Routes = [
   { path: '', redirectTo: 'absences', pathMatch: 'full' },
   { path: 'absences', component: AbsencesComponent },
+  // Pedido #8: reporte de presentados (aplica / no aplica / en espera). Carga diferida.
+  { path: 'reporte-presentados', loadComponent: () => import('./pages/reporte-presentados/reporte-presentados.component').then((m) => m.ReportePresentadosComponent) },
+  // Estado de candidatos (16-oct-2026): en espera, rechazados y contratados con su estadística.
+  { path: 'estado-candidatos', loadComponent: () => import('./pages/estado-candidatos/estado-candidatos.component').then((m) => m.EstadoCandidatosComponent) },
   { path: 'hiring-report', component: HiringReportComponent },
   { path: 'recruitment-pipeline', component: RecruitmentPipelineComponent },
+  // Pedido #11: carga masiva de exámenes médicos (PDF por persona o ZIP). Carga diferida.
+  { path: 'consulta-antecedentes', loadComponent: () => import('./pages/consulta-antecedentes/consulta-antecedentes.component').then((m) => m.ConsultaAntecedentesComponent) },
+  { path: 'examenes-masivos', loadComponent: () => import('./pages/examenes-masivos/examenes-masivos.component').then((m) => m.ExamenesMasivosComponent) },
   { path: 'generate-contracting-documents/:numeroDocumento', component: GenerateContractingDocumentsComponent },
   { path: 'query-form', component: QueryFormComponent },
   { path: 'banned-report', component: BannedReportComponent },

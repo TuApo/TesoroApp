@@ -1,11 +1,16 @@
 <div class="gestion-layout">
 
-  <!-- Filtros -->
+  <!-- Filtros. La base de fecha la lleva la barra («Filtrar por») y va al mismo servicio
+       que la tabla: antes había dos selectores y el de la barra no estaba conectado. -->
   <app-afiliaciones-filters-bar
+    titulo="Confirmación de ingresos"
+    rangoInicial="30dias"
+    [base]="baseFecha$ | async"
     [oficinas]="(oficinas$ | async) || []"
     [responsables]="(responsables$ | async) || []"
     [empresasUsuarias]="(empresasUsuarias$ | async) || []"
     (rangeChanged)="onDateRangeChanged($event)"
+    (baseChanged)="setBase($event)"
     (searchChanged)="onSearchChanged($event)"
     (empresaChanged)="onEmpresaChanged($event)"
     (empresaUsuariaChanged)="onEmpresaUsuariaChanged($event)"
@@ -13,32 +18,28 @@
     (responsableChanged)="onResponsableChanged($event)">
   </app-afiliaciones-filters-bar>
 
-  <!-- Controles: gate + base de fecha -->
+  <!-- Qué se está viendo: la cola de trabajo (ingreso ya vigente y sin confirmar) o todo el
+       rango. Es la decisión que más cambia la tabla, así que va como selector, no escondida
+       en un interruptor con la regla entre paréntesis. -->
   <div class="controls-row">
-    <mat-slide-toggle
-      [checked]="(soloListos$ | async) ?? true"
-      (change)="toggleListos($event.checked)"
-      color="primary">
-      Solo listos para confirmar (ingreso ≤ hoy y pendiente)
-    </mat-slide-toggle>
+    <mat-button-toggle-group class="cola-toggle"
+      [value]="(soloListos$ | async) ?? true"
+      (change)="toggleListos($event.value)">
+      <mat-button-toggle [value]="true"
+        matTooltip="Ingreso ya vigente (hoy o antes) y Afiliaciones aún sin confirmar">
+        <mat-icon>pending_actions</mat-icon> Por confirmar
+      </mat-button-toggle>
+      <mat-button-toggle [value]="false" matTooltip="Todos los contratos del rango, confirmados o no, incluso con ingreso futuro">
+        <mat-icon>list</mat-icon> Todo el rango
+      </mat-button-toggle>
+    </mat-button-toggle-group>
 
-    <div class="base-toggle">
-      <span class="base-label">Rango por:</span>
-      <mat-button-toggle-group
-        [value]="(baseFecha$ | async) || 'ingreso'"
-        (change)="setBase($event.value)">
-        <mat-button-toggle value="ingreso">Fecha ingreso</mat-button-toggle>
-        <mat-button-toggle value="firma"
-                           matTooltip="Fecha de firma del contrato (fecha_contrato o la del formulario de admisión)">
-          Fecha contratación
-        </mat-button-toggle>
-        <mat-button-toggle value="registro"
-                           matTooltip="Cuándo entró al sistema; es un dato de carga y las recargas masivas lo mueven en bloque">
-          Fecha registro
-        </mat-button-toggle>
-      </mat-button-toggle-group>
-    </div>
-
+    <ol class="pasos-proceso" aria-label="Pasos del proceso">
+      <li><mat-icon>fact_check</mat-icon> Verificar datos</li>
+      <li><mat-icon>assignment</mat-icon> Documento EPS</li>
+      <li><mat-icon>outgoing_mail</mat-icon> Remitir y soportes</li>
+      <li><mat-icon>verified</mat-icon> Confirmar validaciones</li>
+    </ol>
   </div>
 
   @if (saving || pdfGenerando) { <mat-progress-bar mode="indeterminate"></mat-progress-bar> }
@@ -61,8 +62,10 @@
       [filaId]="idFila"
       [filaClase]="claseFila"
       [totalServidor]="page.total"
+      [paginaServidor]="((page$ | async)?.page) ?? 0"
       [filasPorPagina]="((page$ | async)?.size) || 50"
       [seleccion]="sel"
+      [pegable]="false"
       (paginaCambio)="onPageChange($event)"
       (filaClick)="openDetail($event)">
 
@@ -111,6 +114,29 @@
                 matTooltip="Formato de afiliación de los marcados: una página por persona, con la relación al frente">
           <mat-icon>picture_as_pdf</mat-icon> PDF afiliación ({{ marcadas() }})
         </button>
+        <button mat-stroked-button color="primary" [disabled]="pdfGenerando" (click)="generarDocEpsSeleccion()"
+                matTooltip="Formulario de cada EPS con firma y huella; antes muestra quién no se puede generar y por qué">
+          <mat-icon>assignment</mat-icon> Documento EPS ({{ marcadas() }})
+          @if (resumenEstadoSeleccion(); as r) {
+            @if (r.rojo + r.amarillo + r.verde) {
+              <span class="doc-eps-resumen">
+                @if (r.amarillo) { <span class="pto pto--puede">{{ r.amarillo }}</span> }
+                @if (r.verde) { <span class="pto pto--generado">{{ r.verde }}</span> }
+                @if (r.rojo) { <span class="pto pto--no-puede">{{ r.rojo }}</span> }
+              </span>
+            }
+          }
+        </button>
+        <button mat-stroked-button color="primary" [disabled]="pdfGenerando" [matMenuTriggerFor]="menuLote"
+                matTooltip="Sube varios archivos a la vez: cada uno va al trámite de la cédula que trae en el nombre (ej. 1073381288_respuesta.pdf)">
+          <mat-icon>drive_folder_upload</mat-icon> Soportes EPS en lote
+        </button>
+        <mat-menu #menuLote="matMenu">
+          <button mat-menu-item (click)="etapaLote = 'REMISION'; inputLote.click()"><mat-icon>outgoing_mail</mat-icon> Remisiones (marca remitido)</button>
+          <button mat-menu-item (click)="etapaLote = 'RESPUESTA'; inputLote.click()"><mat-icon>mark_email_unread</mat-icon> Respuestas de la EPS</button>
+          <button mat-menu-item (click)="etapaLote = 'AFILIACION'; inputLote.click()"><mat-icon>verified</mat-icon> Afiliaciones (marca afiliado)</button>
+        </mat-menu>
+        <input #inputLote type="file" multiple hidden accept="application/pdf,image/*,.msg,.eml" (change)="subirLote($event)">
       </div>
 
       <ng-template tablaCelda="empresa" let-row>
@@ -135,6 +161,14 @@
                 [matTooltip]="row.adres_fecha ? ('Consultado: ' + (row.adres_fecha | date:'dd/MM/yyyy HH:mm')) : ''">
             {{ row.adres_estado }}
           </span>
+        } @else { <span class="adres-sin">Sin consulta</span> }
+      </ng-template>
+
+      <!-- Régimen en ADRES (V65): régimen especial/excepción resaltado -->
+      <ng-template tablaCelda="adres_regimen" let-row>
+        @if (etiquetaRegimenAdres(row.adres_regimen); as reg) {
+          <span class="adres-chip" [ngClass]="regimenAdresClass(row.adres_regimen)"
+                [matTooltip]="row.adres_regimen || ''">{{ reg }}</span>
         } @else { <span class="adres-sin">Sin consulta</span> }
       </ng-template>
 
@@ -221,12 +255,12 @@
           <mat-icon>fact_check</mat-icon>
         </button>
         <!-- Documento EPS desde plantilla parametrizada -->
-        <button mat-icon-button
-                matTooltip="Generar documento EPS (plantilla parametrizada)"
+        <!-- Rojo: no se puede (motivo en el tooltip) · amarillo: listo · verde: ya generado -->
+        <button mat-icon-button [class]="claseDocEps(row)"
+                [matTooltip]="tooltipDocEps(row)"
                 [disabled]="docEpsGenerando === row.id"
-                (click)="generarDocEps(row)"
-                style="color: #0891b2;">
-          <mat-icon>{{ docEpsGenerando === row.id ? 'hourglass_top' : 'assignment' }}</mat-icon>
+                (click)="generarDocEps(row)">
+          <mat-icon>{{ docEpsGenerando === row.id ? 'hourglass_top' : estadoEps().get(row.id)?.estado === 'GENERADO' ? 'assignment_turned_in' : estadoEps().get(row.id)?.estado === 'NO_PUEDE' ? 'assignment_late' : 'assignment' }}</mat-icon>
         </button>
       </ng-template>
 
@@ -271,6 +305,12 @@
                 <span class="adres-chip" [ngClass]="adresEstadoClass(row.adres_estado)">{{ row.adres_estado }}</span>
               } @else { <span class="adres-sin">Sin consulta</span> }
             </div>
+            @if (etiquetaRegimenAdres(row.adres_regimen); as reg) {
+              <div class="vcard-kv vcard-kv-ancho">
+                <span>Régimen (ADRES)</span>
+                <span class="adres-chip" [ngClass]="regimenAdresClass(row.adres_regimen)">{{ reg }}</span>
+              </div>
+            }
             @if (row.resumen?.traslado_codigo) {
               <div class="vcard-kv vcard-kv-ancho">
                 <span>Traslado EPS</span>
@@ -349,16 +389,33 @@
   <div class="drawer-backdrop" (click)="closeDetail()"></div>
   <aside class="drawer">
     <div class="drawer-header">
-      <div>
+      <div class="drawer-ident">
         <h3>{{ detailRow.nombre_completo }}</h3>
-        <span class="drawer-sub">{{ detailRow.numero_documento }} · {{ detailRow.empresa }}</span>
+        <!-- En pantalla completa la cabecera hace de encabezado de ficha: quién es, de qué
+             empresa, dónde trabaja y cuándo entra. Lo demás ya está en el cuerpo. -->
+        <div class="drawer-sub">
+          <span>{{ detailRow.tipo_documento || 'CC' }} {{ detailRow.numero_documento }}</span>
+          <span>{{ detailRow.empresa }}</span>
+          @if (detailRow.empresa_usuaria) { <span>{{ detailRow.empresa_usuaria }}</span> }
+          @if (detailRow.finca || detailRow.centro_costo) {
+            <span>{{ detailRow.finca || detailRow.centro_costo }}</span>
+          }
+          @if (detailRow.fecha_ingreso) { <span>Ingreso {{ detailRow.fecha_ingreso | date: 'dd/MM/yyyy' }}</span> }
+          @if (detailRow.eps) { <span>{{ detailRow.eps }}</span> }
+        </div>
       </div>
-      <button mat-icon-button (click)="closeDetail()"><mat-icon>close</mat-icon></button>
+      <button mat-icon-button (click)="closeDetail()" matTooltip="Cerrar la ficha (Esc)">
+        <mat-icon>close</mat-icon>
+      </button>
     </div>
 
     <div class="drawer-body">
       <!-- Datos críticos -->
-      <section class="drawer-section">
+      <!-- Columna izquierda: la identificación y lo que se hace con ella. Las dos columnas
+           fluyen por separado a propósito: con una rejilla de filas compartidas, lo alto de
+           «Datos» abría un hueco muerto enfrente. -->
+      <div class="col-izq">
+      <section class="drawer-section drawer-section--datos">
         <h4>Datos</h4>
         <div class="kv-grid">
           <div class="kv-wide"><span>Empresa usuaria</span>
@@ -388,6 +445,12 @@
               <span class="adres-chip" [ngClass]="adresEstadoClass(detailRow.adres_estado)">{{ detailRow.adres_estado }}</span>
             } @else { - }
           </div>
+          <div><span>Régimen (ADRES)</span>
+            @if (etiquetaRegimenAdres(detailRow.adres_regimen); as reg) {
+              <span class="adres-chip" [ngClass]="regimenAdresClass(detailRow.adres_regimen)"
+                    [matTooltip]="detailRow.adres_regimen || ''">{{ reg }}</span>
+            } @else { - }
+          </div>
           <div><span>Responsable</span>{{ detailRow.usuario_responsable || '-' }}</div>
         </div>
         <div class="doc-btns">
@@ -407,6 +470,141 @@
         </div>
       </section>
 
+      <!-- Confirmación por validador -->
+      <section class="drawer-section">
+        <h4>Confirmar ingreso</h4>
+        <div class="conf-controls">
+          <mat-form-field appearance="outline" class="conf-field">
+            <mat-label>Canal</mat-label>
+            <mat-select [(ngModel)]="detailCanal">
+              @for (c of canales; track c) { <mat-option [value]="c">{{ c }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+          <mat-form-field appearance="outline" class="conf-field">
+            <mat-label>Resultado (intento)</mat-label>
+            <mat-select [(ngModel)]="resultadoSel">
+              @for (r of resultados; track r) { <mat-option [value]="r">{{ r }}</mat-option> }
+            </mat-select>
+          </mat-form-field>
+        </div>
+        <mat-form-field appearance="outline" class="conf-nota">
+          <mat-label>Nota</mat-label>
+          <input matInput [(ngModel)]="detailNota" maxlength="500">
+        </mat-form-field>
+
+        @if (caso$ | async; as caso) {
+          <div class="validador-rows">
+            @for (v of validadores; track v) {
+              <div class="validador-row">
+                <span class="validador-name">
+                  <mat-icon [class.on]="casoConfirmado(caso.caso, v)">
+                    {{ casoConfirmado(caso.caso, v) ? 'check_circle' : 'radio_button_unchecked' }}
+                  </mat-icon>
+                  {{ validadorLabel(v) }}
+                </span>
+                <span class="validador-actions">
+                  <button mat-flat-button color="primary" [disabled]="saving" (click)="confirmarUno(v)">Confirmar</button>
+                  <button mat-stroked-button [disabled]="saving" (click)="registrarUno(v)">Intento</button>
+                </span>
+              </div>
+            }
+          </div>
+
+          <!-- Historial de intentos -->
+          <h4 class="hist-title">Historial de contactos</h4>
+          @if (caso.intentos.length === 0) {
+            <p class="empty-hist">Sin intentos registrados.</p>
+          } @else {
+            <div class="intentos-list">
+              @for (it of caso.intentos; track it.id) {
+                <div class="intento-item">
+                  <div class="intento-top">
+                    <span class="intento-chip">{{ validadorLabel(it.validador) }}</span>
+                    <span class="intento-canal">{{ it.canal }}</span>
+                    <span class="intento-res" [class.rechazado]="it.resultado === 'RECHAZADO'">{{ it.resultado }}</span>
+                    @if (it.origen === 'MASIVO') { <span class="intento-masivo">masivo</span> }
+                  </div>
+                  <div class="intento-meta">
+                    {{ it.usuario || 'anónimo' }} · {{ it.created_at ? (it.created_at | date:'dd/MM/yyyy HH:mm') : '' }}
+                  </div>
+                  @if (it.nota) { <div class="intento-nota">{{ it.nota }}</div> }
+                </div>
+              }
+            </div>
+          }
+        }
+      </section>
+      </div>
+
+      <div class="col-der">
+
+      <!-- Seguimiento: en qué va el trámite, de un vistazo. Reúne lo que estaba disperso —
+           fechas, los cuatro validadores, el radicado del traslado y el estado de lo que hay
+           en gestión documental. -->
+      <section class="drawer-section drawer-section--seg">
+        <h4><mat-icon class="sec-icon">timeline</mat-icon> Seguimiento de la afiliación</h4>
+
+        <div class="seg-cab">
+          <span class="seg-estado" [ngClass]="estadoAfiliacion(detailRow).cls">
+            {{ estadoAfiliacion(detailRow).txt }}
+          </span>
+          @if (radicadoTraslado(); as tr) {
+            <span class="seg-rad" matTooltip="Radicado del traslado de EPS">
+              <mat-icon class="mini-icon">confirmation_number</mat-icon>
+              Radicado <strong>{{ tr.radicado }}</strong>
+            </span>
+          } @else {
+            <span class="seg-rad seg-rad--none">
+              <mat-icon class="mini-icon">confirmation_number</mat-icon> Sin radicado
+            </span>
+          }
+        </div>
+
+        <ol class="seg-pasos">
+          @for (p of pasosSeguimiento(detailRow); track p.titulo) {
+            <li class="seg-paso" [ngClass]="'seg-paso--' + p.estado">
+              <span class="seg-punto">
+                <mat-icon class="mini-icon">
+                  {{ p.estado === 'hecho' ? 'check' : p.estado === 'curso' ? 'schedule' : 'remove' }}
+                </mat-icon>
+              </span>
+              <span class="seg-txt">
+                <strong>{{ p.titulo }}</strong>
+                <em>{{ p.detalle }}</em>
+              </span>
+            </li>
+          }
+        </ol>
+
+        <!-- Estado de lo que hay en gestión documental para esta cédula. -->
+        <div class="seg-docs">
+          <span class="seg-docs-tit">
+            <mat-icon class="mini-icon">folder_shared</mat-icon> Gestión documental
+          </span>
+          @if (expedienteCargando) {
+            <span class="seg-docs-cargando">consultando…</span>
+          } @else {
+            @for (d of estadoDocumental(); track d.grupo) {
+              <button type="button" class="seg-doc" [ngClass]="'seg-doc--' + d.estado"
+                      [disabled]="!d.total" (click)="verGrupo(d.grupo)"
+                      [matTooltip]="d.total ? 'Ver en Documentos' : 'No hay este documento cargado'">
+                <mat-icon class="mini-icon">
+                  {{ d.estado === 'falta' ? 'error_outline' : d.estado === 'aviso' ? 'warning_amber' : 'task_alt' }}
+                </mat-icon>
+                <span class="seg-doc-nom">{{ d.etiqueta }}</span>
+                <span class="seg-doc-det">{{ d.detalle }}</span>
+                @if (d.total > 1) { <span class="seg-doc-n">{{ d.total }}</span> }
+              </button>
+            }
+          }
+        </div>
+      </section>
+
+      <!-- Trámite EPS: remitido → respuestas → afiliado, con sus soportes (V73) -->
+      <section class="drawer-section">
+        <app-tramite-eps-panel [procesoId]="detailRow.id" (cambio)="refrescarEstadoEps([$event])"></app-tramite-eps-panel>
+      </section>
+
       <!-- ADRES: los datos que el robot leyó PARA ESTA CÉDULA -->
       @if (expedienteCargando) {
         <section class="drawer-section">
@@ -416,6 +614,137 @@
       }
 
       @if (expediente) {
+        <!-- Documentos: cédula / ADRES / traslado, con vista previa antes de descargar -->
+        <section class="drawer-section drawer-section--docs">
+          <h4><mat-icon class="sec-icon">folder_shared</mat-icon> Documentos</h4>
+
+          <mat-button-toggle-group class="grupo-toggle" [value]="grupoDoc" (change)="verGrupo($event.value)">
+            @for (g of grupos; track g) {
+              <mat-button-toggle [value]="g">
+                <mat-icon class="mini-icon">{{ grupoIcono(g) }}</mat-icon>
+                {{ grupoLabel(g) }} ({{ totalDe(g) }})
+              </mat-button-toggle>
+            }
+          </mat-button-toggle-group>
+
+          @if (grupoDoc === 'OTROS' && otrosCargando) {
+            <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+          }
+
+          <!-- Lista a la izquierda, visor fijo a la derecha. -->
+          <div class="doc-zona">
+           <div class="doc-lista-col">
+            @if (docsDe(grupoDoc).length === 0) {
+              <p class="empty-hist">
+                {{ grupoDoc === 'OTROS' && otrosCargando ? 'Consultando gestión documental…'
+                   : 'Sin documentos de ' + grupoLabel(grupoDoc) + ' para esta persona.' }}
+              </p>
+            } @else {
+            <div class="docs-list">
+              @for (d of docsDe(grupoDoc); track d.document_id + ':' + (d.version_id || 0)) {
+                <div class="doc-card" [class.doc-card--viendo]="esEnVista(d)">
+                  <div class="doc-card-top">
+                    <mat-icon class="doc-tipo-icon">{{ grupoIcono(d.grupo) }}</mat-icon>
+                    <div class="doc-card-id">
+                      <!-- El tipo documental delante del nombre: el fichero se llama como la
+                           cédula de la persona y sin el tipo no se sabe qué se está abriendo. -->
+                      <div class="doc-nombre" [matTooltip]="d.archivo || ''">
+                        <span class="doc-tipo-badge">{{ d.tipo || grupoLabel(d.grupo) }}</span>
+                        {{ d.archivo || ('documento ' + d.document_id) }}
+                      </div>
+                      <div class="doc-meta">
+                        <span matTooltip="Cédula dueña del documento">CC {{ d.owner_id }}</span>
+                        <span>·</span>
+                        <span matTooltip="Fecha de registro del documento">
+                          Registrado: {{ d.registrado_en ? (d.registrado_en | date:'dd/MM/yyyy') : '-' }}
+                        </span>
+                        <span>·</span>
+                        <span matTooltip="Fecha de subida de esta versión">
+                          Subido: {{ d.subido_en ? (d.subido_en | date:'dd/MM/yyyy HH:mm') : '-' }}
+                        </span>
+                        <span>·</span>
+                        <span>{{ tamano(d.tamano_bytes) }}</span>
+                        @if (d.version) { <span>·</span><span>v{{ d.version }}</span> }
+                        @if (d.vigente) { <span class="doc-vigente">vigente</span> }
+                      </div>
+                    </div>
+                    <div class="doc-card-acciones">
+                      <button mat-icon-button matTooltip="Vista previa" (click)="togglePreview(d)">
+                        <mat-icon>{{ preview(d)?.abierto ? 'visibility_off' : 'visibility' }}</mat-icon>
+                      </button>
+                      <button mat-icon-button matTooltip="Abrir en otra pestaña" (click)="abrirEnPestana(d)">
+                        <mat-icon>open_in_new</mat-icon>
+                      </button>
+                      <button mat-icon-button matTooltip="Descargar" (click)="descargarDoc(d)">
+                        <mat-icon>download</mat-icon>
+                      </button>
+                    </div>
+                  </div>
+
+                </div>
+              }
+            </div>
+
+            @if (hayMasDe(grupoDoc) > 0) {
+              <p class="docs-mas">
+                Se muestran los {{ docsDe(grupoDoc).length }} más recientes de {{ totalDe(grupoDoc) }}
+                ({{ hayMasDe(grupoDoc) }} más en el histórico).
+              </p>
+            }
+            }
+           </div>
+
+           <!-- Visor: cuadrado, pegado arriba, siempre a la vista mientras se recorre la lista. -->
+           <aside class="doc-visor">
+            @if (docEnVista; as d) {
+              <div class="doc-visor-cab">
+                <mat-icon class="mini-icon">{{ grupoIcono(d.grupo) }}</mat-icon>
+                <span class="doc-tipo-badge">{{ d.tipo || grupoLabel(d.grupo) }}</span>
+                <span class="doc-visor-nom" [matTooltip]="d.archivo || ''">
+                  {{ d.archivo || ('documento ' + d.document_id) }}
+                </span>
+                <button mat-icon-button matTooltip="Abrir en otra pestaña" (click)="abrirEnPestana(d)">
+                  <mat-icon>open_in_new</mat-icon>
+                </button>
+                <button mat-icon-button matTooltip="Descargar" (click)="descargarDoc(d)">
+                  <mat-icon>download</mat-icon>
+                </button>
+                <button mat-icon-button matTooltip="Cerrar" (click)="togglePreview(d)">
+                  <mat-icon>close</mat-icon>
+                </button>
+              </div>
+              @if (preview(d); as p) {
+                <div class="doc-visor-cuerpo">
+                  @if (p.cargando) {
+                    <mat-progress-bar mode="indeterminate"></mat-progress-bar>
+                  } @else if (p.error) {
+                    <div class="preview-vacio">
+                      <mat-icon>error_outline</mat-icon>
+                      <span>No se pudo cargar la vista previa.</span>
+                    </div>
+                  } @else if (p.kind === 'imagen') {
+                    <img [src]="p.objectUrl" [alt]="d.archivo || 'documento'" />
+                  } @else if (p.kind === 'pdf') {
+                    <iframe [src]="p.safeUrl" title="Vista previa del documento"></iframe>
+                  } @else {
+                    <div class="preview-vacio">
+                      <mat-icon>insert_drive_file</mat-icon>
+                      <span>Este formato ({{ p.mime || 'desconocido' }}) no se puede previsualizar.
+                            Descárgalo para verlo.</span>
+                    </div>
+                  }
+                </div>
+              }
+            } @else {
+              <div class="doc-visor-vacio">
+                <mat-icon>visibility</mat-icon>
+                <span>Elige un documento de la lista para verlo aquí.</span>
+              </div>
+            }
+           </aside>
+          </div>
+        </section>
+
         <section class="drawer-section">
           <h4>
             <mat-icon class="sec-icon">health_and_safety</mat-icon> ADRES de esta persona
@@ -498,167 +827,9 @@
           }
         </section>
 
-        <!-- Documentos: cédula / ADRES / traslado, con vista previa antes de descargar -->
-        <section class="drawer-section">
-          <h4><mat-icon class="sec-icon">folder_shared</mat-icon> Documentos</h4>
-
-          @if (expediente.owners_con_match.length) {
-            <div class="owner-strip">
-              <mat-icon class="mini-icon">fingerprint</mat-icon>
-              Documentos de <strong>{{ expediente.nombre_completo }}</strong>
-              <span class="owner-ced">CC {{ expediente.owners_con_match.join(' / ') }}</span>
-            </div>
-          }
-
-          <mat-button-toggle-group class="grupo-toggle" [value]="grupoDoc" (change)="grupoDoc = $event.value">
-            @for (g of grupos; track g) {
-              <mat-button-toggle [value]="g">
-                <mat-icon class="mini-icon">{{ grupoIcono(g) }}</mat-icon>
-                {{ grupoLabel(g) }} ({{ totalDe(g) }})
-              </mat-button-toggle>
-            }
-          </mat-button-toggle-group>
-
-          @if (docsDe(grupoDoc).length === 0) {
-            <p class="empty-hist">Sin documentos de {{ grupoLabel(grupoDoc) }} para esta persona.</p>
-          } @else {
-            <div class="docs-list">
-              @for (d of docsDe(grupoDoc); track d.document_id + ':' + (d.version_id || 0)) {
-                <div class="doc-card">
-                  <div class="doc-card-top">
-                    <mat-icon class="doc-tipo-icon">{{ grupoIcono(d.grupo) }}</mat-icon>
-                    <div class="doc-card-id">
-                      <div class="doc-nombre" [matTooltip]="d.archivo || ''">{{ d.archivo || ('documento ' + d.document_id) }}</div>
-                      <div class="doc-meta">
-                        <span matTooltip="Cédula dueña del documento">CC {{ d.owner_id }}</span>
-                        <span>·</span>
-                        <span matTooltip="Fecha de registro del documento">
-                          Registrado: {{ d.registrado_en ? (d.registrado_en | date:'dd/MM/yyyy') : '-' }}
-                        </span>
-                        <span>·</span>
-                        <span matTooltip="Fecha de subida de esta versión">
-                          Subido: {{ d.subido_en ? (d.subido_en | date:'dd/MM/yyyy HH:mm') : '-' }}
-                        </span>
-                        <span>·</span>
-                        <span>{{ tamano(d.tamano_bytes) }}</span>
-                        @if (d.version) { <span>·</span><span>v{{ d.version }}</span> }
-                        @if (d.vigente) { <span class="doc-vigente">vigente</span> }
-                      </div>
-                    </div>
-                    <div class="doc-card-acciones">
-                      <button mat-icon-button matTooltip="Vista previa" (click)="togglePreview(d)">
-                        <mat-icon>{{ preview(d)?.abierto ? 'visibility_off' : 'visibility' }}</mat-icon>
-                      </button>
-                      <button mat-icon-button matTooltip="Abrir en otra pestaña" (click)="abrirEnPestana(d)">
-                        <mat-icon>open_in_new</mat-icon>
-                      </button>
-                      <button mat-icon-button matTooltip="Descargar" (click)="descargarDoc(d)">
-                        <mat-icon>download</mat-icon>
-                      </button>
-                    </div>
-                  </div>
-
-                  @if (preview(d); as p) {
-                    @if (p.abierto) {
-                      <div class="doc-preview">
-                        @if (p.cargando) {
-                          <mat-progress-bar mode="indeterminate"></mat-progress-bar>
-                        } @else if (p.error) {
-                          <div class="preview-vacio">
-                            <mat-icon>error_outline</mat-icon>
-                            <span>No se pudo cargar la vista previa.</span>
-                          </div>
-                        } @else if (p.kind === 'imagen') {
-                          <img [src]="p.objectUrl" [alt]="d.archivo || 'documento'" />
-                        } @else if (p.kind === 'pdf') {
-                          <iframe [src]="p.safeUrl" title="Vista previa del documento"></iframe>
-                        } @else {
-                          <div class="preview-vacio">
-                            <mat-icon>insert_drive_file</mat-icon>
-                            <span>Este formato ({{ p.mime || 'desconocido' }}) no se puede previsualizar. Descárgalo para verlo.</span>
-                          </div>
-                        }
-                      </div>
-                    }
-                  }
-                </div>
-              }
-            </div>
-
-            @if (hayMasDe(grupoDoc) > 0) {
-              <p class="docs-mas">
-                Se muestran los {{ docsDe(grupoDoc).length }} más recientes de {{ totalDe(grupoDoc) }}
-                ({{ hayMasDe(grupoDoc) }} más en el histórico).
-              </p>
-            }
-          }
-        </section>
       }
 
-      <!-- Confirmación por validador -->
-      <section class="drawer-section">
-        <h4>Confirmar ingreso</h4>
-        <div class="conf-controls">
-          <mat-form-field appearance="outline" class="conf-field">
-            <mat-label>Canal</mat-label>
-            <mat-select [(ngModel)]="detailCanal">
-              @for (c of canales; track c) { <mat-option [value]="c">{{ c }}</mat-option> }
-            </mat-select>
-          </mat-form-field>
-          <mat-form-field appearance="outline" class="conf-field">
-            <mat-label>Resultado (intento)</mat-label>
-            <mat-select [(ngModel)]="resultadoSel">
-              @for (r of resultados; track r) { <mat-option [value]="r">{{ r }}</mat-option> }
-            </mat-select>
-          </mat-form-field>
-        </div>
-        <mat-form-field appearance="outline" class="conf-nota">
-          <mat-label>Nota</mat-label>
-          <input matInput [(ngModel)]="detailNota" maxlength="500">
-        </mat-form-field>
-
-        @if (caso$ | async; as caso) {
-          <div class="validador-rows">
-            @for (v of validadores; track v) {
-              <div class="validador-row">
-                <span class="validador-name">
-                  <mat-icon [class.on]="casoConfirmado(caso.caso, v)">
-                    {{ casoConfirmado(caso.caso, v) ? 'check_circle' : 'radio_button_unchecked' }}
-                  </mat-icon>
-                  {{ validadorLabel(v) }}
-                </span>
-                <span class="validador-actions">
-                  <button mat-flat-button color="primary" [disabled]="saving" (click)="confirmarUno(v)">Confirmar</button>
-                  <button mat-stroked-button [disabled]="saving" (click)="registrarUno(v)">Intento</button>
-                </span>
-              </div>
-            }
-          </div>
-
-          <!-- Historial de intentos -->
-          <h4 class="hist-title">Historial de contactos</h4>
-          @if (caso.intentos.length === 0) {
-            <p class="empty-hist">Sin intentos registrados.</p>
-          } @else {
-            <div class="intentos-list">
-              @for (it of caso.intentos; track it.id) {
-                <div class="intento-item">
-                  <div class="intento-top">
-                    <span class="intento-chip">{{ validadorLabel(it.validador) }}</span>
-                    <span class="intento-canal">{{ it.canal }}</span>
-                    <span class="intento-res" [class.rechazado]="it.resultado === 'RECHAZADO'">{{ it.resultado }}</span>
-                    @if (it.origen === 'MASIVO') { <span class="intento-masivo">masivo</span> }
-                  </div>
-                  <div class="intento-meta">
-                    {{ it.usuario || 'anónimo' }} · {{ it.created_at ? (it.created_at | date:'dd/MM/yyyy HH:mm') : '' }}
-                  </div>
-                  @if (it.nota) { <div class="intento-nota">{{ it.nota }}</div> }
-                </div>
-              }
-            </div>
-          }
-        }
-      </section>
+      </div>
     </div>
   </aside>
 }

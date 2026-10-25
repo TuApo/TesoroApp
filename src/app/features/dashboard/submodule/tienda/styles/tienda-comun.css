@@ -207,6 +207,8 @@ table.tienda-tabla .numero { text-align: right; font-variant-numeric: tabular-nu
 }
 
 .boton {
+  /* Anula el .boton global heredado (margin-top: -20px) que montaba los botones. */
+  margin: 0;
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -240,3 +242,17 @@ table.tienda-tabla .numero { text-align: right; font-variant-numeric: tabular-nu
   .campo { width: 100%; }
   .boton { justify-content: center; }
 }
+
+/* Botón con aspecto de enlace (acciones secundarias dentro de una línea). */
+.enlace {
+  border: 0; background: none; padding: 0 2px; min-height: 0 !important; cursor: pointer;
+  font: inherit; font-size: 13px; font-weight: 600; color: #0b6b58; color: light-dark(#0b6b58, #99f5e2);
+  text-decoration: underline; text-underline-offset: 2px; display: inline-flex; align-items: center; gap: 3px;
+}
+.enlace:hover { text-decoration-thickness: 2px; }
+.enlace mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+/* Campo con botón de escáner al lado (placa, código, búsqueda). */
+.con-escaner { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.con-escaner > input, .con-escaner > .campo-texto { flex: 1 1 auto; min-width: 0; }
+.con-escaner app-escaner-codigo { flex: none; }

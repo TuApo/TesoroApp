@@ -1,12 +1,125 @@
-<mat-card
-  style="display: flex; flex-direction: column; height: 100%; flex: 1; min-height: 0; overflow: hidden; box-sizing: border-box; border-radius: 0;">
-  <mat-card-content
-    style="display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; padding: 10px 12px; box-sizing: border-box;">
+<!-- Sin estilos en línea: el alto, el relleno y quién hace scroll cambian con
+     el ancho de la pantalla, y eso solo se puede decir desde el CSS. -->
+<mat-card class="pipeline-card">
+  <mat-card-content class="pipeline-body">
+
+    <!-- Barra de la persona, arriba de todo y a lo ancho: foto, documento,
+         nombre y estado. Se queda quieta en todos los pasos; antes era una
+         columna a la izquierda que le quitaba ancho al panel de trabajo. -->
+    <app-ficha-candidato
+      [candidato]="candidatoSeleccionado()"
+      [fotoUrl]="avatarPhotoUrl()"
+      [documentoBuscado]="documentoBuscado()"
+      [vacante]="vacanteAsignada()"
+      [avances]="avanceFicha()"
+      (asignarVacante)="pedirVacante()"
+      (comprobarCorreo)="confirmarCorreoBienvenida()"
+      (comprobarWhatsapp)="confirmarWhatsAppBienvenida()"
+      (reenviarAcceso)="reenviarAccesoCandidato()"
+      (fotoSolicitada)="openCamera()"
+      (fotoFallida)="onAvatarPhotoError($event)"
+      (corregirDocumento)="abrirPromptDocumento()"
+      (editar)="editarFicha($event)">
+
+      <!-- Estado de la persona. Vivía en la barra de arriba; ahora vive en la
+           ficha, que es su sitio: son datos de ELLA, no del menú. Los que se
+           pueden accionar (prueba, examen, contrato) siguen siendo clicables. -->
+      <div fichaEstado class="ficha-estado">
+
+        <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
+             Es un marcador de resultado; no bloquea Contratación. -->
+        @if (esPruebaTecnica()) {
+          <span class="pill pill-action"
+            [class.pill-danger]="noPasoPrueba()"
+            [class.pill-success]="pasoPrueba()"
+            [class.pill-warning]="noSePresentoPrueba()"
+            [class.pill-info]="resultadoPrueba() === 'sin_resultado'"
+            role="button"
+            tabindex="0"
+            [matTooltip]="tooltipPrueba()"
+            (click)="registrarResultadoPrueba()"
+            (keydown.enter)="registrarResultadoPrueba()"
+            (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
+            <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : (noSePresentoPrueba() ? 'person_off' : 'assignment_ind')) }}</mat-icon>
+            {{ etiquetaPrueba() }}
+          </span>
+
+        }
+
+        <!-- Examen médico: resultado (pasó / no pasó / no se presentó).
+             Marcador independiente de la carga de exámenes; no bloquea. -->
+        <span class="pill pill-action"
+          [class.pill-danger]="resultadoExamen() === 'no_paso'"
+          [class.pill-success]="resultadoExamen() === 'paso'"
+          [class.pill-warning]="resultadoExamen() === 'no_se_presento'"
+          [class.pill-info]="resultadoExamen() === 'sin_resultado'"
+          role="button"
+          tabindex="0"
+          [matTooltip]="tooltipExamen()"
+          (click)="registrarResultadoExamen()"
+          (keydown.enter)="registrarResultadoExamen()"
+          (keydown.space)="$event.preventDefault(); registrarResultadoExamen()">
+          <mat-icon>{{ resultadoExamen() === 'no_paso' ? 'thumb_down' : (resultadoExamen() === 'paso' ? 'thumb_up' : (resultadoExamen() === 'no_se_presento' ? 'person_off' : 'medical_information')) }}</mat-icon>
+          {{ etiquetaExamen() }}
+        </span>
+
+
+        <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
+             Una fila con solo el código reservado (generar_codigo) NO es un
+             contrato activo: se muestra "En trámite" y no bloquea nada. -->
+        @if (contratoHeader(); as contrato) {
+          @switch (contratoPill()) {
+            @case ('activo') {
+              <span class="pill pill-success pill-action"
+                role="button"
+                tabindex="0"
+                matTooltip="Contratado · click para dar de baja el contrato"
+                (click)="darDeBajaManual()"
+                (keydown.enter)="darDeBajaManual()"
+                (keydown.space)="$event.preventDefault(); darDeBajaManual()">
+                <mat-icon>verified</mat-icon> Contratado
+              </span>
+            }
+            @case ('retirado') {
+              <span class="pill pill-danger"
+                    [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
+                <mat-icon>cancel</mat-icon>
+                Sin contrato
+                @if (contrato.fecha_retiro) {
+                  <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
+                }
+              </span>
+            }
+            @case ('en_tramite') {
+              <span class="pill pill-neutral"
+                    [matTooltip]="'Código ' + (contrato.codigo_contrato || 'de contrato') + ' reservado · aún no contratado'">
+                <mat-icon>pending</mat-icon> Contrato en trámite
+              </span>
+            }
+          }
+        }
+
+        <!-- Estado del formulario web -->
+        @if (candidatoSeleccionado()?.formulario_completo) {
+          <span class="pill pill-success" matTooltip="Formulario web enviado completo">
+            <mat-icon>check_circle</mat-icon> Formulario completo
+          </span>
+        } @else if ((candidatoSeleccionado()?.formulario_paso || 0) >= 1) {
+          <span class="pill pill-warning" matTooltip="Sólo guardó datos básicos (paso 1)">
+            <mat-icon>edit_note</mat-icon> Formulario · Paso 1
+          </span>
+        } @else {
+          <span class="pill pill-neutral" matTooltip="No ha iniciado el formulario web">
+            <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
+          </span>
+        }
+      </div>
+    </app-ficha-candidato>
 
 
     <!-- Bloqueo: el candidato consultado tiene un CONTRATO ACTIVO. No puede
          avanzar al resto del pipeline hasta dar de baja ese contrato. -->
-    @if (contratoActivo()) {
+    @if (contratoActivo() && !avisoForzadaOculto()) {
       <div class="contrato-activo-banner" [class.cab-override]="modificacionForzada()">
         <mat-icon>{{ modificacionForzada() ? 'edit_note' : 'lock' }}</mat-icon>
         <div class="cab-text">
@@ -33,126 +146,64 @@
               <mat-icon>edit</mat-icon> Modificar de todas formas
             </button>
           </div>
+        } @else {
+          <!-- El aviso de edición forzada se puede cerrar: la edición sigue
+               habilitada, solo se quita el banner para ganar espacio. -->
+          <button type="button" class="cab-close" (click)="ocultarAvisoForzada()"
+                  matTooltip="Cerrar este aviso (la edición forzada sigue activa)"
+                  aria-label="Cerrar aviso de edición forzada">
+            <mat-icon>close</mat-icon>
+          </button>
         }
       </div>
+    }
+
+    <!-- Aviso: la persona ya quedó NO APLICA en una entrevista (de este proceso
+         o de uno anterior). No bloquea —puede volver a presentarse—, pero quien
+         la atiende tiene que saberlo antes de remitirla a otra vacante. -->
+    @if (noAplicaPrevio(); as na) {
+      @if (!avisoNoAplicaOculto()) {
+        <div class="contrato-activo-banner" role="alert">
+          <mat-icon>block</mat-icon>
+          <div class="cab-text">
+            <strong>{{ nombreCandidato || 'El candidato' }} quedó NO APLICA</strong>@if (na.fecha) { el {{ na.fecha | date:'dd/MM/yyyy' }}}@if (!na.es_proceso_actual) { en un proceso anterior}.
+            @if (na.motivo) { Motivo: <strong>{{ na.motivo }}</strong>. }
+            @if (na.evaluador) { Evaluó: {{ na.evaluador }}. }
+            Revise el motivo antes de remitirlo a una vacante.
+          </div>
+          <button type="button" class="cab-close" (click)="avisoNoAplicaOculto.set(true)"
+                  matTooltip="Cerrar este aviso" aria-label="Cerrar aviso de NO APLICA">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      }
+    }
+
+    <!-- Aviso: el robot de ADRES reporta régimen especial o de excepción. No
+         bloquea; mismo banner que el de contrato activo, en ámbar. -->
+    @if (regimenExcepcion(); as rx) {
+      @if (!avisoRegimenOculto()) {
+        <div class="contrato-activo-banner cab-override" role="alert">
+          <mat-icon>warning</mat-icon>
+          <div class="cab-text">
+            <strong>{{ nombreCandidato || 'El candidato' }} está en régimen especial o de excepción según ADRES.</strong>
+            @if (rx.regimen) { Régimen: <strong>{{ rx.regimen }}</strong>. }
+            @if (rx.entidad) { Entidad: {{ rx.entidad }}. }
+            @if (rx.estado) { Estado: {{ rx.estado }}. }
+            Revise la afiliación a salud antes de continuar.
+          </div>
+          <button type="button" class="cab-close" (click)="avisoRegimenOculto.set(true)"
+                  matTooltip="Cerrar este aviso" aria-label="Cerrar aviso de régimen de excepción">
+            <mat-icon>close</mat-icon>
+          </button>
+        </div>
+      }
     }
 
     <!-- Rail vertical de pasos. La cabecera del mat-tab-group se oculta por CSS
          (.tab-group .mat-mdc-tab-header) y este rail es quien la gobierna: el
          grupo conserva el contenido y el estado de cada pestaña. -->
     <div class="pipeline-shell">
-      <!-- Los datos de la persona se quedan quietos: lo que cambia es el panel
-           de la derecha. Antes vivían dentro de Selección y desaparecían al
-           pasar a Antecedentes o Contratación. -->
-      <app-ficha-candidato
-        [candidato]="candidatoSeleccionado()"
-        [fotoUrl]="avatarPhotoUrl()"
-        [documentoBuscado]="documentoBuscado()"
-        [vacante]="vacanteAsignada()"
-        [avances]="avanceFicha()"
-        (asignarVacante)="pedirVacante()"
-        (comprobarCorreo)="confirmarCorreoBienvenida()"
-        (comprobarWhatsapp)="confirmarWhatsAppBienvenida()"
-        (reenviarAcceso)="reenviarAccesoCandidato()"
-        (fotoSolicitada)="openCamera()"
-        (fotoFallida)="onAvatarPhotoError($event)"
-        (corregirDocumento)="abrirPromptDocumento()"
-        (editar)="editarFicha($event)">
-
-        <!-- Estado de la persona. Vivía en la barra de arriba; ahora vive en la
-             ficha, que es su sitio: son datos de ELLA, no del menú. Los que se
-             pueden accionar (prueba, examen, contrato) siguen siendo clicables. -->
-        <div fichaEstado class="ficha-estado">
-
-          <!-- Prueba técnica: solo si la vacante remitida es de ese tipo.
-               Es un marcador de resultado; no bloquea Contratación. -->
-          @if (esPruebaTecnica()) {
-            <span class="pill pill-action"
-              [class.pill-danger]="noPasoPrueba()"
-              [class.pill-success]="pasoPrueba()"
-              [class.pill-warning]="noSePresentoPrueba()"
-              [class.pill-info]="resultadoPrueba() === 'sin_resultado'"
-              role="button"
-              tabindex="0"
-              [matTooltip]="tooltipPrueba()"
-              (click)="registrarResultadoPrueba()"
-              (keydown.enter)="registrarResultadoPrueba()"
-              (keydown.space)="$event.preventDefault(); registrarResultadoPrueba()">
-              <mat-icon>{{ noPasoPrueba() ? 'thumb_down' : (pasoPrueba() ? 'thumb_up' : (noSePresentoPrueba() ? 'person_off' : 'assignment_ind')) }}</mat-icon>
-              {{ etiquetaPrueba() }}
-            </span>
-
-          }
-
-          <!-- Examen médico: resultado (pasó / no pasó / no se presentó).
-               Marcador independiente de la carga de exámenes; no bloquea. -->
-          <span class="pill pill-action"
-            [class.pill-danger]="resultadoExamen() === 'no_paso'"
-            [class.pill-success]="resultadoExamen() === 'paso'"
-            [class.pill-warning]="resultadoExamen() === 'no_se_presento'"
-            [class.pill-info]="resultadoExamen() === 'sin_resultado'"
-            role="button"
-            tabindex="0"
-            [matTooltip]="tooltipExamen()"
-            (click)="registrarResultadoExamen()"
-            (keydown.enter)="registrarResultadoExamen()"
-            (keydown.space)="$event.preventDefault(); registrarResultadoExamen()">
-            <mat-icon>{{ resultadoExamen() === 'no_paso' ? 'thumb_down' : (resultadoExamen() === 'paso' ? 'thumb_up' : (resultadoExamen() === 'no_se_presento' ? 'person_off' : 'medical_information')) }}</mat-icon>
-            {{ etiquetaExamen() }}
-          </span>
-
-
-          <!-- Contrato: activo real (clickable → baja) / retirado / en trámite.
-               Una fila con solo el código reservado (generar_codigo) NO es un
-               contrato activo: se muestra "En trámite" y no bloquea nada. -->
-          @if (contratoHeader(); as contrato) {
-            @switch (contratoPill()) {
-              @case ('activo') {
-                <span class="pill pill-success pill-action"
-                  role="button"
-                  tabindex="0"
-                  matTooltip="Click para dar de baja el contrato"
-                  (click)="darDeBajaManual()"
-                  (keydown.enter)="darDeBajaManual()"
-                  (keydown.space)="$event.preventDefault(); darDeBajaManual()">
-                  <mat-icon>verified</mat-icon> Contrato activo
-                </span>
-              }
-              @case ('retirado') {
-                <span class="pill pill-danger"
-                      [matTooltip]="contrato.fecha_retiro ? 'Baja: ' + (contrato.fecha_retiro | date:'dd/MM/yyyy') : 'Sin contrato activo'">
-                  <mat-icon>cancel</mat-icon>
-                  Sin contrato
-                  @if (contrato.fecha_retiro) {
-                    <span class="pill-meta">· {{ contrato.fecha_retiro | date:'dd/MM/yyyy' }}</span>
-                  }
-                </span>
-              }
-              @case ('en_tramite') {
-                <span class="pill pill-neutral"
-                      [matTooltip]="'Código ' + (contrato.codigo_contrato || 'de contrato') + ' reservado · aún no contratado'">
-                  <mat-icon>pending</mat-icon> Contrato en trámite
-                </span>
-              }
-            }
-          }
-
-          <!-- Estado del formulario web -->
-          @if (candidatoSeleccionado()?.formulario_completo) {
-            <span class="pill pill-success" matTooltip="Formulario web enviado completo">
-              <mat-icon>check_circle</mat-icon> Formulario completo
-            </span>
-          } @else if ((candidatoSeleccionado()?.formulario_paso || 0) >= 1) {
-            <span class="pill pill-warning" matTooltip="Sólo guardó datos básicos (paso 1)">
-              <mat-icon>edit_note</mat-icon> Formulario · Paso 1
-            </span>
-          } @else {
-            <span class="pill pill-neutral" matTooltip="No ha iniciado el formulario web">
-              <mat-icon>radio_button_unchecked</mat-icon> Sin iniciar
-            </span>
-          }
-        </div>
-      </app-ficha-candidato>
 
       <!-- ══════════════════════════════════════════════════════════════════
            NAVEGACIÓN EN DOS CAPAS
@@ -167,18 +218,26 @@
         <nav class="rail rail-capa1" role="tablist" aria-label="Módulos del proceso">
           @for (c of capas; track c.id) {
             @let pctC = pctCapa(c.id);
+            <!-- Contratación con el examen médico incompleto (pedido #10) NO se
+                 apaga: el candado lo dice y el clic explica qué falta (un botón
+                 apagado no muestra su tooltip). -->
+            @let bloqueoExamenCapa = c.id === 'contratacion' && deshabilitarContratacion();
             <button type="button" class="capa" role="tab"
                     [class.capa-activa]="capaActiva() === c.id"
+                    [class.capa-bloqueada]="bloqueoExamenCapa"
                     [attr.aria-selected]="capaActiva() === c.id"
-                    [disabled]="c.id !== 'accesos' && bloqueoContratoTabs()"
-                    [matTooltip]="c.id !== 'accesos' && bloqueoContratoTabs() ? MOTIVO_BLOQUEO : detalleCapa(c.label, c.id)"
+                    [disabled]="c.id !== 'accesos' && c.id !== 'seleccion' && bloqueoContratoTabs()"
+                    [matTooltip]="c.id !== 'accesos' && c.id !== 'seleccion' && bloqueoContratoTabs()
+                      ? MOTIVO_BLOQUEO
+                      : (bloqueoExamenCapa ? motivoBloqueoContratacion() : detalleCapa(c.label, c.id))"
+                    matTooltipClass="tooltip-faltantes"
                     matTooltipPosition="right"
                     (click)="abrirCapa(c.id)">
               <span class="capa-anillo"
                     [class.anillo-lleno]="pctC === 100"
                     [style.background]="fondoAnillo(pctC)">
                 <span class="capa-anillo-centro">
-                  <mat-icon>{{ pctC === 100 ? 'check' : c.icon }}</mat-icon>
+                  <mat-icon>{{ bloqueoExamenCapa ? 'lock' : (pctC === 100 ? 'check' : c.icon) }}</mat-icon>
                 </span>
               </span>
               <span class="capa-txt">{{ c.label }}</span>
@@ -210,11 +269,27 @@
             <span class="capa-txt">Historial laboral</span>
           </button>
 
+          <!-- Línea de tiempo (pedido #13): como el historial, solo lectura y
+               fuera del bloqueo por contrato activo. -->
+          <button type="button" class="capa capa-accion"
+                  [disabled]="!candidatoSeleccionado()?.numero_documento"
+                  [matTooltip]="candidatoSeleccionado()?.numero_documento
+                    ? 'Todo lo que ha pasado con esta persona, en orden'
+                    : 'Selecciona primero un candidato'"
+                  matTooltipPosition="right"
+                  (click)="abrirLineaTiempo()">
+            <span class="capa-anillo" [style.background]="fondoAnillo(null)">
+              <span class="capa-anillo-centro"><mat-icon>timeline</mat-icon></span>
+            </span>
+            <span class="capa-txt">Línea de tiempo</span>
+          </button>
+
           <!-- Cerrar el día. Va abajo del todo y separado de los módulos: no es
                un sitio al que ir, es la acción con la que se termina. Siempre
                habilitada, también con contrato activo. -->
           <span class="rail-capa1-relleno"></span>
           <button type="button" class="capa-cerrar"
+                  aria-label="Cerrar contratación"
                   matTooltip="Cerrar la contratación de HOY: reporte con todas las personas contratadas en el día"
                   matTooltipPosition="right"
                   (click)="irACerrarContratacion()">
@@ -246,10 +321,10 @@
                       [class.sub-activo]="subSeleccionActivo() === s.id"
                       [class.sub-completo]="pctS === 100"
                       [attr.aria-selected]="subSeleccionActivo() === s.id"
-                      [disabled]="bloqueoContratoTabs() || subBloqueadoPorPrueba(s)"
-                      [matTooltip]="bloqueoContratoTabs()
+                      [disabled]="!esPasoLibre(s) && (bloqueoContratoTabs() || subBloqueadoPorPrueba(s))"
+                      [matTooltip]="bloqueoContratoTabs() && !esPasoLibre(s)
                         ? MOTIVO_BLOQUEO
-                        : (subBloqueadoPorPrueba(s) ? MOTIVO_PRUEBA_PENDIENTE : detalleAvance(s.label, s.clave))"
+                        : (motivoSubCerrado(s) ?? detalleAvance(s.label, s.clave))"
                       matTooltipPosition="right"
                       (click)="abrirSubSeleccion(s)">
                 <!-- El mismo anillo de los módulos principales, en pequeño: lleva
@@ -456,6 +531,15 @@
               <span class="acceso-txt">Historial laboral</span>
             </button>
 
+            <button type="button" class="acceso"
+                    matTooltip="Todo lo que ha pasado con esta persona, en orden"
+                    matTooltipPosition="right"
+                    [disabled]="!candidatoSeleccionado()?.numero_documento"
+                    (click)="abrirLineaTiempo()">
+              <mat-icon>timeline</mat-icon>
+              <span class="acceso-txt">Línea de tiempo</span>
+            </button>
+
             <button type="button" class="acceso" matTooltip="Ver huella"
                     matTooltipPosition="right" (click)="ver('huella')">
               <mat-icon>fingerprint</mat-icon>
@@ -492,7 +576,7 @@
             </button>
 
             <button type="button" class="acceso" (click)="generarCarnetsMasivos()"
-                    matTooltip="Generar carnés en masa (9 por hoja)" matTooltipPosition="right">
+                    matTooltip="Generar carnés en masa (hasta 9 por hoja)" matTooltipPosition="right">
               <mat-icon>badge</mat-icon>
               <span class="acceso-txt">Carnés en masa</span>
             </button>
@@ -510,8 +594,9 @@
          esto se resolvía saltando a la pestaña 0 (Turnos); sin esa pantalla,
          el salto dejaba un panel en blanco. Ocultar en vez de desmontar
          conserva lo escrito para cuando se entre con "Modificar de todas
-         formas". -->
-    @if (bloqueoContratoTabs()) {
+         formas". Cédula & Huella no se cierra nunca: con ella abierta no
+         hay candado. -->
+    @if (bloqueoContratoTabs() && !huellaAbierta()) {
       <div class="contrato-lock">
         <mat-icon class="contrato-lock-icon">lock</mat-icon>
         <h3 class="contrato-lock-titulo">Proceso bloqueado</h3>
@@ -528,7 +613,7 @@
          `modulo-entra`, y no dos movimientos encimados. -->
     <mat-tab-group class="tab-group"
       animationDuration="0ms"
-      [class.tab-group-oculto]="bloqueoContratoTabs()"
+      [class.tab-group-oculto]="bloqueoContratoTabs() && !huellaAbierta()"
       [selectedIndex]="tabIndex()"
       (selectedIndexChange)="tabIndex.set($event)">
       <!-- Pestaña 0 · vacía a propósito.
@@ -551,6 +636,8 @@
             [modificacionForzada]="modificacionForzada()"
             [modificadoPor]="usuarioActual()"
             [consultaSeq]="consultaSeq()"
+            [actualizandoAntecedentes]="forzandoAntecedentes()"
+            (actualizarAntecedentes)="forzarAntecedentesRapido()"
             (guardado)="recargarCandidato()">
           </app-selection-questions>
         </div>
@@ -630,7 +717,8 @@
             <div class="med-header-text">
               <h3 class="med-header-title">Exámenes de salud ocupacional</h3>
               <p class="med-header-subtitle">
-                Selecciona la IPS, marca los exámenes practicados y adjunta los resultados para subir al expediente.
+                Primero la IPS principal y la lista de exámenes; luego carga el PDF del examen y, con el examen
+                ya cargado, registra el concepto del médico.
               </p>
             </div>
             @if (examenesYaCargados()) {
@@ -638,6 +726,13 @@
                 <mat-icon>check_circle</mat-icon> Ya hay exámenes cargados
               </span>
             }
+            <!-- La IPS manda los exámenes en tanda: se cargan todos juntos, con la
+                 cédula en el nombre del archivo (pedido #11). -->
+            <a class="med-masivos" routerLink="/dashboard/hiring/examenes-masivos"
+               matTooltip="Subir los PDF de varias personas a la vez (un PDF por persona o un ZIP)">
+              <mat-icon>drive_folder_upload</mat-icon>
+              Carga masiva
+            </a>
           </header>
 
           <!-- ───── Sección 1: Configuración (IPS) ───── -->
@@ -747,6 +842,25 @@
                           </span>
                         }
                       </div>
+                      <!-- Resultado de cada examen del soporte (APTO / NO APTO). -->
+                      @if (resultadosDoc(d); as res) {
+                        @if (res.length) {
+                          <ul class="med-doc-resultados" aria-label="Resultado por examen">
+                            @for (r of res; track $index) {
+                              <li class="med-doc-res" [class.is-apto]="r.resultado === 'APTO'"
+                                  [class.is-no-apto]="r.resultado === 'NO APTO'">
+                                <mat-icon>{{ r.resultado === 'APTO' ? 'check_circle' : 'cancel' }}</mat-icon>
+                                <span class="med-doc-res-examen">{{ r.examen }}</span>
+                                <strong>{{ r.resultado }}</strong>
+                              </li>
+                            }
+                          </ul>
+                        } @else {
+                          <span class="med-doc-chip med-doc-sin-res">
+                            <mat-icon>help_outline</mat-icon> Sin resultado por examen registrado
+                          </span>
+                        }
+                      }
                     </div>
 
                     <div class="med-doc-acciones" (click)="$event.stopPropagation()">
@@ -779,15 +893,25 @@
             }
           </section>
 
-          <!-- ───── Sección 3: Resultados por examen ───── -->
-          @if ((formGroup3.get('selectedExams')?.value || []).length > 0) {
-            <section class="med-section">
-              <div class="med-section-head">
-                <span class="med-step-number">3</span>
-                <h4 class="med-section-title">Resultados</h4>
-                <span class="med-section-hint">Marca apto / no apto y adjunta el PDF</span>
-              </div>
+          <!-- ───── Sección 3: Cargar el examen (PDF) ─────
+               Orden estricto: sin IPS principal y Lista de exámenes no se adjunta
+               nada; el PDF se sube con «Cargar examen», aparte del concepto. -->
+          <section class="med-section">
+            <div class="med-section-head">
+              <span class="med-step-number">3</span>
+              <h4 class="med-section-title">Cargar examen</h4>
+              <span class="med-section-hint">Marca APTO / NO APTO en cada examen, adjunta el PDF y pulsa «Cargar examen»</span>
+            </div>
 
+            @if (!puedeAdjuntarExamen()) {
+              <div class="med-aviso med-aviso-espera" role="status">
+                <mat-icon>lock</mat-icon>
+                <span><strong>{{ textoFaltantesCargaExamen() }}</strong>
+                  Complétalos arriba para poder adjuntar y cargar el PDF del examen.</span>
+              </div>
+            }
+
+            @if ((formGroup3.get('selectedExams')?.value || []).length > 0) {
               <div formArrayName="selectedExamsArray" class="med-exams-grid">
                 @for (exam of formGroup3.get('selectedExams')?.value; track exam; let i = $index) {
                   <div class="med-exam-card"
@@ -807,21 +931,21 @@
                       <div class="med-exam-title">{{ exam }}</div>
                     </div>
 
-                    <!-- Toggle APTO / NO APTO -->
+                    <!-- Toggle APTO / NO APTO por examen: resultado médico de ese
+                         examen, SIN valor por defecto. Se marca ANTES de cargar el
+                         PDF y es obligatorio para cargarlo. Lo que decide contratar
+                         es el concepto del proceso (sección 4). -->
                     <div class="med-exam-status">
                       <span class="med-field-label">Resultado *</span>
-                      <mat-button-toggle-group formControlName="aptoStatus" class="med-status-toggle" hideSingleSelectionIndicator>
-                        <mat-button-toggle value="APTO" class="toggle-apto">
+                      <mat-button-toggle-group formControlName="aptoStatus" class="med-status-toggle" hideSingleSelectionIndicator
+                                               [matTooltip]="puedeAdjuntarExamen() ? null : textoFaltantesCargaExamen()">
+                        <mat-button-toggle value="APTO" class="toggle-apto" [disabled]="!puedeAdjuntarExamen()">
                           <mat-icon>thumb_up</mat-icon> APTO
                         </mat-button-toggle>
-                        <mat-button-toggle value="NO APTO" class="toggle-no-apto">
+                        <mat-button-toggle value="NO APTO" class="toggle-no-apto" [disabled]="!puedeAdjuntarExamen()">
                           <mat-icon>thumb_down</mat-icon> NO APTO
                         </mat-button-toggle>
                       </mat-button-toggle-group>
-                      @if (formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.hasError('required')
-                          && formGroup3.get('selectedExamsArray')?.get(i.toString())?.get('aptoStatus')?.touched) {
-                        <span class="med-field-error">Selecciona un resultado</span>
-                      }
                     </div>
 
                     <!-- Upload PDF -->
@@ -831,9 +955,11 @@
                              class="med-file-input" #fileInput />
 
                       @if (!examFiles()[i]) {
-                        <button type="button" class="med-upload-zone" (click)="fileInput.click()">
-                          <mat-icon>cloud_upload</mat-icon>
-                          <span>Haz click para adjuntar PDF</span>
+                        <button type="button" class="med-upload-zone" (click)="fileInput.click()"
+                                [disabled]="!puedeAdjuntarExamen() || subiendoExamen()"
+                                [matTooltip]="puedeAdjuntarExamen() ? null : textoFaltantesCargaExamen()">
+                          <mat-icon>{{ puedeAdjuntarExamen() ? 'attach_file' : 'lock' }}</mat-icon>
+                          <span>{{ puedeAdjuntarExamen() ? 'Haz click para adjuntar PDF' : 'Completa IPS y lista de exámenes' }}</span>
                         </button>
                       } @else {
                         <div class="med-file-info">
@@ -845,10 +971,12 @@
                           <button type="button" mat-icon-button matTooltip="Ver PDF" (click)="viewExamPdf(i)">
                             <mat-icon>visibility</mat-icon>
                           </button>
-                          <button type="button" mat-icon-button matTooltip="Reemplazar" (click)="fileInput.click()">
+                          <button type="button" mat-icon-button matTooltip="Reemplazar" (click)="fileInput.click()"
+                                  [disabled]="!puedeAdjuntarExamen() || subiendoExamen()">
                             <mat-icon>swap_horiz</mat-icon>
                           </button>
-                          <button type="button" mat-icon-button matTooltip="Quitar" (click)="removeExamFile(i)">
+                          <button type="button" mat-icon-button matTooltip="Quitar" (click)="removeExamFile(i)"
+                                  [disabled]="subiendoExamen()">
                             <mat-icon>close</mat-icon>
                           </button>
                         </div>
@@ -857,11 +985,162 @@
                   </div>
                 }
               </div>
-            </section>
-          }
+            }
 
-          <!-- Sin botón "Guardar": IPS, exámenes y resultados se guardan al
-               cambiar, y cada PDF adjuntado se une y se sube solo. -->
+            <!-- Subir es una acción PROPIA: no se dispara al elegir el concepto
+                 ni lo fija. Reemplazar = cargar otro; el concepto se mantiene. -->
+            <div class="med-cargar-examen" aria-live="polite">
+              <button type="button" mat-flat-button color="primary" class="med-cargar-btn"
+                      (click)="cargarExamen()"
+                      [disabled]="!puedeAdjuntarExamen() || !examFilesAdjuntos() || subiendoExamen()
+                                  || bloqueado() || examenesBloqueadosPorPrueba()"
+                      [matTooltip]="!puedeAdjuntarExamen() ? textoFaltantesCargaExamen()
+                                    : (!examFilesAdjuntos() ? 'Adjunta al menos un PDF en la tarjeta del examen' : null)">
+                <mat-icon>{{ subiendoExamen() ? 'hourglass_top' : 'cloud_upload' }}</mat-icon>
+                {{ subiendoExamen() ? 'Cargando examen…' : (pdfExamenDelProceso() ? 'Cargar examen nuevo' : 'Cargar examen') }}
+              </button>
+              <span class="med-requisito" [class.med-requisito-ok]="pdfExamenDelProceso()">
+                <mat-icon>{{ pdfExamenDelProceso() ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                @if (pdfExamenDelProceso()) {
+                  Examen cargado para este proceso
+                  @if (ultimoExamenCargado(); as u) { · {{ u.nombre }} }
+                } @else if (examFilesAdjuntos()) {
+                  {{ examFilesAdjuntos() }} PDF adjunto(s), sin cargar todavía
+                } @else {
+                  Sin examen cargado
+                }
+              </span>
+            </div>
+          </section>
+
+          <!-- ───── Sección 4: Concepto médico del PROCESO (pedido #10) ─────
+               Es lo que decide si se puede contratar. Sin valor por defecto:
+               antes el APTO venía puesto y nadie decidía nada. -->
+          <section class="med-section med-concepto">
+            <div class="med-section-head">
+              <span class="med-step-number">4</span>
+              <h4 class="med-section-title">Concepto médico</h4>
+              <span class="med-section-hint">Decide si se puede contratar</span>
+            </div>
+
+            <div class="med-exam-status">
+              <span class="med-field-label">Concepto del médico *</span>
+              <!-- Cerrado hasta que el PDF del examen de ESTE proceso esté cargado
+                   (y la IPS y la lista llenas). Elegirlo nunca sube un documento. -->
+              <mat-button-toggle-group formControlName="concepto" class="med-status-toggle med-concepto-toggle"
+                                       hideSingleSelectionIndicator aria-label="Concepto médico">
+                @for (o of CONCEPTOS_EXAMEN; track o.valor) {
+                  <mat-button-toggle [value]="o.valor" [disabled]="!conceptoHabilitado()"
+                                     [matTooltip]="conceptoHabilitado() ? o.ayuda : motivoConceptoBloqueado()"
+                                     [class.toggle-apto]="o.valor === 'APTO'"
+                                     [class.toggle-restricciones]="o.valor === 'APTO_CON_RESTRICCIONES'"
+                                     [class.toggle-no-apto]="o.valor === 'NO_APTO'"
+                                     [class.toggle-aplazado]="o.valor === 'APLAZADO'">
+                    <mat-icon>{{ o.icono }}</mat-icon> {{ o.etiqueta }}
+                  </mat-button-toggle>
+                }
+              </mat-button-toggle-group>
+              @if (!conceptoHabilitado()) {
+                <span class="med-concepto-vacio med-concepto-cerrado">
+                  <mat-icon>lock</mat-icon> {{ motivoConceptoBloqueado() }}
+                </span>
+              } @else if (!conceptoForm()) {
+                <span class="med-concepto-vacio">Sin concepto: elígelo según el resultado del examen cargado.</span>
+              }
+            </div>
+
+            @if (conceptoForm() === 'APTO_CON_RESTRICCIONES') {
+              <mat-form-field appearance="outline" class="med-full-width med-concepto-campo">
+                <mat-label>Restricciones (obligatorio)</mat-label>
+                <textarea matInput formControlName="restricciones" rows="2"
+                          placeholder="Ej.: no levantar más de 10 kg; sin trabajo en alturas"></textarea>
+                @if (!(formGroup3.get('restricciones')?.value || '').trim()) {
+                  <mat-hint class="med-field-error">Escribe las restricciones: sin ellas el concepto no se guarda.</mat-hint>
+                }
+              </mat-form-field>
+            }
+
+            <div class="med-grid-2 med-concepto-campo">
+              <mat-form-field appearance="outline">
+                <mat-label>Fecha realización del examen</mat-label>
+                <!-- Calendario desplegable. El control `fechaExamen` sigue guardando 'AAAA-MM-DD'
+                     (es lo que manda el guardado a ms-hr); el adaptador Moment lee ese texto ISO.
+                     Primero dirty y luego el valor: el guardado solo envía la fecha si cambió. -->
+                <input matInput readonly class="med-fecha-examen" [matDatepicker]="pickerFechaExamen" [max]="hoyIso"
+                       [value]="formGroup3.get('fechaExamen')?.value || null"
+                       [disabled]="!!formGroup3.get('fechaExamen')?.disabled"
+                       (click)="pickerFechaExamen.open()"
+                       (dateChange)="formGroup3.get('fechaExamen')?.markAsDirty();
+                                     formGroup3.get('fechaExamen')?.setValue($event.value ? $event.value.format('YYYY-MM-DD') : '')">
+                <mat-datepicker-toggle matIconSuffix [for]="pickerFechaExamen"></mat-datepicker-toggle>
+                <mat-datepicker #pickerFechaExamen></mat-datepicker>
+              </mat-form-field>
+
+              <div class="med-requisitos" aria-live="polite">
+                <span class="med-requisito" [class.med-requisito-ok]="estadoExamen().pdfCargado">
+                  <mat-icon>{{ estadoExamen().pdfCargado ? 'check_circle' : 'radio_button_unchecked' }}</mat-icon>
+                  PDF del examen {{ estadoExamen().pdfCargado ? 'cargado' : 'pendiente' }}
+                </span>
+                <span class="med-requisito"
+                      [class.med-requisito-ok]="conceptoForm() === 'APTO' || conceptoForm() === 'APTO_CON_RESTRICCIONES'"
+                      [class.med-requisito-mal]="conceptoForm() === 'NO_APTO' || conceptoForm() === 'APLAZADO'">
+                  <mat-icon>{{ conceptoForm() === 'APTO' || conceptoForm() === 'APTO_CON_RESTRICCIONES'
+                    ? 'check_circle' : (conceptoForm() ? 'cancel' : 'radio_button_unchecked') }}</mat-icon>
+                  Concepto: {{ etiquetaConcepto(conceptoForm()) }}
+                </span>
+              </div>
+            </div>
+
+            @if (examenAplazado()) {
+              <div class="med-aviso med-aviso-espera">
+                <mat-icon>schedule</mat-icon>
+                <span><strong>Proceso en espera.</strong> El examen quedó aplazado: no se rechaza ni se
+                  puede contratar hasta que llegue el concepto definitivo.</span>
+              </div>
+            }
+
+            @if (registroConcepto(); as r) {
+              <p class="med-concepto-registro">
+                Concepto registrado por <strong>{{ r.por || '—' }}</strong>
+                @if (r.at) { el {{ r.at | date:'dd/MM/yyyy HH:mm' }} }
+                · {{ r.origen === 'MASIVO' ? 'carga masiva' : (r.origen === 'IA' ? 'sugerido por IA' : 'manual') }}
+              </p>
+            }
+
+            @if (estadoExamen().aplica) {
+              @if (estadoExamen().salto; as s) {
+                <div class="med-aviso med-aviso-salto">
+                  <mat-icon>admin_panel_settings</mat-icon>
+                  <span><strong>Bloqueo saltado</strong> por {{ s.por || 'un ADMIN' }}
+                    @if (s.at) { el {{ s.at | date:'dd/MM/yyyy HH:mm' }} }. Motivo: {{ s.motivo }}</span>
+                </div>
+              } @else if (estadoExamen().bloquea) {
+                <div class="med-aviso med-aviso-bloqueo">
+                  <mat-icon>lock</mat-icon>
+                  <div>
+                    <strong>Contratación bloqueada hasta tener:</strong>
+                    <ul>
+                      @for (f of estadoExamen().faltantes; track f) { <li>{{ f }}</li> }
+                    </ul>
+                  </div>
+                  @if (esAdminUsuario()) {
+                    <button type="button" class="med-salto-btn" (click)="saltarBloqueoExamen()"
+                            matTooltip="Solo ADMIN. Pide un motivo y queda registrado.">
+                      <mat-icon>lock_open</mat-icon> Saltar bloqueo
+                    </button>
+                  }
+                </div>
+              } @else {
+                <div class="med-aviso med-aviso-ok">
+                  <mat-icon>verified</mat-icon>
+                  <span>Examen completo: PDF cargado y concepto apto. Ya se puede contratar.</span>
+                </div>
+              }
+            }
+          </section>
+
+          <!-- Sin botón "Guardar": IPS, exámenes, resultados y concepto se guardan
+               al cambiar. El PDF va aparte, con «Cargar examen». -->
           <div class="med-actions">
             <app-auto-guardado-estado
               [estado]="autoSalud.estado()" [error]="autoSalud.error()"
@@ -870,18 +1149,43 @@
         </div>
       </mat-tab>
 
-          <!-- ─────────── TAB • CONTRATACIÓN ───────────    [disabled]="deshabilitarContratacion()"       [matTooltip]="deshabilitarContratacion() ? 'Hay exámenes NO APTO' : ''">-->
+          <!-- ─────────── TAB • CONTRATACIÓN ───────────
+               Se cierra por contrato activo y, desde el pedido #10, por el examen
+               médico: PDF de este proceso + concepto APTO / APTO CON RESTRICCIONES
+               (solo procesos desde la fecha de corte; ADMIN puede saltarlo).
+               Documentos comparte esta pestaña y NO se cierra por el examen. -->
 
-          <mat-tab [disabled]="bloqueoContratoTabs()">
+          <mat-tab [disabled]="!huellaAbierta() && (bloqueoContratoTabs() || (deshabilitarContratacion() && capaActiva() !== 'documentos'))">
             <ng-template mat-tab-label>
-              <div class="tab" [matTooltip]="bloqueoContratoTabs() ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar' : null">
+              <div class="tab" matTooltipClass="tooltip-faltantes"
+                   [matTooltip]="bloqueoContratoTabs()
+                     ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar'
+                     : (deshabilitarContratacion() ? motivoBloqueoContratacion() : null)">
 
-                <mat-icon>how_to_reg</mat-icon>
+                <mat-icon>{{ deshabilitarContratacion() ? 'lock' : 'how_to_reg' }}</mat-icon>
                 Contratación
               </div>
             </ng-template>
 
-            <div class="tab-content-scrollable">
+            <!-- Se llegó aquí con el examen incompleto (p. ej. se cambió el concepto a
+                 NO APTO con la pestaña abierta): se dice qué falta y se congela. -->
+            @if (deshabilitarContratacion() && capaActiva() === 'contratacion') {
+              <div class="bloqueo-espera-banner bloqueo-examen-banner">
+                <mat-icon>lock</mat-icon>
+                <div>
+                  <strong>{{ estadoExamen().bloquea ? 'Falta el examen médico para contratar.' : 'Falta la afiliación a la ARL para contratar.' }}</strong>
+                  <ul>
+                    @for (f of faltantesContratacion(); track f) { <li>{{ f }}</li> }
+                  </ul>
+                </div>
+                <button type="button" class="bloqueo-examen-btn" (click)="avisarBloqueoContratacion()">
+                  <mat-icon>{{ estadoExamen().bloquea ? 'medical_information' : 'health_and_safety' }}</mat-icon> Ver qué falta
+                </button>
+              </div>
+            }
+
+            <div class="tab-content-scrollable"
+                 [class.bloqueado-espera]="deshabilitarContratacion() && capaActiva() === 'contratacion'">
               <app-hiring-questions [candidatoSeleccionado]="candidatoSeleccionado()"
                 [modificacionForzada]="modificacionForzada()"
                 [modificadoPor]="usuarioActual()"
@@ -890,6 +1194,31 @@
                 [procesoId]="procesoContratacion()?.id ?? null"
                 (guardado)="recargarCandidato()">
               </app-hiring-questions>
+            </div>
+          </mat-tab>
+
+          <!-- ─────────── TAB 5 • ARL (2026-10-21) ───────────
+               Paso de Selección que va DESPUÉS de Exámenes: es la última pestaña
+               del grupo solo para no renumerar Contratación (4). Se abre con el
+               examen médico resuelto; sin la ARL se cierra Contratación. -->
+          <mat-tab [disabled]="motivoArlCerrado() !== null">
+            <ng-template mat-tab-label>
+              <div class="tab" [matTooltip]="motivoArlCerrado()">
+                <mat-icon>health_and_safety</mat-icon>
+                ARL
+              </div>
+            </ng-template>
+            <div class="tab-content-scrollable">
+              <app-arl-afiliacion
+                [candidato]="candidatoSeleccionado()"
+                [procesoId]="procesoContratacion()?.id ?? null"
+                [bloqueo]="motivoArlCerrado()"
+                [docs]="arlDocs()"
+                [esAdmin]="esAdminUsuario()"
+                (verDoc)="verDocumento($any($event))"
+                (descargarDoc)="descargarDocumento($any($event))"
+                (guardado)="alGuardarArl()">
+              </app-arl-afiliacion>
             </div>
           </mat-tab>
 

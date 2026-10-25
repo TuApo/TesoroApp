@@ -5,22 +5,32 @@
       <h2>{{ data.titulo }}</h2>
       <p>
         Con los datos de la persona. Los recuadros <span class="ph-leyenda ph-leyenda-vacio">amarillos</span>
-        no tienen dato: haz clic y escribe (las casillas se marcan con un clic). Lo que cambies queda
-        <span class="ph-leyenda ph-leyenda-editado">en verde</span>.
+        no tienen dato: haz clic y escribe (las casillas y los SI / NO se marcan con un clic). Lo que cambies queda
+        <span class="ph-leyenda ph-leyenda-editado">en verde</span> y se recuerda aunque salgas: al volver lo encuentras igual.
+        @if (hayGuardables()) {
+          Lo <span class="ph-leyenda ph-leyenda-bd">subrayado en azul</span> son datos de la persona: al consolidar,
+          lo que escribas ahí también queda guardado en su registro.
+        }
       </p>
     </div>
     <span class="ph-spacer"></span>
     @if (!cargando() && !error()) {
       <span class="ph-conteo">{{ vacios() }} sin dato · {{ editados() }} completados</span>
+      @if (sinResponder().length) {
+        <span class="ph-sino-aviso" role="status">
+          <mat-icon>rule</mat-icon> Marca SI o NO (clic en el paréntesis): faltan {{ sinResponder().length }}
+        </span>
+      }
     }
     <button mat-stroked-button type="button" (click)="cancelar()" [disabled]="guardando()">
-      <mat-icon>close</mat-icon> Cancelar
+      <mat-icon>logout</mat-icon> Salir
     </button>
     <button mat-flat-button color="primary" type="button" (click)="guardar()"
-            [disabled]="guardando() || cargando() || faltanTemporal().length > 0 || (!!error() && !campos())"
-            [attr.title]="faltanTemporal().length ? 'Faltan datos de la temporal: ' + faltanTemporalTexto() : null">
+            [disabled]="guardando() || cargando() || faltanTemporal().length > 0 || sinResponder().length > 0 || (!!error() && !campos())"
+            [attr.title]="faltanTemporal().length ? 'Faltan datos de la temporal: ' + faltanTemporalTexto()
+              : sinResponder().length ? 'Falta responder: ' + sinResponder().join(', ') : null">
       <mat-icon>{{ guardando() ? 'hourglass_empty' : 'cloud_upload' }}</mat-icon>
-      {{ guardando() ? 'Generando PDF…' : 'Guardar en el expediente' }}
+      {{ guardando() ? 'Generando PDF…' : 'Consolidar en el expediente' }}
     </button>
   </header>
 
@@ -28,7 +38,7 @@
     <div class="ph-aviso" role="alert">
       <mat-icon>domain_disabled</mat-icon>
       <span>
-        No se puede guardar todavía: a la temporal le falta <strong>{{ faltanTemporalTexto() }}</strong>.
+        No se puede consolidar todavía: a la temporal le falta <strong>{{ faltanTemporalTexto() }}</strong>.
         Cárgalo en <strong>Parametrización de vacantes › Temporales</strong> y vuelve a abrir el documento.
       </span>
     </div>
@@ -36,6 +46,53 @@
 
   @if (error(); as e) {
     <div class="ph-error"><mat-icon>error_outline</mat-icon> {{ e }}</div>
+  }
+
+  @if (revision(); as r) {
+    <div class="ph-revision-fondo">
+      <section class="ph-revision" role="dialog" aria-labelledby="ph-revision-titulo">
+        <h3 id="ph-revision-titulo"><mat-icon>fact_check</mat-icon> Datos de la persona que cambian</h3>
+        @if (aGuardar().length) {
+          <p>Al consolidar se guardan en el registro de la persona ({{ aGuardar().length }}):</p>
+          <ul class="ph-revision-lista">
+            @for (c of aGuardar(); track $index) {
+              <li [class.ph-reemplaza]="c.sobrescribe">
+                <strong>{{ etiqueta(c) }}:</strong>
+                @if (c.sobrescribe) {
+                  <span class="ph-antes">{{ c.antes }}</span> <mat-icon class="ph-flecha">arrow_forward</mat-icon>
+                }
+                <span class="ph-despues">{{ c.despues || '(vacío)' }}</span>
+                @if (c.crea) { <em class="ph-nota">registro nuevo</em> }
+              </li>
+            }
+          </ul>
+          @if (r.sobrescribe) {
+            <p class="ph-revision-aviso">
+              <mat-icon>warning_amber</mat-icon>
+              {{ r.sobrescribe }} {{ r.sobrescribe === 1 ? 'dato ya estaba guardado y se reemplaza' : 'datos ya estaban guardados y se reemplazan' }}.
+              Revisa que sea correcto: el cambio queda registrado con tu usuario.
+            </p>
+          }
+        }
+        @if (noSeGuardan().length) {
+          <p>No se guardan en la base (solo quedan en el PDF):</p>
+          <ul class="ph-revision-lista ph-revision-no">
+            @for (n of noSeGuardan(); track $index) {
+              <li><strong>{{ n.etiqueta }}:</strong> {{ n.motivo }}</li>
+            }
+          </ul>
+        }
+        <footer>
+          <button mat-stroked-button type="button" (click)="volverDeRevision()">
+            <mat-icon>arrow_back</mat-icon> Volver al documento
+          </button>
+          <button mat-flat-button color="primary" type="button" (click)="confirmarDatos()">
+            <mat-icon>cloud_upload</mat-icon>
+            {{ aGuardar().length ? 'Guardar datos y consolidar' : 'Consolidar' }}
+          </button>
+        </footer>
+      </section>
+    </div>
   }
 
   @if (cargando()) {

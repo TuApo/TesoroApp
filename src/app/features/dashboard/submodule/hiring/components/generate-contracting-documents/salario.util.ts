@@ -202,6 +202,33 @@ export function salarioContratoCO(valor: any, sufijoMoneda: string = 'M/C', smml
 }
 
 /**
+ * Salario ACORDADO: el primer monto positivo de la lista, en orden de prioridad.
+ * Quien llama pasa `proceso.vacante_salario` (lo pone la remisión, editable sobre el
+ * de la vacante) y después `vacante.salario`. `null` = ninguno usable ("", "0.00",
+ * null): el documento cae al mínimo del año.
+ *
+ * Aguanta lo que hay guardado en `vacante_salario` (VARCHAR): "2500000",
+ * "1750905.00" y, en los procesos migrados, la frase entera
+ * ("S.M.M.L.V $ 1.423.500 Un Millón ... M/C").
+ */
+export function salarioAcordado(...candidatos: any[]): number | null {
+  for (const c of candidatos) {
+    const n = parseMontoCOP(c);
+    if (n != null && Math.round(n) > 0) return Math.round(n);
+  }
+  return null;
+}
+
+/**
+ * Valor que imprime el contrato (pedido de negocio 2026-10-14): el acordado y, sin
+ * él, el mínimo del año del contrato; sin configuración, el vigente.
+ * Mismo criterio que `SalarioContrato.java` de ms-templates.
+ */
+export function salarioDelContrato(acordado: number | null, minimoAnio: number | null): number {
+  return acordado ?? minimoAnio ?? SMMLV_VIGENTE;
+}
+
+/**
  * Salario mínimo y auxilio de UN año, tal como lo sirve ms-auth-admin
  * (Parametrización de vacantes › Salario mínimo, tabla `salario_minimo_vigencia`).
  */

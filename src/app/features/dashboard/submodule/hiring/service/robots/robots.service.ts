@@ -1,7 +1,7 @@
 import { Injectable, Inject, PLATFORM_ID } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { isPlatformBrowser } from '@angular/common';
-import { firstValueFrom, Observable, throwError } from 'rxjs';
+import { firstValueFrom, Observable, Subject, throwError } from 'rxjs';
 import { catchError, map } from 'rxjs/operators';
 import { environment } from '@/environments/environment';
 
@@ -54,6 +54,19 @@ export class RobotsService {
   }
 
   /**
+   * Nombre, ubicación y veredictos que dejó el robot para varias cédulas
+   * (POST /Robots/resultados-antecedentes/lote, máx. 500). Sirve para cédulas
+   * que todavía NO son candidatos: el nombre sale de ADRES, no de ms-hr.
+   * Una cédula sin resultados no viene en el mapa.
+   */
+  getResultadosLote(cedulas: string[]): Observable<Record<string, ResultadoAntecedentesLote>> {
+    return this.http
+      .post<Record<string, ResultadoAntecedentesLote>>(
+        `${this.apiUrl}/Robots/resultados-antecedentes/lote/`, { cedulas })
+      .pipe(catchError(this.handleError));
+  }
+
+  /**
    * Estado de la COLA de antecedentes de una cédula (las 8 fuentes).
    *
    * Es lo que permite decir "en qué quedó" después de forzar, sin recargar la
@@ -79,8 +92,58 @@ export class RobotsService {
       );
   }
 
+  /* ------------------------------------------------------------------
+   * Consultas FORZADAS en espera de robot, por cédula.
+   *
+   * Forzar solo encola: el robot tarda de segundos (contraloría) a varios
+   * minutos (ADRES). Quien forzó (el pipeline o la tarjeta) no es quien pinta
+   * los PDF y los datos (Antecedentes), así que la espera se deja anotada aquí
+   * —servicio raíz— y Antecedentes la vigila: cuando cada fuente vuelve
+   * FINALIZADO recarga el PDF nuevo y pone el dato de HOY en la tarjeta,
+   * aunque ya hubiera uno de la consulta anterior.
+   * ------------------------------------------------------------------ */
+  private readonly forzadas = new Map<string, Set<string>>();
+  private readonly forzado$ = new Subject<string>();
+  /** Emite la cédula cada vez que se registra una consulta forzada. */
+  readonly forzadoCambio$ = this.forzado$.asObservable();
+
+  registrarForzado(cedula: string, fuentes: string[]): void {
+    const ced = String(cedula ?? '').trim();
+    if (!ced || !fuentes.length) return;
+    const set = this.forzadas.get(ced) ?? new Set<string>();
+    fuentes.forEach((f) => set.add(f));
+    this.forzadas.set(ced, set);
+    this.forzado$.next(ced);
+  }
+
+  fuentesForzadas(cedula: string | null | undefined): string[] {
+    return [...(this.forzadas.get(String(cedula ?? '').trim()) ?? [])];
+  }
+
+  atenderForzado(cedula: string, fuentes: string[]): void {
+    const ced = String(cedula ?? '').trim();
+    const set = this.forzadas.get(ced);
+    if (!set) return;
+    fuentes.forEach((f) => set.delete(f));
+    if (!set.size) this.forzadas.delete(ced);
+  }
+
   // EstadosRobots/pendientes_por_oficina
   // EstadosRobots/pendientes_generales
+}
+
+/** Lo que dejó el robot de una cédula (POST /Robots/resultados-antecedentes/lote). */
+export interface ResultadoAntecedentesLote {
+  tipo_documento?: string | null;
+  /** Nombres tal como los reporta ADRES ("IVAN DAVID"). */
+  nombre?: string | null;
+  /** Apellidos tal como los reporta ADRES ("BERMUDEZ CASTAÑEDA"). */
+  apellido?: string | null;
+  departamento?: string | null;
+  municipio?: string | null;
+  fecha_ultima_modificacion?: string | null;
+  /** Veredicto normalizado por fuente (CUMPLE / NO CUMPLE / entidad / categoría) o null. */
+  veredictos?: Record<string, string | number | null>;
 }
 
 /** Una fuente consultada por el robot. */
@@ -103,6 +166,21 @@ export interface ResultadosAntecedentes {
     | 'eps' | 'afp' | 'sisben' | 'medidas_correctivas',
     ResultadoRobotCampo
   >>;
+  /** ADRES reporta régimen especial o de excepción; null si no. */
+  regimen_excepcion?: RegimenExcepcionAdres | null;
+  /**
+   * ADRES no encontró afiliación (estado, régimen o entidad = SIN REGISTRO). Solo pide
+   * verificar: alguien de régimen especial suele salir así (ms-automation).
+   */
+  adres_sin_registro?: boolean | null;
+}
+
+/** Lo que dejó el robot de ADRES cuando la persona está en régimen especial/de excepción. */
+export interface RegimenExcepcionAdres {
+  regimen: string | null;
+  entidad: string | null;
+  estado: string | null;
+  fecha: string | null;
 }
 
 /**

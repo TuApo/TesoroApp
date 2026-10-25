@@ -1,3 +1,5 @@
+import { tokenParaUsar } from '@/app/core/security/renovacion-token';
+
 /**
  * Cliente SSE sobre `fetch`.
  *
@@ -16,7 +18,10 @@ export interface ConexionSse {
 }
 
 export interface OpcionesSse {
-  /** Token con esquema (`Bearer …`) o null para la superficie pública. */
+  /**
+   * Token con esquema (`Bearer …`) o null para la superficie pública. Con token, en cada
+   * reconexión se usa el vigente (renovado si hace falta), no este.
+   */
   token: string | null;
   onEvento: (nombre: string, datos: unknown) => void;
   onEstado?: (estado: 'conectando' | 'conectado' | 'reconectando' | 'cerrado') => void;
@@ -63,7 +68,12 @@ export function conectarSse(url: string, opciones: OpcionesSse): ConexionSse {
     avisar(intento === 0 ? 'conectando' : 'reconectando');
     try {
       const cabeceras: Record<string, string> = { Accept: 'text/event-stream' };
-      if (opciones.token) cabeceras['Authorization'] = opciones.token;
+      if (opciones.token) {
+        // El token se pide de nuevo en cada (re)conexión: el canal vive más que el access token
+        // (minutos) y reconectar con el del arranque daría 401 para siempre.
+        const vigente = await tokenParaUsar();
+        cabeceras['Authorization'] = vigente ? `Bearer ${vigente}` : opciones.token;
+      }
       const respuesta = await fetch(url, { headers: cabeceras, signal: controlador.signal, cache: 'no-store' });
       if (!respuesta.ok || !respuesta.body) throw new Error(`SSE ${respuesta.status}`);
       intento = 0;

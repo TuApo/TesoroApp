@@ -23,6 +23,13 @@ const ENCABEZADOS =
   'h1, h2, .titulo, mat-card-title, .page-title, .tienda-titulo, .disab-hero-title, ' +
   '.cfg-header__title, .section-title, .rp__title, .pl__titulo';
 
+/**
+ * Cabeceras con diseño y acciones propias (p. ej. la franja azul `.disab-hero` de Salud):
+ * su título no se oculta aunque repita el del menú, y ni ellas ni lo que llevan dentro se
+ * convierten en barra de acciones.
+ */
+const PROPIAS = '[data-acciones="propias"]';
+
 /** «Dashboard de Soporte» y «Soporte» son el mismo nombre. */
 const RELLENO = new Set(['dashboard', 'gestion', 'panel', 'modulo', 'de', 'del', 'la', 'el', 'los',
   'las', 'y', 'e', 'en', 'para', 'a', 'al', 'mi', 'mis', 'tu', 'tus']);
@@ -86,7 +93,7 @@ export class AccionesPaginaService {
   private revisar(contenedor: HTMLElement): void {
     this.quitarTituloRepetido(contenedor);
     for (const cabecera of Array.from(contenedor.querySelectorAll<HTMLElement>(CABECERAS))) {
-      if (cabecera.getAttribute('data-acciones') === 'oculto') continue;
+      if (cabecera.getAttribute('data-acciones') === 'oculto' || cabecera.closest(PROPIAS)) continue;
       const boton = cabecera.querySelector<HTMLButtonElement>(':scope > .acciones-pagina__toggle');
       const tieneAcciones = Array.from(cabecera.querySelectorAll(CONTROLES))
         .some((c) => (!boton || (c !== boton && !boton.contains(c))) && !c.closest('[data-acciones="oculto"]'));
@@ -270,8 +277,9 @@ export class AccionesPaginaService {
       if (!r.height || r.top > limite) continue;
       const texto = (h.textContent || '').trim();
       if (!texto || texto.length > 80) continue;
-      // Manda el primer título de arriba: si no es el del módulo, la pantalla se queda como está.
-      if (!this.coincide(texto, titulo)) return;
+      // Manda el primer título de arriba: si no es el del módulo, o va en una cabecera con
+      // acciones propias, la pantalla se queda como está.
+      if (h.closest(PROPIAS) || !this.coincide(texto, titulo)) return;
 
       const bloque = this.bloqueDeTitulo(h, contenedor);
       const barra = this.cabeceraDe(bloque, contenedor);

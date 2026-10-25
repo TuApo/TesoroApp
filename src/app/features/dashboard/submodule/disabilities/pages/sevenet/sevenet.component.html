@@ -1,21 +1,21 @@
 <div class="ges-contenedor">
   <div class="ges-contenido">
     <mat-card class="disab-card">
-      <div class="disab-hero disab-hero-sevenet">
+      <div class="disab-hero disab-hero-sevenet" data-acciones="propias">
         <div class="disab-hero-icon"><mat-icon>archive</mat-icon></div>
         <div class="disab-hero-texts">
           <h1 class="disab-hero-title">SEVENET</h1>
           <p class="disab-hero-sub">
-            SEVENET es el archivo digital de la empresa (lo administra Ángela). Por ahora aquí se descarga la
-            carpeta comprimida con la primera hoja de cada incapacidad del rango, sin la historia clínica y con
-            Apoyo y Alianza juntas, lista para cargar. Se trabaja por semanas.
+            SEVENET es el archivo digital de la empresa (lo administra Ángela). Aquí se descarga, por semana, la
+            carpeta con la primera hoja de cada incapacidad (sin la historia clínica) y el archivo plano para el
+            cargue, separados por Apoyo y Alianza.
           </p>
         </div>
       </div>
 
       <div class="ges-cuerpo sev-cuerpo">
         <!-- ════════ 1. Rango ════════ -->
-        <section class="sev-bloque" [formGroup]="form">
+        <section class="sev-bloque" [formGroup]="form" data-guia="rango">
           <header class="sev-bloque-cabecera">
             <span class="sev-paso">1</span>
             <h2 class="sev-bloque-titulo">Rango de fechas</h2>
@@ -129,10 +129,69 @@
           </div>
         </section>
 
-        <!-- ════════ 2. Descargar ════════ -->
-        <section class="sev-bloque">
+        <!-- ════════ 2. Datos del cargue ════════ -->
+        <section class="sev-bloque" [formGroup]="cargue" data-guia="cargue">
           <header class="sev-bloque-cabecera">
             <span class="sev-paso">2</span>
+            <h2 class="sev-bloque-titulo">Datos del cargue</h2>
+          </header>
+
+          <div class="sev-fechas">
+            <!-- dynamic: la ayuda ("Sugerida a partir de la 40, usada el 05/10/2026.") ocupa dos lineas en
+                 220 px y con el subscript fijo se montaba sobre la ruta de ejemplo. -->
+            <mat-form-field appearance="outline" class="sev-campo sev-campo-semana" subscriptSizing="dynamic">
+              <mat-label>Semana SEVENET</mat-label>
+              <input matInput type="number" inputmode="numeric" min="1" max="9999" step="1" formControlName="semana" required />
+              <mat-hint>{{ ayudaSemana }}</mat-hint>
+            </mat-form-field>
+
+            <mat-form-field appearance="outline" class="sev-campo sev-campo-carpeta">
+              <mat-label>Carpeta base en el computador</mat-label>
+              <input matInput formControlName="carpetaBase" maxlength="200" spellcheck="false" autocomplete="off" />
+              <button
+                type="button"
+                mat-icon-button
+                matIconSuffix
+                matTooltip="Volver a la carpeta por defecto"
+                aria-label="Volver a la carpeta por defecto"
+                (click)="restablecerCarpeta()"
+              >
+                <mat-icon>restart_alt</mat-icon>
+              </button>
+              <mat-hint>Donde vas a descomprimir el ZIP</mat-hint>
+            </mat-form-field>
+          </div>
+
+          @if (problemaCargue()) {
+            <div class="ges-aviso sev-aviso-cargue" role="alert">
+              <mat-icon>edit_note</mat-icon>
+              <span>{{ problemaCargue() }}</span>
+            </div>
+          }
+
+          <mat-slide-toggle
+            class="sev-unir"
+            data-guia="unir"
+            color="primary"
+            [checked]="unirTemporales()"
+            (change)="unirTemporales.set($event.checked)"
+          >
+            Unir Apoyo y Alianza en una sola carpeta (<code>SEMANA {{ semana() ?? 'N' }}</code>)
+          </mat-slide-toggle>
+
+          <p class="ges-nota sev-contenido">
+            <mat-icon>folder_open</mat-icon>
+            <span>
+              Así quedará la ruta de cada PDF en el archivo plano:
+              <code class="sev-ruta">{{ rutaEjemplo() }}</code>
+            </span>
+          </p>
+        </section>
+
+        <!-- ════════ 3. Descargar ════════ -->
+        <section class="sev-bloque" data-guia="descargar">
+          <header class="sev-bloque-cabecera">
+            <span class="sev-paso">3</span>
             <h2 class="sev-bloque-titulo">Descargar</h2>
           </header>
 
@@ -145,22 +204,20 @@
               (click)="generar()"
             >
               <mat-icon>folder_zip</mat-icon>
-              <span>{{ enCurso() ? 'Generando…' : 'Generar carpeta (ZIP)' }}</span>
+              <span>{{ enCurso() && !soloPlanoGenerado() ? 'Generando…' : 'Generar carpeta y archivo plano (ZIP)' }}</span>
             </button>
 
-            <!-- Fase 2: el boton deshabilitado no recibe el raton; el tooltip va en el envoltorio -->
-            <span class="sev-plano" [matTooltip]="avisoArchivoPlano">
-              <button type="button" mat-stroked-button class="sev-btn" disabled>
-                <mat-icon>description</mat-icon>
-                <span>Archivo plano para cargue</span>
-              </button>
-            </span>
+            <button
+              type="button"
+              mat-stroked-button
+              class="sev-btn"
+              [disabled]="!puedeGenerar()"
+              (click)="generar(true)"
+            >
+              <mat-icon>description</mat-icon>
+              <span>{{ enCurso() && soloPlanoGenerado() ? 'Generando…' : 'Solo archivo plano' }}</span>
+            </button>
           </div>
-
-          <p class="sev-pendiente">
-            <mat-icon>schedule</mat-icon>
-            <span>{{ avisoArchivoPlano }}.</span>
-          </p>
 
           @switch (fase()) {
             @case ('progreso') {
@@ -168,7 +225,7 @@
                 <p class="sev-estado-texto">
                   <mat-icon>hourglass_top</mat-icon>
                   <span>
-                    <strong>Armando la carpeta</strong> · {{ job()?.estadoEtiqueta }}
+                    <strong>{{ soloPlanoGenerado() ? 'Armando el archivo plano' : 'Armando la carpeta' }}</strong> · {{ job()?.estadoEtiqueta }}
                     @if (progresoDeterminado()) {
                       · {{ job()?.procesados ?? 0 }} de {{ job()?.totalRegistros }} incapacidades
                     }
@@ -187,7 +244,7 @@
                 <p class="sev-estado-texto">
                   <mat-icon>check_circle</mat-icon>
                   <span>
-                    <strong>Carpeta lista:</strong> {{ job()?.nombreResultado }}
+                    <strong>{{ soloPlanoGenerado() ? 'Archivo plano listo:' : 'Carpeta lista:' }}</strong> {{ job()?.nombreResultado }}
                     @if (tamanoLegible(job()?.tamanoBytes)) {
                       · {{ tamanoLegible(job()?.tamanoBytes) }}
                     }
@@ -212,8 +269,8 @@
               <div class="ges-aviso ges-aviso-peligro" role="alert">
                 <mat-icon>error_outline</mat-icon>
                 <span>
-                  <strong>No se pudo armar la carpeta.</strong>
-                  {{ job()?.mensajeError || 'El servidor no informó el motivo.' }} Puedes generarla de nuevo.
+                  <strong>{{ soloPlanoGenerado() ? 'No se pudo armar el archivo plano.' : 'No se pudo armar la carpeta.' }}</strong>
+                  {{ job()?.mensajeError || 'El servidor no informó el motivo.' }} Puedes intentarlo de nuevo.
                 </span>
               </div>
             }
@@ -226,17 +283,31 @@
             </div>
           }
 
-          <p class="ges-nota sev-contenido">
+          <div class="ges-nota sev-contenido">
             <mat-icon>info_outline</mat-icon>
-            <span>
-              La carpeta trae un PDF por incapacidad con su código único como nombre (solo la primera hoja del
-              soporte de la incapacidad), <strong>_indice.xlsx</strong> con el listado y
-              <strong>_PENDIENTES.txt</strong> con las que no tenían soporte o no se pudieron leer. Puedes salir
-              de esta pantalla: el servidor termina la carpeta igual, pero la descarga solo arranca aquí.
-            </span>
-          </p>
+            <div class="sev-explicacion">
+              <p>
+                <strong>Descomprime el ZIP dentro de la carpeta base</strong> (<code class="sev-ruta">{{ carpetaBase() }}</code>)
+                para que las rutas del archivo plano casen con los PDF.
+              </p>
+              <p>
+                Para cada empleador (Apoyo y Alianza por separado) trae la carpeta <strong>SEMANA {{ semanaTexto() }} APOYO</strong> /
+                <strong>ALIANZA</strong> con un PDF por cédula (solo la primera hoja del soporte; si alguien tiene varias
+                incapacidades en el rango van juntas en el mismo PDF) y el <strong>ARCHIVO PLANO</strong> en Excel (hoja
+                Plantilla_original_ok) listo para el cargue. En la raíz van <strong>_indice.xlsx</strong> con el listado y
+                <strong>_PENDIENTES.txt</strong> con lo que no tenía soporte, no se pudo leer o no tiene centro de costo.
+              </p>
+              <p>
+                «Solo archivo plano» trae únicamente los Excel, sin PDF. Puedes salir de esta pantalla: el servidor termina
+                igual, pero la descarga solo arranca aquí.
+              </p>
+            </div>
+          </div>
         </section>
       </div>
     </mat-card>
   </div>
 </div>
+
+<!-- Reunion 2026-10-20: instructivo dentro del programa -->
+<app-guia-salud />

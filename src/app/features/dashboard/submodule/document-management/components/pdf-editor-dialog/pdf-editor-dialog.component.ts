@@ -149,7 +149,8 @@ export class PdfEditorDialogComponent implements OnInit {
             Swal.fire({
               icon: 'error',
               title: 'Error al Guardar',
-              text: 'No se pudo subir el documento editado.'
+              // 409 = no está chuleado para la requisición de la persona: se dice por qué.
+              text: err?.error?.error || 'No se pudo subir el documento editado.'
             });
             reject(err);
           }

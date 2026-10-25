@@ -31,9 +31,27 @@
     @if (avisoBloqueLegado(); as a) {
       <div class="tv__banda" [style.border-color]="a.color || '#9BD441'"><mat-icon [style.color]="a.color || '#9BD441'">{{ a.icono || 'campaign' }}</mat-icon> <strong>{{ a.titulo }}</strong>@if (a.texto) { <span> · {{ a.texto }}</span> }</div>
     }
+    @if (llamadoConPlano() && llamado(); as t) {
+      <!-- Llamado con plano: a dónde tiene que ir la persona, iluminado en el plano. -->
+      <div class="tv__plano-llamado">
+        <div class="plano-llamado__tarjeta">
+          <span class="llamado__eti">Turno</span>
+          <span class="plano-llamado__codigo">{{ t.codigo }}</span>
+          @if (t.punto_tipo === 'MOVIL') {
+            <span class="plano-llamado__punto"><mat-icon>directions_walk</mat-icon> Lo atenderán en {{ t.area_nombre || 'la sala' }}</span>
+          } @else {
+            <span class="plano-llamado__punto"><mat-icon>arrow_forward</mat-icon> {{ t.punto_nombre }}</span>
+          }
+          @if (lineaArea(t); as linea) { <span class="plano-llamado__area">{{ linea }}</span> }
+          @if (t.nombre) { <span class="plano-llamado__nombre">{{ t.nombre }}</span> }
+          <span class="plano-llamado__guia"><mat-icon>place</mat-icon> Siga la luz verde del plano</span>
+        </div>
+        <div class="plano-llamado__plano"><app-plano-oficina [croquis]="v.croquis" [turno]="t" [llamando]="true" modo="auto" /></div>
+      </div>
+    }
     <header class="tv__cab">
       <span class="tv__oficina">{{ v.oficina_nombre }}</span>
-      @if (v.mostrar_reloj) { <span class="tv__reloj">{{ ahora() | date:'HH:mm' }}<small>{{ ahora() | date:'EEEE d MMMM':'':'es' }}</small></span> }
+      @if (v.mostrar_reloj) { <span class="tv__reloj">{{ ahora() | date:'HH:mm' }}<small>{{ ahora() | date:'EEEE d MMMM':'':'es-CO' }}</small></span> }
       <span class="tv__canal" [class.tv__canal--ok]="canal() === 'conectado'"></span>
     </header>
 
@@ -89,7 +107,7 @@
           </div>
 
           @if (v.mostrar_croquis && v.croquis) {
-            <div class="mapa"><app-croquis-svg [croquis]="v.croquis" [piso]="pisoResaltado()" [resaltar]="areaResaltada()" [mostrarPuestos]="false" /></div>
+            <div class="mapa"><app-plano-oficina [croquis]="v.croquis" [turno]="enCurso().length ? enCurso()[0] : null" [llamando]="false" modo="2d" /></div>
           }
         </section>
       }

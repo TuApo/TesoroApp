@@ -1,0 +1,177 @@
+<div class="tienda-pagina">
+  <header class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>campaign</mat-icon> Publicidad de EconomiAPP</h1>
+      <p class="tienda-subtitulo">Banners y tarjetas con foto o video que salen en la portada de EconomiAPP, y a dónde lleva cada uno.</p>
+    </div>
+    <div class="campo">
+      <label for="alcance">Dónde se ve</label>
+      <select id="alcance" [ngModel]="alcance()" (ngModelChange)="alcance.set($event)">
+        @if (ctx.esSuperAdmin()) { <option value="">Todas las tiendas (global)</option> }
+        @for (t of ctx.tiendas(); track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+      </select>
+    </div>
+  </header>
+
+  @if (aviso()) { <div class="nota ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+  @if (error()) { <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div> }
+
+  <div class="columnas">
+    <!-- ── Nueva publicidad ─────────────────────────────────────────── -->
+    <section class="tienda-tarjeta formulario">
+      <h2>Nueva publicidad</h2>
+
+      <div class="zonas">
+        @for (z of zonas; track z) {
+          <label class="zona" [class.activa]="zona() === z">
+            <input type="radio" name="zona" [checked]="zona() === z" (change)="zona.set(z)" />
+            <span class="zona-forma" [style.aspect-ratio]="ZONAS[z].ancho + ' / ' + ZONAS[z].alto"></span>
+            <span class="zona-texto">
+              <b>{{ ZONAS[z].nombre }}</b>
+              <small>{{ ZONAS[z].descripcion }}</small>
+              <i>{{ ZONAS[z].ancho }} × {{ ZONAS[z].alto }} px</i>
+            </span>
+          </label>
+        }
+      </div>
+
+      <div class="especificacion">
+        <mat-icon>straighten</mat-icon>
+        <span>
+          <b>Foto:</b> exactamente <b>{{ medida().ancho }} × {{ medida().alto }} px</b>, JPG/PNG/WebP, hasta 3 MB.
+          <b>Video:</b> MP4 o WebM con la misma proporción, mínimo {{ medida().ancho * 0.75 }} px de ancho, hasta 15 MB y 30 s; se reproduce sin sonido y en bucle.
+          Deje el texto importante lejos de los bordes: en el celular los títulos van encima de la parte de abajo.
+        </span>
+      </div>
+
+      <label class="subir" [class.con-archivo]="archivo()">
+        <input type="file" accept="image/jpeg,image/png,image/webp,video/mp4,video/webm" (change)="elegirArchivo($event)" />
+        @if (archivo(); as a) {
+          <span class="vista" [style.aspect-ratio]="medida().ancho + ' / ' + medida().alto">
+            @if (a.video) { <video [src]="a.url" autoplay muted loop playsinline></video> }
+            @else { <img [src]="a.url" alt="Vista previa" /> }
+            @if (titulo() || subtitulo()) {
+              <span class="vista-texto"><b>{{ titulo() }}</b><small>{{ subtitulo() }}</small></span>
+            }
+          </span>
+          <span class="medidas" [class.mal]="problemaArchivo()">
+            <mat-icon>{{ problemaArchivo() ? 'error' : 'check_circle' }}</mat-icon>
+            {{ a.ancho }} × {{ a.alto }} px · {{ mb(a.file.size) }}{{ a.segundos ? ' · ' + (a.segundos | number: '1.0-0') + ' s' : '' }}
+          </span>
+        } @else {
+          <mat-icon class="subir-icono">cloud_upload</mat-icon>
+          <b>Elegir foto o video</b>
+          <small>{{ medida().ancho }} × {{ medida().alto }} px</small>
+        }
+      </label>
+      @if (problemaArchivo()) { <p class="problema"><mat-icon>error</mat-icon> {{ problemaArchivo() }}</p> }
+      @if (archivo()) { <button type="button" class="boton secundario" (click)="quitarArchivo()"><mat-icon>close</mat-icon> Cambiar archivo</button> }
+
+      <div class="fila">
+        <div class="campo ancho"><label>Título (opcional)</label>
+          <input type="text" maxlength="180" [ngModel]="titulo()" (ngModelChange)="titulo.set($event)" placeholder="Celulares con su cupo" /></div>
+        <div class="campo ancho"><label>Subtítulo (opcional)</label>
+          <input type="text" maxlength="255" [ngModel]="subtitulo()" (ngModelChange)="subtitulo.set($event)" placeholder="Llévelo y páguelo por nómina" /></div>
+      </div>
+      <p class="ayuda">Si la pieza ya trae el texto dibujado, deje estos campos vacíos.</p>
+
+      <div class="campo"><label>Al tocarla lleva a</label>
+        <select [ngModel]="enlace()" (ngModelChange)="cambiarEnlace($event)">
+          <option value="NINGUNO">No lleva a ningún lado</option>
+          <option value="PRODUCTO">Un producto</option>
+          <option value="COMBO">Un combo</option>
+          <option value="PROMOCION">Una promoción</option>
+          <option value="CATEGORIA">Una categoría</option>
+          <option value="BUSQUEDA">Una búsqueda</option>
+          <option value="URL">Un enlace externo</option>
+        </select>
+      </div>
+
+      @switch (enlace()) {
+        @case ('PRODUCTO') {
+          @if (productoElegido(); as p) {
+            <div class="elegido"><mat-icon>inventory_2</mat-icon> {{ p.nombre }}
+              <button type="button" class="boton secundario" (click)="productoElegido.set(null); enlaceValor.set('')">Cambiar</button></div>
+          } @else {
+            <div class="buscador">
+              <input type="search" placeholder="Buscar producto por nombre o SKU" [ngModel]="busquedaProducto()"
+                     (ngModelChange)="busquedaProducto.set($event)" (keyup.enter)="buscarProducto()" />
+              <button type="button" class="boton" (click)="buscarProducto()"><mat-icon>search</mat-icon></button>
+            </div>
+            @for (p of productos(); track p.id) {
+              <button type="button" class="resultado" (click)="elegirProducto(p)">{{ p.nombre }} <small>{{ p.marca }}</small></button>
+            }
+          }
+        }
+        @case ('COMBO') {
+          <div class="campo"><select [ngModel]="enlaceValor()" (ngModelChange)="enlaceValor.set($event)">
+            <option value="">Elija un combo…</option>
+            @for (c of combos(); track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+          </select></div>
+          @if (!combos().length) { <p class="ayuda">No hay combos publicados en esta tienda.</p> }
+        }
+        @case ('PROMOCION') {
+          <div class="campo"><select [ngModel]="enlaceValor()" (ngModelChange)="enlaceValor.set($event)">
+            <option value="">Elija una promoción…</option>
+            @for (p of promociones(); track p.id) { <option [value]="p.id">{{ p.nombre }}</option> }
+          </select></div>
+          @if (!promociones().length) { <p class="ayuda">No hay promociones vigentes en esta tienda.</p> }
+        }
+        @case ('CATEGORIA') {
+          <div class="campo"><select [ngModel]="enlaceValor()" (ngModelChange)="enlaceValor.set($event)">
+            <option value="">Elija una categoría…</option>
+            @for (c of categorias(); track c.id) { <option [value]="c.id">{{ c.nombre }}</option> }
+          </select></div>
+        }
+        @case ('BUSQUEDA') {
+          <div class="campo ancho"><input type="text" placeholder="Ej.: samsung" [ngModel]="enlaceValor()" (ngModelChange)="enlaceValor.set($event)" /></div>
+        }
+        @case ('URL') {
+          <div class="campo ancho"><input type="url" placeholder="https://…" [ngModel]="enlaceValor()" (ngModelChange)="enlaceValor.set($event)" /></div>
+          @if (enlaceValor() && !enlaceValor().startsWith('https://')) { <p class="problema"><mat-icon>error</mat-icon> Debe empezar por https://</p> }
+        }
+      }
+
+      <div class="fila">
+        <div class="campo"><label>Desde</label><input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" /></div>
+        <div class="campo"><label>Hasta</label><input type="date" [min]="desde()" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" /></div>
+        <div class="campo corto"><label>Orden</label><input type="number" min="0" [ngModel]="orden()" (ngModelChange)="orden.set($event)" /></div>
+      </div>
+      <p class="ayuda">Sin fechas, se ve desde ya y hasta que la retire. El orden más bajo sale primero.</p>
+
+      <button type="button" class="boton publicar" (click)="publicar()" [disabled]="!listo()">
+        <mat-icon>{{ publicando() ? 'hourglass_top' : 'publish' }}</mat-icon>
+        {{ publicando() ? 'Subiendo…' : 'Publicar en EconomiAPP' }}
+      </button>
+    </section>
+
+    <!-- ── Lo que está publicado ─────────────────────────────────────── -->
+    <section class="tienda-tarjeta publicadas">
+      <h2>Publicado ahora <small>{{ alcance() ? 'en esta tienda' : 'en todas las tiendas' }}</small></h2>
+      @if (cargando()) {
+        <p class="ayuda">Cargando…</p>
+      } @else if (!lista().length) {
+        <div class="tienda-vacio"><mat-icon>campaign</mat-icon><p>No hay publicidad todavía. Mientras tanto, EconomiAPP arma banners con las ofertas vigentes.</p></div>
+      } @else {
+        @for (p of lista(); track p.id) {
+          <article class="pub">
+            <span class="pub-vista" [class.cuadrada]="p.zona === 'DESTACADOS'">
+              <eco-imagen [doc]="p.imagen_doc_id" [nombre]="p.titulo || ''" icono="campaign" />
+            </span>
+            <div class="pub-texto">
+              <span class="insignia">{{ nombreZona(p.zona) }}</span>
+              <b>{{ p.titulo || 'Sin título' }}</b>
+              <small>{{ destinoTexto(p) }}</small>
+              <small>
+                {{ p.vigente_desde ? 'Desde ' + (p.vigente_desde | date: 'd MMM' : undefined : 'es-CO') : 'Desde ya' }}
+                · {{ p.vigente_hasta ? 'hasta ' + (p.vigente_hasta | date: 'd MMM y' : undefined : 'es-CO') : 'sin fecha de fin' }}
+                · orden {{ p.orden }}
+              </small>
+            </div>
+            <button type="button" class="boton peligro" (click)="retirar(p)" title="Retirar"><mat-icon>delete</mat-icon></button>
+          </article>
+        }
+      }
+    </section>
+  </div>
+</div>

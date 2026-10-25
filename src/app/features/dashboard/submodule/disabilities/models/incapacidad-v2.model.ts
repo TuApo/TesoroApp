@@ -804,6 +804,12 @@ export interface RadicarPeticion {
 /** Resultado por fila de la carga masiva de radicados. */
 export interface FilaCargaMasivaRadicados {
   fila: number;
+  /**
+   * Código único leído de la fila, normalizado (iteración 3: la plantilla identifica la
+   * incapacidad por código de oficina o general). Vacío o ausente en archivos del formato
+   * anterior (Cédula + Fecha inicio) o si el backend todavía no lo envía.
+   */
+  codigo?: string | null;
   cedula: string;
   fechaInicio: string;
   numeroRadicado: string;
@@ -821,7 +827,13 @@ export interface ResultadoCargaMasivaRadicados {
 
 /** Trabajos asincronos de exportacion masiva. */
 /** ZIP_SEVENET y EXCEL_BASE_ACTUAL: reunion funcional 2026-10-05 (SEVENET y boton "Base actual"). */
-export type TipoExportJob = 'ZIP_SOPORTES' | 'EXCEL_CONSOLIDADO' | 'ZIP_SEVENET' | 'EXCEL_BASE_ACTUAL';
+/** EXCEL_CONSOLIDADO_ANTIGUO: consolidado con la plantilla antigua de 41 columnas (2026-10-09). */
+export type TipoExportJob =
+  | 'ZIP_SOPORTES'
+  | 'EXCEL_CONSOLIDADO'
+  | 'ZIP_SEVENET'
+  | 'EXCEL_BASE_ACTUAL'
+  | 'EXCEL_CONSOLIDADO_ANTIGUO';
 export type EstadoExportJob = 'PENDIENTE' | 'EN_PROCESO' | 'COMPLETADO' | 'ERROR';
 
 export interface ExportJob {
@@ -836,6 +848,25 @@ export interface ExportJob {
   tamanoBytes: number | null;
   mensajeError: string | null;
   creadoEn: string | null;
+}
+
+/**
+ * Opciones del ZIP_SEVENET (respuesta de la funcional 2026-10-07): la semana va en el nombre de
+ * las carpetas y del archivo plano, y la carpeta base arma `ruta_imagen` (donde quedan los PDF en
+ * el computador de quien carga). `soloPlano` = solo los Excel, sin bajar PDF. Todo opcional:
+ * sin opciones el backend arma el ZIP como antes.
+ */
+export interface ExportOpcionesSevenet {
+  /** 1..9999. */
+  semanaSevenet?: number;
+  /** Maximo 200 caracteres; por defecto `C:\Users\AUXCART1\Desktop\SEVENET\`. */
+  carpetaBase?: string;
+  soloPlano?: boolean;
+  /**
+   * Reunion 2026-10-20: Apoyo y Alianza en UNA sola carpeta `SEMANA {N}` ("se puede unir ambas
+   * temporales"). Sin el campo, separadas como antes.
+   */
+  unirTemporales?: boolean;
 }
 
 /** Conteos de la cabecera en UNA llamada (`GET /Incapacidades/v2/resumen`). */

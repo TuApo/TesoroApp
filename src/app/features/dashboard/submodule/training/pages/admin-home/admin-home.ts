@@ -39,6 +39,10 @@ export class AdminHome implements OnInit {
   readonly error = signal<string | null>(null);
 
   readonly atajos: Atajo[] = [
+    { ruta: 'disenar', icono: 'auto_awesome', titulo: 'Diseñar con IA',
+      ayuda: 'Sube tu material y la IA arma el curso contigo' },
+    { ruta: 'en-vivo', icono: 'video_camera_front', titulo: 'Aulas en vivo',
+      ayuda: 'Clases, talleres y webinars con video, pizarra y código' },
     { ruta: 'catalogo', icono: 'school', titulo: 'Cursos',
       ayuda: 'Crear y editar cursos, lecciones y bloques' },
     { ruta: 'evaluaciones', icono: 'quiz', titulo: 'Bancos de preguntas',
@@ -49,6 +53,10 @@ export class AdminHome implements OnInit {
       ayuda: 'Convocatorias con cupo, fecha y asistencia' },
     { ruta: 'cumplimiento', icono: 'fact_check', titulo: 'Cumplimiento',
       ayuda: 'La matriz completa, persona por persona' },
+    { ruta: 'plantillas-certificados', icono: 'workspace_premium', titulo: 'Plantillas de certificado',
+      ayuda: 'Cómo se ve el diploma de cada curso' },
+    { ruta: 'profesor', icono: 'co_present', titulo: 'Profesor',
+      ayuda: 'Planilla, entregas y asistencia de los grupos que dicto' },
   ];
 
   /** Los pendientes que bloquean a alguien hoy. Se separan porque no se leen igual. */

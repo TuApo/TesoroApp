@@ -1,0 +1,233 @@
+<div class="centro" (pointerdown)="vivo.desbloquearAudio()">
+  @if (error(); as e) { <div class="sg-aviso danger ancho"><mat-icon aria-hidden="true">error</mat-icon><span>{{ e }}</span></div> }
+
+  <!-- ── Barra del videowall ─────────────────────────────────────────── -->
+  <div class="barra-muro ancho" role="toolbar" aria-label="Controles del videowall">
+    <button type="button" class="sg-boton" [matMenuTriggerFor]="menuFuente">
+      <mat-icon aria-hidden="true">grid_view</mat-icon><span class="nombre-fuente">{{ nombreFuente() }}</span>@if (modificado()) { <i class="sg-tenue">(cambiado)</i> }
+      <mat-icon aria-hidden="true">expand_more</mat-icon>
+    </button>
+    <mat-menu #menuFuente="matMenu">
+      <button mat-menu-item type="button" (click)="verSede(null)"><mat-icon>dashboard_customize</mat-icon>Mosaico libre</button>
+      @if (mosaicos().length) {
+        <div class="menu-et">Mosaicos guardados</div>
+        @for (m of mosaicos(); track m.id) {
+          <button mat-menu-item type="button" (click)="elegirMosaico(m)"><mat-icon>{{ m.compartido ? 'grid_view' : 'person' }}</mat-icon>{{ m.nombre }} · {{ m.disposicion }}</button>
+        }
+      }
+      @if (sedes().length) {
+        <div class="menu-et">Todas las cámaras de una sede</div>
+        @for (s of sedes(); track s.id) {
+          <button mat-menu-item type="button" (click)="verSede(s.id)"><mat-icon>location_on</mat-icon>{{ s.nombre }}</button>
+        }
+      }
+      @if (grupos().length) {
+        <div class="menu-et">Por grupo</div>
+        @for (g of grupos(); track g.id) {
+          <button mat-menu-item type="button" (click)="verGrupo(g.id)"><mat-icon [style.color]="g.color">label</mat-icon>{{ g.nombre }}</button>
+        }
+      }
+    </mat-menu>
+
+    <div class="sg-segmentos" role="group" aria-label="Disposición">
+      @for (d of disposiciones; track d) {
+        <button type="button" [attr.aria-pressed]="disposicion() === d" (click)="cambiarDisposicion(d)">{{ d }}</button>
+      }
+    </div>
+
+    @if ((fuente() === 'sede' || fuente() === 'grupo') && totalPaginas() > 1) {
+      <div class="paginas">
+        <button type="button" class="sg-boton sg-boton--icono" (click)="cambiarPagina(-1)" aria-label="Página anterior"><mat-icon>chevron_left</mat-icon></button>
+        <span class="sg-mono">{{ pagina() + 1 }}/{{ totalPaginas() }}</span>
+        <button type="button" class="sg-boton sg-boton--icono" (click)="cambiarPagina(1)" aria-label="Página siguiente"><mat-icon>chevron_right</mat-icon></button>
+      </div>
+    }
+
+    <label class="rotar">
+      <mat-icon aria-hidden="true">autorenew</mat-icon>
+      <select [ngModel]="rotacion()" (ngModelChange)="cambiarRotacion(+$event)" aria-label="Rotación automática">
+        <option [ngValue]="0">Sin rotar</option>
+        <option [ngValue]="10">Cada 10 s</option>
+        <option [ngValue]="20">Cada 20 s</option>
+        <option [ngValue]="30">Cada 30 s</option>
+        <option [ngValue]="60">Cada minuto</option>
+      </select>
+    </label>
+
+    <span class="sg-espaciador"></span>
+    @if (fuente() === 'mosaico' && modificado()) {
+      <button type="button" class="sg-boton sg-boton--primario" (click)="guardarMosaico(false)"><mat-icon aria-hidden="true">save</mat-icon>Guardar cambios</button>
+    }
+    <button type="button" class="sg-boton" (click)="guardarMosaico(true)" matTooltip="Guardar esta disposición como mosaico"><mat-icon aria-hidden="true">bookmark_add</mat-icon><span class="sg-oculto-movil">Guardar como…</span></button>
+    <button type="button" class="sg-boton" (click)="verLista.set(!verLista())" [attr.aria-pressed]="verLista()"><mat-icon aria-hidden="true">list</mat-icon><span class="sg-oculto-movil">Cámaras</span></button>
+    <button type="button" class="sg-boton sg-boton--icono" (click)="pantallaCompleta()" matTooltip="Videowall a pantalla completa" aria-label="Videowall a pantalla completa"><mat-icon>fullscreen</mat-icon></button>
+  </div>
+
+  <!-- ── Lista de cámaras ────────────────────────────────────────────── -->
+  @if (verLista()) {
+    <aside class="lista sg-tarjeta" aria-label="Cámaras">
+      <div class="filtros">
+        <input type="search" class="buscar" placeholder="Buscar cámara…" [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event)" aria-label="Buscar cámara" />
+        <select [ngModel]="sedeMuro()" (ngModelChange)="sedeMuro.set($event)" aria-label="Filtrar por sede">
+          <option [ngValue]="null">Todas las sedes</option>
+          @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+        </select>
+      </div>
+      @if (elegida()) { <p class="pista">Toque una celda para poner la cámara elegida.</p> }
+      <ul>
+        @for (c of listaLateral(); track c.id) {
+          <li draggable="true" (dragstart)="arrastrar($event, c.id)" (click)="elegir(c.id)" (dblclick)="ponerEnLibre(c.id)"
+              [class.elegida]="elegida() === c.id" [class.en-muro]="enMuro().has(c.id)" tabindex="0" role="button"
+              (keydown.enter)="ponerEnLibre(c.id)" [attr.aria-label]="c.nombre + ', ' + c.sede_nombre + '. Enter para ponerla en el mosaico'">
+            <i [class]="'punto e-' + estadoCamara(c)" aria-hidden="true"></i>
+            <span class="txt"><b>{{ c.nombre }}</b><small>{{ c.sede_nombre }}@if (c.grupo_nombre) { · {{ c.grupo_nombre }} }</small></span>
+            <mat-icon class="arr" aria-hidden="true">drag_indicator</mat-icon>
+          </li>
+        } @empty {
+          <li class="sg-tenue vacio">{{ cargando() ? 'Cargando…' : 'No hay cámaras con ese filtro.' }}</li>
+        }
+      </ul>
+      <p class="sg-nota">Arrastre una cámara a una celda, o tóquela y luego toque la celda. Doble clic la pone en la primera libre.</p>
+    </aside>
+  }
+
+  <!-- ── Videowall ───────────────────────────────────────────────────── -->
+  <section class="muro" #muro [class.sin-lista]="!verLista()" aria-label="Videowall">
+    @if (foco(); as idFoco) {
+      <div class="foco">
+        <sg-visor-camara [camaraId]="idFoco" [camara]="mapaCamaras().get(idFoco) ?? null" [calidad]="'main'" />
+        <button type="button" class="volver sg-boton" (click)="foco.set(null)"><mat-icon aria-hidden="true">grid_view</mat-icon>Volver al mosaico</button>
+      </div>
+    } @else {
+      <div class="rejilla" [attr.data-disp]="disposicion()">
+        @for (pos of posiciones(); track pos) {
+          <div class="celda" [class.destino]="!!elegida()" (dragover)="sobre($event)" (drop)="soltar($event, pos)" (click)="tocarCelda(pos)">
+            @if (celdas()[pos]; as id) {
+              <sg-visor-camara [camaraId]="id" [camara]="mapaCamaras().get(id) ?? null" [compacto]="true" [conCerrar]="true" [conAmpliar]="true"
+                               (cerrar)="vaciar(pos)" (ampliar)="foco.set(id)" />
+            } @else {
+              <div class="vacia"><mat-icon aria-hidden="true">add_to_queue</mat-icon><span>Arrastre una cámara aquí</span></div>
+            }
+          </div>
+        }
+      </div>
+    }
+  </section>
+
+  <!-- ── Alarmas en vivo y acciones rápidas ──────────────────────────── -->
+  <aside class="panel" aria-label="Alarmas y acciones">
+    <section class="sg-tarjeta alarmas">
+      <h3><mat-icon aria-hidden="true">notifications_active</mat-icon>Alarmas en vivo
+        <span class="sg-sub">{{ vivo.incidentes().length }}</span></h3>
+      <div class="avisos">
+        @if (vivo.permisoNotificacion() === 'default') {
+          <button type="button" class="sg-boton" (click)="vivo.pedirPermisoNotificaciones()"><mat-icon aria-hidden="true">notifications</mat-icon>Activar avisos del navegador</button>
+        } @else if (vivo.permisoNotificacion() === 'denied') {
+          <span class="sg-chip warn" matTooltip="Actívelas en el candado de la barra de direcciones"><mat-icon aria-hidden="true">notifications_off</mat-icon>Avisos bloqueados</span>
+        }
+        <button type="button" class="sg-boton" (click)="vivo.silenciado.set(!vivo.silenciado()); vivo.desbloquearAudio()" [attr.aria-pressed]="vivo.silenciado()">
+          <mat-icon aria-hidden="true">{{ vivo.silenciado() ? 'volume_off' : 'volume_up' }}</mat-icon>{{ vivo.silenciado() ? 'Sonido apagado' : 'Sonido activo' }}
+        </button>
+      </div>
+      <ul class="incidentes">
+        @for (i of vivo.incidentes(); track i.id) {
+          <li [class]="'inc sev-' + i.severidad" [class.sin-reconocer]="sinReconocer(i)">
+            <button type="button" class="abrir" (click)="abrirIncidente(i.id)" [attr.aria-label]="'Ver detalle de ' + i.titulo">
+              @if (i.captura_url) { <sg-imagen class="mini" [src]="i.captura_url" [alt]="i.titulo" /> }
+              <span class="cuerpo">
+                <span class="t">{{ i.titulo }}</span>
+                <span class="d">{{ i.sede_nombre }} · <b [class]="'sev-txt ' + f.tonoSeveridad(i.severidad)">{{ nombreSev[i.severidad] }}</b> · {{ nombreEstado[i.estado] }}</span>
+                <span class="d">
+                  <span class="sg-mono reloj">{{ f.cronometro(desde(i.creado_en)) }}</span>
+                  @if (i.pasos_total) { · paso {{ i.paso_actual ?? 0 }}/{{ i.pasos_total }} }
+                  @if (sinReconocer(i) && faltan(i.proximo_paso_en); as s) { · sube en <b class="sg-mono">{{ s > 0 ? f.cronometro(s) : 'ya' }}</b> }
+                </span>
+              </span>
+            </button>
+            <div class="acc">
+              @if (sinReconocer(i)) {
+                <button type="button" class="sg-boton sg-boton--primario" (click)="acciones.reconocer(i)"><mat-icon aria-hidden="true">task_alt</mat-icon>Reconocer</button>
+              }
+              <button type="button" class="sg-boton sg-boton--icono" (click)="acciones.comentar(i)" matTooltip="Comentar" aria-label="Comentar"><mat-icon>edit_note</mat-icon></button>
+              <button type="button" class="sg-boton sg-boton--icono" (click)="acciones.escalar(i)" matTooltip="Escalar ya" aria-label="Escalar ya"><mat-icon>trending_up</mat-icon></button>
+              <button type="button" class="sg-boton sg-boton--icono" (click)="acciones.cerrar(i)" matTooltip="Cerrar (resuelta o falsa alarma)" aria-label="Cerrar alarma"><mat-icon>check_circle</mat-icon></button>
+              @if (i.camara_id) {
+                <button type="button" class="sg-boton sg-boton--icono" (click)="verCamara(i.camara_id)" matTooltip="Ver cámara" aria-label="Ver cámara"><mat-icon>videocam</mat-icon></button>
+              }
+            </div>
+          </li>
+        } @empty {
+          <li class="sg-vacio"><mat-icon aria-hidden="true">verified_user</mat-icon>Sin alarmas abiertas.</li>
+        }
+      </ul>
+    </section>
+
+    <section class="sg-tarjeta rapidas">
+      <h3><mat-icon aria-hidden="true">bolt</mat-icon>Acciones rápidas</h3>
+      <select class="sede-sel" [ngModel]="sedeAccion()" (ngModelChange)="sedeAccion.set($event); parlantePtt.set(null)" aria-label="Sede">
+        @for (s of sedes(); track s.id) { <option [ngValue]="s.id">{{ s.nombre }}</option> }
+      </select>
+
+      @if (sedeAcc(); as s) {
+        <button type="button" class="panico" (click)="panico()"><mat-icon aria-hidden="true">e911_emergency</mat-icon>Botón de pánico</button>
+
+        <div class="bloque">
+          <h4><mat-icon aria-hidden="true">campaign</mat-icon>Hablar por el parlante</h4>
+          @if (parlantesSede().length) {
+            @if (parlantesSede().length > 1) {
+              <select [ngModel]="parlanteElegido()?.id" (ngModelChange)="parlantePtt.set($event)" aria-label="Parlante">
+                @for (p of parlantesSede(); track p.id) { <option [ngValue]="p.id">{{ p.nombre }}</option> }
+              </select>
+            }
+            @if (parlanteElegido(); as p) {
+              <sg-ptt-boton [parlanteId]="p.id" [etiqueta]="'Mantener para hablar · ' + p.nombre" />
+              @if (!(vivo.parlantes().get(p.id)?.en_linea ?? p.en_linea)) { <small class="sg-tenue">Ese parlante aparece fuera de línea.</small> }
+            }
+          } @else { <p class="sg-nota">Esta sede no tiene parlantes. Se agregan en Audio y parlantes.</p> }
+        </div>
+
+        <div class="bloque">
+          <h4><mat-icon aria-hidden="true">settings_remote</mat-icon>Sirenas, puertas y dispositivos</h4>
+          @for (d of dispositivosSede(); track d.id) {
+            <div class="disp">
+              <span class="nombre"><mat-icon aria-hidden="true">{{ iconoTipo[d.tipo] }}</mat-icon>{{ d.nombre }}
+                <small [class.alarma]="estadoDisp(d) === 'ALARMA'">{{ nombreEstadoDisp[estadoDisp(d)] }}@if (!enLineaDisp(d)) { · sin conexión }</small></span>
+              <span class="botones">
+                @for (a of d.acciones_disponibles; track a) {
+                  <button type="button" class="sg-boton" [class.sg-boton--peligro]="d.tipo === 'SIRENA' && a === 'ACTIVAR'" (click)="accionar(d, a)">
+                    <mat-icon aria-hidden="true">{{ iconoAccion[a] }}</mat-icon>{{ nombreAccion[a] }}
+                  </button>
+                }
+              </span>
+            </div>
+          } @empty { <p class="sg-nota">Sin dispositivos accionables en esta sede.</p> }
+        </div>
+
+        <div class="bloque">
+          <h4><mat-icon aria-hidden="true">local_police</mat-icon>Policía del cuadrante</h4>
+          @if (s.policia_telefono) {
+            <a class="llamar" [href]="'tel:' + s.policia_telefono"><mat-icon aria-hidden="true">call</mat-icon>{{ s.policia_telefono }}</a>
+            <p class="sg-nota">{{ s.policia_nombre || 'Cuadrante de la sede' }}</p>
+            <div class="sg-fila">
+              <button type="button" class="sg-boton" (click)="copiarTelefono(s.policia_telefono)"><mat-icon aria-hidden="true">content_copy</mat-icon>Copiar</button>
+              @if (incidenteSede()) {
+                <button type="button" class="sg-boton" (click)="anotarPolicia()"><mat-icon aria-hidden="true">edit_note</mat-icon>Anotar que se llamó</button>
+              }
+            </div>
+          } @else {
+            <p class="sg-nota">No hay teléfono del cuadrante para esta sede. Agréguelo en Configuración → Sedes.</p>
+          }
+        </div>
+      } @else {
+        <p class="sg-nota">Agregue sedes en Configuración para ver sus acciones.</p>
+      }
+    </section>
+  </aside>
+</div>
+
+@if (incidenteAbierto(); as id) {
+  <div class="velo" (click)="cerrarDetalle()" aria-hidden="true"></div>
+  <aside class="cajon" role="dialog" aria-modal="true" aria-label="Detalle de la alarma">
+    <sg-detalle-incidente [incidenteId]="id" (cerrar)="cerrarDetalle()" (verCamara)="verCamara($event)" />
+  </aside>
+}

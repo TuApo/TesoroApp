@@ -18,6 +18,7 @@ import {
   EmpleadoBusqueda,
   EpsMatrizItem,
   ExportJob,
+  ExportOpcionesSevenet,
   FiltrosIncapacidadV2,
   IncapacidadResumen,
   IncapacidadV2,
@@ -36,6 +37,10 @@ import {
   ValidacionResponse,
   ValidarIncapacidadRequest,
 } from '../../models/incapacidad-v2.model';
+import type {
+  FiltrosInicioIncapacidades,
+  InicioIncapacidades,
+} from '../../models/inicio-incapacidades.model';
 
 /* El mapeo `TipoSoporte` -> `legacy_field` ya NO vive aqui: los soportes de la
    v2 se suben por `POST /Incapacidades/v2/{id}/soportes`, que ancla en la
@@ -398,11 +403,19 @@ export class IncapacidadV2Service {
 
   // ── Exportaciones masivas asincronas (V44) ────────────────────────────
 
-  /** `POST /exports` — crea y encola el trabajo (202). Se sondea con `estadoExport`. */
-  crearExport(tipo: TipoExportJob, filtros: FiltrosIncapacidadV2 = {}): Observable<ExportJob> {
+  /**
+   * `POST /exports` — crea y encola el trabajo (202). Se sondea con `estadoExport`.
+   * `opciones` solo la usa ZIP_SEVENET (semana, carpeta base, solo plano); sin ella el cuerpo
+   * queda igual que antes para los demas llamadores.
+   */
+  crearExport(
+    tipo: TipoExportJob,
+    filtros: FiltrosIncapacidadV2 = {},
+    opciones?: ExportOpcionesSevenet,
+  ): Observable<ExportJob> {
     return this.http.post<ExportJob>(
       `${this.base}/exports`,
-      { tipo, filtros, ...this.cuerpoActor() },
+      { tipo, filtros, ...(opciones ? { opciones } : {}), ...this.cuerpoActor() },
       { headers: this.cabecerasJson() },
     );
   }
@@ -434,6 +447,22 @@ export class IncapacidadV2Service {
       params = params.set(clave, texto);
     }
     return this.http.get<ResumenIncapacidades>(`${this.base}/resumen`, {
+      headers: this.cabeceras(),
+      params,
+    });
+  }
+
+  /**
+   * `GET /inicio` — KPIs y series del Inicio del modulo en UNA llamada, ya recortados por el
+   * alcance del usuario (coordinador = sus oficinas). Filtros opcionales; vacios no viajan.
+   */
+  inicio(filtros: FiltrosInicioIncapacidades = {}): Observable<InicioIncapacidades> {
+    let params = new HttpParams();
+    for (const [clave, valor] of Object.entries(filtros)) {
+      const texto = valor === null || valor === undefined ? '' : String(valor).trim();
+      if (texto) params = params.set(clave, texto);
+    }
+    return this.http.get<InicioIncapacidades>(`${this.base}/inicio`, {
       headers: this.cabeceras(),
       params,
     });

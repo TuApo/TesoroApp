@@ -10,6 +10,7 @@ import { MatDialog } from '@angular/material/dialog';
 
 import { VetadosService } from '../../service/vetados/vetados.service';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
+import { SedeScopeService } from '@/app/shared/services/sede-scope/sede-scope.service';
 
 import { EventEmitter, Output } from '@angular/core';
 import { SharedModule } from '@/app/shared/shared.module';
@@ -186,6 +187,7 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   excelDescargando = false;
 
   private readonly destroyRef = inject(DestroyRef);
+  private readonly sedeScope = inject(SedeScopeService);
 
   constructor(
     private vetadosService: VetadosService,
@@ -209,7 +211,9 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
   private async initUsuarioYAbreviacion(): Promise<void> {
     try {
       const user: any = await this.utilityService.getUser();
-      this.sede = user?.sede?.nombre ?? '';
+      // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) se atiende a todas las
+      // oficinas: los recientes y el Excel de turnos no se recortan a esa sede.
+      this.sede = this.sedeScope.trabajaDesdeTransversal() ? '' : (user?.sede?.nombre ?? '');
     } catch {
       this.sede = '';
     }
@@ -582,36 +586,38 @@ export class SearchForCandidateComponent implements OnInit, OnDestroy {
     this.mostrarObservacion = true;
   }
 
-  enviarObservacion(): void {
+  async enviarObservacion(): Promise<void> {
     if (!this.observacion.trim()) {
       Swal.fire('Error', 'Debe escribir una observación.', 'error');
       return;
     }
 
-    this.utilityService.getUser().then((u: any) => {
-      if (!u) {
-        Swal.fire('Error', 'No hay usuario en sesión', 'error');
-        return;
-      }
+    // getUser() es síncrono: el `.then()` de antes lanzaba y la observación nunca salía.
+    const u: any = this.utilityService.getUser();
+    if (!u) {
+      Swal.fire('Error', 'No hay usuario en sesión', 'error');
+      return;
+    }
+    // Desde una sede transversal se elige la oficina del reporte en vez de estampar la suya.
+    const oficina = await this.sedeScope.oficinaParaRegistrar({ que: 'de este reporte' });
+    if (!oficina && this.sedeScope.trabajaDesdeTransversal()) return;
+    const nombre = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''} - ${u?.rol?.nombre ?? ''}`.trim();
+    const sedeNombre = oficina ?? '';
 
-      const nombre = `${u?.datos_basicos?.nombres ?? ''} ${u?.datos_basicos?.apellidos ?? ''} - ${u?.rol?.nombre ?? ''}`.trim();
-      const sedeNombre = u?.sede?.nombre ?? '';
+    const reporte = {
+      cedula: this.cedula,
+      observacion: this.observacion.trim(),
+      centro_costo_carnet: '',
+      reportadoPor: nombre
+    };
 
-      const reporte = {
-        cedula: this.cedula,
-        observacion: this.observacion.trim(),
-        centro_costo_carnet: '',
-        reportadoPor: nombre
-      };
-
-      this.vetadosService.enviarReporte(reporte, sedeNombre).pipe(take(1)).subscribe({
-        next: () => {
-          Swal.fire('Éxito', 'Observación enviada.', 'success');
-          this.mostrarObservacion = false;
-          this.observacion = '';
-        },
-        error: () => Swal.fire('Error', 'No se pudo enviar la observación.', 'error')
-      });
+    this.vetadosService.enviarReporte(reporte, sedeNombre).pipe(take(1)).subscribe({
+      next: () => {
+        Swal.fire('Éxito', 'Observación enviada.', 'success');
+        this.mostrarObservacion = false;
+        this.observacion = '';
+      },
+      error: () => Swal.fire('Error', 'No se pudo enviar la observación.', 'error')
     });
   }
 

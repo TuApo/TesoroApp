@@ -1,0 +1,105 @@
+<div class="pc">
+  <aside class="pz-tarjeta pc-temario">
+    <div class="pc-temario__cab">
+      <h3>Clases</h3>
+      <span class="pz-estado" [class.pz-estado--ok]="listas() === lecciones().length" [class.pz-estado--neutro]="listas() < lecciones().length">
+        {{ listas() }} / {{ lecciones().length }} escritas</span>
+    </div>
+    @for (m of modulos(); track m.clave; let mi = $index) {
+      <div class="pc-modulo">
+        <strong>{{ mi + 1 }}. {{ m.titulo }}</strong>
+        @for (l of m.lecciones; track l.clave; let li = $index) {
+          <button type="button" class="pc-item" [class.activa]="actual()?.clave === l.clave" (click)="elegida.set(l.clave)">
+            <span class="pc-item__n">{{ mi + 1 }}.{{ li + 1 }}</span>
+            <span class="pc-item__t">{{ l.titulo }}</span>
+            @switch (estado(l)) {
+              @case ('LISTO') { <mat-icon class="ok" aria-label="Escrita">check_circle</mat-icon> }
+              @case ('ERROR') { <mat-icon class="mal" aria-label="Con error">error</mat-icon> }
+              @default { @if (ocupado) { <span class="pz-punto pc-escribiendo" aria-label="En cola"></span> } @else { <mat-icon class="pend" aria-label="Pendiente">radio_button_unchecked</mat-icon> } }
+            }
+          </button>
+        }
+      </div>
+    }
+    <div class="pc-temario__acc">
+      @if (listas() < lecciones().length) {
+        <button type="button" class="pz-btn pz-btn--primario" [disabled]="ocupado || !diseno.ia_disponible" (click)="escribir()">
+          <mat-icon>auto_stories</mat-icon> Escribir {{ lecciones().length - listas() }} que faltan
+        </button>
+      }
+      <button type="button" class="pz-btn pz-btn--chico" (click)="ir.emit('estructura')"><mat-icon>account_tree</mat-icon> Volver a la estructura</button>
+    </div>
+  </aside>
+
+  <article class="pz-tarjeta pc-clase">
+    @if (actual(); as l) {
+      <header class="pc-clase__cab">
+        <div>
+          <span class="pc-clase__meta">{{ l.duracion_min }} min · {{ l.preguntas?.length ?? 0 }} preguntas · {{ l.actividades?.length ?? 0 }} actividades</span>
+          <h2>{{ l.titulo }}</h2>
+        </div>
+        <button type="button" class="pz-btn pz-btn--chico" [disabled]="ocupado || !diseno.ia_disponible" (click)="escribir([l.clave], true)">
+          <mat-icon>autorenew</mat-icon> {{ estado(l) === 'LISTO' ? 'Reescribir' : 'Escribir' }} esta clase
+        </button>
+      </header>
+
+      @if (estado(l) === 'ERROR') {
+        <p class="pc-error"><mat-icon>error_outline</mat-icon> {{ l.error_detalle || 'No se pudo escribir esta clase.' }}</p>
+      }
+
+      @if (l.objetivos?.length) {
+        <div class="pc-objetivos"><strong>Al terminar esta clase podrás</strong>
+          <ul>@for (o of l.objetivos; track $index) { <li>{{ o }}</li> }</ul></div>
+      }
+
+      @if (l.contenido_html) {
+        <div class="pc-html" [innerHTML]="l.contenido_html"></div>
+      } @else {
+        <div class="pz-vacio"><mat-icon>edit_note</mat-icon>
+          <p>{{ l.resumen || 'Esta clase todavía no está escrita.' }}</p></div>
+      }
+
+      @if (l.actividades?.length) {
+        <h3 class="pc-sec"><mat-icon>assignment</mat-icon> Actividades</h3>
+        @for (a of l.actividades; track $index) {
+          <div class="pc-actividad"><strong>{{ a.titulo }}</strong>
+            <span class="pz-estado pz-estado--neutro">{{ a.tipo === 'EVIDENCIA_FOTO' ? 'Foto de evidencia' : a.tipo === 'FORMULARIO' ? 'Formulario' : 'Respuesta escrita' }}</span>
+            @if (a.instrucciones) { <p>{{ a.instrucciones }}</p> }</div>
+        }
+      }
+
+      @if (l.preguntas?.length) {
+        <h3 class="pc-sec"><mat-icon>quiz</mat-icon> Quiz de la clase</h3>
+        <ol class="pc-preguntas">
+          @for (q of l.preguntas; track $index) {
+            <li>
+              <p>{{ q.enunciado }}</p>
+              <ul>
+                @for (o of q.opciones; track $index; let oi = $index) {
+                  <li [class.correcta]="o.correcta"><span>{{ letra(oi) }}</span> {{ o.texto }} @if (o.correcta) { <mat-icon>check</mat-icon> }</li>
+                }
+              </ul>
+              @if (q.explicacion) { <em>{{ q.explicacion }}</em> }
+            </li>
+          }
+        </ol>
+      }
+    } @else {
+      <div class="pz-vacio"><mat-icon>auto_stories</mat-icon><p>No hay clases en la estructura.</p></div>
+    }
+  </article>
+</div>
+
+<div class="pz-tarjeta pc-pie">
+  <span class="pc-nota">
+    @if (conError()) { {{ conError() }} clase{{ conError() === 1 ? '' : 's' }} con error: puedes reescribirlas o crear el curso igual. }
+    @else if (listas() < lecciones().length) { Las clases sin escribir se crean solo con su resumen. }
+    @else { Todo listo: revisa y crea el curso. }
+  </span>
+  <div class="pz-pie__der">
+    <button type="button" class="pz-btn" [disabled]="ocupado || !listas()" (click)="ir.emit('crear')">Crear sin medios</button>
+    <button type="button" class="pz-btn pz-btn--lima" [disabled]="ocupado || !listas()" (click)="ir.emit('medios')">
+      <mat-icon>perm_media</mat-icon> Agregar medios: fichas, audio, clips <mat-icon>arrow_forward</mat-icon>
+    </button>
+  </div>
+</div>

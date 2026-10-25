@@ -22,6 +22,10 @@ import { MatButtonModule } from '@angular/material/button';
 
 import { GestionDocumentalService } from '../../service/gestion-documental/gestion-documental.service';
 import { OrdenUnionDialogComponent } from '../../components/orden-union-dialog/orden-union-dialog.component';
+import {
+  ExpedienteContratoDialogComponent,
+  ExpedienteContratoDialogData,
+} from '../../components/expediente-contrato/expediente-contrato-dialog.component';
 
 import { saveAs } from 'file-saver';
 import { UtilityServiceService } from '@/app/shared/services/utilityService/utility-service.service';
@@ -57,6 +61,8 @@ type DocUiCell = {
   typeName?: string;
   cedula?: string;
   contract_number?: string | null;
+  /** Proceso de la fila: la subida queda atada a ese contrato (ms-documents V21). */
+  proceso_id?: number | null;
 };
 
 /** Documento de una columna junto a su dueño (para unir en PDF o comprimir en ZIP) */
@@ -77,6 +83,10 @@ type Row = {
   fecha_contratacion?: string | Date | null;
   /** Oficina (sede) registrada en la última entrevista del candidato. */
   oficina_entrevista?: string | null;
+  /** Último proceso de la persona (el de codigo_contrato / fecha_ingreso de esta fila). */
+  proceso_id?: number | null;
+  /** Cuántos contratos tiene la persona: con 2 o más las celdas pueden mezclar vínculos. */
+  contratos?: number | null;
   /** Mapa type_id -> DocCell */
   docs: Record<number, DocCell>;
 };
@@ -85,7 +95,14 @@ type TipoHeader = { id: number; name: string };
 
 type ChecklistDocDto = {
   type_id: number;
-  doc: null | { id?: number; file_url?: string; uploaded_at?: string };
+  doc: null | {
+    id?: number;
+    file_url?: string;
+    uploaded_at?: string;
+    /** Contrato al que está atado el documento (ms-documents V21). */
+    contract_number?: string | null;
+    proceso_id?: number | null;
+  };
 };
 
 type ChecklistItemDto = {
@@ -101,6 +118,10 @@ type ChecklistItemDto = {
   /** Rol del Usuario en gestion_admin asociado a la cédula (null si no existe). */
   usuario_rol?: string | null;
   docs?: ChecklistDocDto[];
+  /** Último proceso de la persona en ms-hr (id de ProcesoCandidato). */
+  proceso_id?: number | null;
+  /** Cuántos contratos tiene la persona en ms-hr. */
+  contratos?: number | null;
 };
 
 type ChecklistResponseDto = {
@@ -224,6 +245,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     typeId: number;
     typeName: string;
     contract_number?: string | null;
+    proceso_id?: number | null;
     rowRef: any;
   } | null = null;
 
@@ -496,6 +518,32 @@ export class ConsultContractingDocumentationComponent implements OnInit {
     window.open(url, '_blank', 'noopener,noreferrer');
   }
 
+  /**
+   * Abre el expediente POR CONTRATO de la fila: las columnas de esta tabla
+   * muestran el último documento de cada tipo sin importar el vínculo, así que a
+   * quien tiene 2+ contratos se le mezclan. El diálogo arranca en el contrato de
+   * la fila (su último proceso) y deja pasar a los anteriores.
+   */
+  verExpediente(row: any, ev?: Event): void {
+    ev?.stopPropagation();
+    const cedula = String(row?.cedula ?? '').trim();
+    if (!cedula) return;
+    this.dialog.open<ExpedienteContratoDialogComponent, ExpedienteContratoDialogData>(
+      ExpedienteContratoDialogComponent,
+      {
+        data: {
+          cedula,
+          proceso_id: row?.proceso_id ?? null,
+          nombre: row?.nombre ?? null,
+        },
+        width: '1100px',
+        maxWidth: '96vw',
+        maxHeight: '94vh',
+        autoFocus: false,
+      },
+    );
+  }
+
   /** Normaliza un string para comparar nombres de tipos documentales */
   private normName(s: any): string {
     return String(s ?? '')
@@ -579,6 +627,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       typeId: cell.typeId,
       typeName: cell.typeName ?? '',
       contract_number: cell.contract_number ?? row?.codigo_contrato ?? null,
+      proceso_id: cell.proceso_id ?? row?.proceso_id ?? null,
       rowRef: row,
     };
     const input = this.uploadInput?.nativeElement;
@@ -620,6 +669,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
           file,
           ctx.contract_number ? String(ctx.contract_number) : undefined,
           ctx.tipo_documento ? String(ctx.tipo_documento) : undefined,
+          ctx.proceso_id ?? null,
         ),
       );
 
@@ -1084,12 +1134,17 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       this.dataSource.data = rows;
 
       const baseCols: ColumnDefinition[] = [
+        // «Ver expediente» por contrato (la tabla estándar pone las acciones al inicio).
+        { name: 'actions', header: 'Expediente', type: 'custom', width: '90px', filterable: false, sortable: false },
         { name: 'cedula', header: 'Cédula', type: 'text', stickyStart: true, width: '120px' },
         { name: 'tipo_documento', header: 'Tipo Doc', type: 'text', width: '110px' },
         { name: 'nombre', header: 'Nombre', type: 'text', width: '260px' },
         { name: 'finca', header: 'Finca', type: 'text', width: '160px' },
         { name: 'fecha_ingreso', header: 'Fecha ingreso', type: 'date', width: '150px' },
         { name: 'codigo_contrato', header: 'Código contrato', type: 'text', width: '150px' },
+        // Con 2 o más, las columnas de abajo pueden mezclar documentos de vínculos distintos:
+        // el expediente los separa por contrato.
+        { name: 'contratos', header: 'Contratos', type: 'number', width: '110px', align: 'center' },
         { name: 'fecha_contratacion', header: 'Fecha contratación', type: 'date', width: '170px' },
       ];
 
@@ -1508,6 +1563,8 @@ export class ConsultContractingDocumentationComponent implements OnInit {
       codigo_contrato: it?.codigo_contrato ?? '',
       fecha_contratacion: it?.fecha_contratacion ?? '',
       oficina_entrevista: it?.oficina_entrevista ?? '',
+      proceso_id: it?.proceso_id ?? null,
+      contratos: it?.contratos ?? null,
     };
 
     const row: Row = { ...baseRow, docs: docsMap };
@@ -1578,6 +1635,7 @@ export class ConsultContractingDocumentationComponent implements OnInit {
         typeName: th.name,
         cedula: baseRow.cedula,
         contract_number: baseRow.codigo_contrato ?? null,
+        proceso_id: baseRow.proceso_id ?? null,
       } satisfies DocUiCell;
     }
 

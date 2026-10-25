@@ -27,4 +27,9 @@ export interface AlcanceSedes {
   todas: boolean;
   principal: SedeOperativa | null;
   sedes: SedeOperativa[];
+  /**
+   * Cuando `todas` viene de pertenecer a una sede transversal (ADMINISTRATIVOS, VIRTUAL)
+   * y no del rol, su nombre; si no, null.
+   */
+  sede_transversal?: string | null;
 }

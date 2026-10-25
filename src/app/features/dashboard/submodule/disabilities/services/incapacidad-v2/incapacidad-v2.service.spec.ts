@@ -485,6 +485,34 @@ describe('IncapacidadV2Service', () => {
     });
   });
 
+  describe('crearExport', () => {
+    it('sin opciones el cuerpo queda como antes (tipo + filtros, sin la clave opciones)', () => {
+      servicio.crearExport('ZIP_SOPORTES', { desde: '2026-10-01' }).subscribe();
+      const req = http.expectOne(`${BASE}/exports`);
+      expect(req.request.method).toBe('POST');
+      expect(req.request.body).toEqual({ tipo: 'ZIP_SOPORTES', filtros: { desde: '2026-10-01' } });
+      expect('opciones' in req.request.body).toBeFalse();
+      req.flush({});
+    });
+
+    it('ZIP_SEVENET manda las opciones (semana, carpeta base, solo plano) junto a los filtros', () => {
+      servicio
+        .crearExport(
+          'ZIP_SEVENET',
+          { desde: '2026-09-28', hasta: '2026-10-04' },
+          { semanaSevenet: 41, carpetaBase: 'C:\\SEVENET\\', soloPlano: true },
+        )
+        .subscribe();
+      const req = http.expectOne(`${BASE}/exports`);
+      expect(req.request.body).toEqual({
+        tipo: 'ZIP_SEVENET',
+        filtros: { desde: '2026-09-28', hasta: '2026-10-04' },
+        opciones: { semanaSevenet: 41, carpetaBase: 'C:\\SEVENET\\', soloPlano: true },
+      });
+      req.flush({});
+    });
+  });
+
   describe('urlAbsolutaDocumento', () => {
     it('deja pasar las URL absolutas', () => {
       expect(servicio.urlAbsolutaDocumento('https://x.co/a.pdf')).toBe('https://x.co/a.pdf');

@@ -4,9 +4,14 @@
       <h1>Catálogo de cursos</h1>
       <p class="subtitulo">Define qué formación existe. El contenido de cada curso se arma dentro.</p>
     </div>
-    <button type="button" class="btn-primario" (click)="nuevo()">
-      <mat-icon>add</mat-icon> Nuevo curso
-    </button>
+    <div class="cabecera__acciones">
+      <a class="btn-secundario btn-ia" routerLink="/dashboard/capacitaciones/disenar">
+        <mat-icon>auto_awesome</mat-icon> Diseñar con IA
+      </a>
+      <button type="button" class="btn-primario" (click)="nuevo()">
+        <mat-icon>add</mat-icon> Nuevo curso
+      </button>
+    </div>
   </header>
 
   @if (editando(); as form) {
@@ -41,6 +46,24 @@
         </label>
 
         <label>
+          <span>Quién puede tomarlo</span>
+          <select [(ngModel)]="form.acceso">
+            <option value="ASIGNADO">Solo a quien se le asigne</option>
+            <option value="LIBRE">Libre: cualquiera de la plataforma se inscribe</option>
+          </select>
+          <small>Los libres salen en Capacitaciones › En vivo y cursos libres cuando el curso está publicado.</small>
+        </label>
+
+        <label>
+          <span>Enfoque</span>
+          <select [(ngModel)]="form.contexto">
+            <option value="CORPORATIVO">Corporativo (inducción, SST, procesos)</option>
+            <option value="EDUCATIVO">Educativo (clases, cursos abiertos)</option>
+          </select>
+          <small>Ajusta el tono del diseñador con IA y cómo se presenta el curso.</small>
+        </label>
+
+        <label>
           <span>Vigencia en meses</span>
           <input type="number" min="1" [(ngModel)]="form.vigencia_meses" placeholder="Vacío = no vence" />
           <small>Cada cuánto hay que recertificar. Dispara los avisos de vencimiento.</small>
@@ -50,6 +73,26 @@
           <span>Entidad capacitadora</span>
           <input type="text" [(ngModel)]="form.entidad_capacitadora" />
           <small>Sale impresa en el certificado.</small>
+        </label>
+
+        <label>
+          <span>Intensidad (horas)</span>
+          <input type="number" min="1" [(ngModel)]="form.intensidad_horas" placeholder="Ej: 40" />
+          <small>Sale en el certificado: «con una intensidad de 40 horas».</small>
+        </label>
+
+        <label>
+          <span>Plantilla de certificado</span>
+          <select [(ngModel)]="form.certificate_template_id">
+            <option [ngValue]="null">La predeterminada</option>
+            @for (p of plantillas(); track p.id) {
+              <option [ngValue]="p.id">{{ p.nombre }}@if (p.predeterminada) { (predeterminada) }</option>
+            }
+          </select>
+          <small>
+            Cómo se ve el diploma de este curso. Se diseñan en
+            <a href="#" (click)="$event.preventDefault(); irAPlantillas()">Plantillas de certificado</a>.
+          </small>
         </label>
 
         <label class="checkbox">
@@ -90,6 +133,8 @@
       <ng-template tablaCelda="curso" let-c>
         {{ c.nombre }}
         @if (c.obligatorio) { <span class="chip chip-obligatorio">Obligatorio</span> }
+        @if (c.acceso === 'LIBRE') { <span class="chip chip-libre">Libre</span> }
+        @if (c.contexto === 'EDUCATIVO') { <span class="chip chip-educativo">Educativo</span> }
       </ng-template>
 
       <ng-template tablaCelda="codigo" let-c>

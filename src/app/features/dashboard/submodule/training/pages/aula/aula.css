@@ -1,0 +1,111 @@
+:host { display: block; font-family: var(--font-sans); color: var(--text); }
+.audios { display: none; }
+.au-centro { min-height: 60vh; display: grid; place-content: center; justify-items: center; gap: 10px; text-align: center; color: var(--muted); padding: 24px; }
+.au-final h2 { margin: 0; color: var(--text); }
+.au-final__icono { width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--mt-accent-soft); color: var(--mt-accent-ink); }
+.au-final__icono mat-icon { font-size: 38px; width: 38px; height: 38px; }
+.au-tenue { color: var(--muted); font-size: 13px; }
+.au-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); border-radius: 999px; padding: 0 18px; font: 700 14px var(--font-sans); cursor: pointer; text-decoration: none; min-height: 44px; box-sizing: border-box; }
+.au-btn:disabled { opacity: .55; cursor: not-allowed; }
+.au-btn--primario { background: var(--primary); border-color: var(--primary); color: #fff; }
+.au-btn--lima { background: var(--mt-accent); border-color: var(--mt-accent); color: var(--mt-accent-ink); }
+.au-btn--chico { min-height: 34px !important; padding: 0 12px; font-size: 12.5px; }
+.au-btn--peligro { color: #fff; background: #DC2626; border-color: #DC2626; }
+.au-btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+
+/* ── Sala previa ── */
+.au-previa { max-width: 1100px; margin: 24px auto; padding: 0 16px; display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 24px; align-items: center; }
+.au-previa__video { aspect-ratio: 16 / 9; border-radius: 20px; overflow: hidden; background: #101624; box-shadow: var(--shadow-md); }
+.au-previa__video video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.au-previa__apagada { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; gap: 8px; color: #94A3B8; text-align: center; padding: 20px; }
+.au-previa__apagada mat-icon { font-size: 48px; width: 48px; height: 48px; }
+.au-previa__info { display: grid; gap: 10px; }
+.au-previa__info h1 { margin: 0; font-size: clamp(22px, 3vw, 30px); font-weight: 800; }
+.au-previa__info p { margin: 0; }
+.au-chip { justify-self: start; font-size: 12px; font-weight: 800; padding: 3px 10px; border-radius: 999px; background: var(--surface-3); color: var(--text-2); }
+.au-chip[data-estado='EN_VIVO'] { background: #DC2626; color: #fff; }
+.au-rol { font-size: 14px; }
+.au-aviso { display: flex; gap: 6px; align-items: flex-start; padding: 10px 12px; border-radius: 12px; background: var(--warn-bg); color: var(--warn-fg); font-size: 13.5px; }
+.au-dispositivos { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 8px; align-items: center; }
+.au-dispositivos select { font: 13px var(--font-sans); padding: 8px; border-radius: 9px; border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text); min-width: 0; }
+.au-sw { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; font-size: 14px; cursor: pointer; grid-column: 1; }
+.au-sw mat-icon { color: var(--primary); }
+.au-espera { display: flex; align-items: center; gap: 8px; color: var(--info-fg); font-size: 14px; }
+.au-entrar { justify-self: start; min-height: 52px; padding: 0 26px; font-size: 16px; }
+.au-punto { width: 9px; height: 9px; border-radius: 50%; background: currentColor; display: inline-block; animation: au-l 1.2s infinite; }
+@keyframes au-l { 50% { opacity: .3; } }
+
+/* ── Sala ── */
+/* Inmersiva: la clase ocupa toda la ventana, por encima del menú, la pastilla de Turnos, el
+   dock de Comunicaciones (1150) y el botón del tutor IA (1200, tapaba «Actividades»); por
+   debajo de las llamadas entrantes (1300+) y de los Swal. */
+.au-sala { position: fixed; inset: 0; z-index: 1250; height: 100vh; height: 100dvh; display: grid; grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr) auto;
+  grid-template-areas: 'cab' 'esc' 'ctl'; gap: 8px; box-sizing: border-box; background: #0B1220;
+  padding: max(8px, env(safe-area-inset-top)) max(8px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(8px, env(safe-area-inset-left)); }
+.au-sala.con-panel { grid-template-columns: minmax(0, 1fr) minmax(300px, 380px); grid-template-areas: 'cab cab' 'esc pan' 'ctl ctl'; }
+.au-cab { grid-area: cab; display: flex; justify-content: space-between; align-items: center; gap: 10px; color: #E2E8F0; flex-wrap: wrap; }
+.au-cab__titulo { display: flex; align-items: center; gap: 10px; min-width: 0; flex-wrap: wrap; }
+.au-cab__titulo strong { font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 46vw; }
+.au-vivo { display: inline-flex; align-items: center; gap: 6px; background: #DC2626; color: #fff; font-size: 11.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+.au-equipo { display: inline-flex; align-items: center; gap: 4px; background: var(--mt-accent); color: var(--mt-accent-ink); font-size: 12px; font-weight: 800; padding: 2px 10px; border-radius: 999px; }
+.au-equipo mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.au-cab__acc { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.au-codigo, .au-contador { display: inline-flex; align-items: center; gap: 3px; background: rgba(255,255,255,.08); color: #E2E8F0; border: 0; border-radius: 999px; padding: 0 10px; min-height: 32px !important; font: 700 12.5px var(--font-mono); cursor: pointer; }
+.au-codigo mat-icon, .au-contador mat-icon { font-size: 16px; width: 16px; height: 16px; }
+.au-icono { width: 32px; padding: 0; justify-content: center; }
+.au-icono mat-icon { font-size: 20px; width: 20px; height: 20px; }
+.au-aviso-mini { color: #FCD34D; font-size: 12px; }
+.au-escenario { grid-area: esc; position: relative; min-height: 0; }
+.au-escenario__compartido { height: 100%; display: flex; flex-direction: column; gap: 6px; background: var(--surface); border-radius: 14px; padding: 8px; box-sizing: border-box; }
+.au-escenario__cab { display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; }
+.au-escenario__cab button { margin-left: auto; }
+.au-escenario__compartido > app-aula-pizarra, .au-escenario__compartido > app-aula-codigo { flex: 1; min-height: 0; }
+.au-reacciones { position: absolute; right: 16px; bottom: 16px; display: flex; flex-direction: column-reverse; gap: 6px; pointer-events: none; }
+.au-reaccion { display: inline-flex; align-items: center; gap: 6px; animation: au-sube 3.4s ease-out forwards; }
+.au-reaccion b { font-size: 34px; }
+.au-reaccion em { font-style: normal; font-size: 12px; color: #fff; background: rgba(0,0,0,.5); padding: 2px 8px; border-radius: 8px; }
+@keyframes au-sube { 0% { opacity: 0; transform: translateY(20px) scale(.6); } 15% { opacity: 1; transform: none; } 80% { opacity: 1; } 100% { opacity: 0; transform: translateY(-90px); } }
+.au-activar-audio { position: absolute; left: 50%; top: 16px; transform: translateX(-50%); }
+.au-error-flot { position: absolute; left: 50%; bottom: 16px; transform: translateX(-50%); margin: 0; background: var(--danger-bg); color: var(--danger-fg); padding: 8px 14px; border-radius: 12px; font-size: 13px; cursor: pointer; max-width: 90%; }
+.au-panel { grid-area: pan; min-height: 0; background: var(--surface); border-radius: 14px; display: flex; flex-direction: column; overflow: hidden; }
+.au-panel > header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.au-cerrar { width: 34px; min-height: 34px !important; border: 0; background: transparent; color: var(--muted); cursor: pointer; border-radius: 9px; display: grid; place-items: center; }
+.au-panel__cuerpo { flex: 1; min-height: 0; padding: 10px; overflow: hidden; display: flex; flex-direction: column; }
+.au-panel__cuerpo > * { flex: 1; min-height: 0; }
+.au-controles { grid-area: ctl; display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.au-controles__grupo, .au-controles__paneles { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+.au-ctrl { position: relative; display: inline-flex; flex-direction: column; align-items: center; justify-content: center; gap: 1px; min-width: 64px; min-height: 52px !important; padding: 4px 8px; border: 0; border-radius: 12px;
+  background: rgba(255,255,255,.08); color: #E2E8F0; cursor: pointer; font: 600 11px var(--font-sans); }
+.au-ctrl:hover:not(:disabled) { background: rgba(255,255,255,.16); }
+.au-ctrl:disabled { opacity: .45; cursor: not-allowed; }
+.au-ctrl.off { background: #7F1D1D; color: #FECACA; }
+.au-ctrl.on, .au-ctrl.activo { background: var(--primary); color: #fff; }
+.au-ctrl--rojo { background: #DC2626; color: #fff; }
+.au-ctrl mat-icon { font-size: 22px; width: 22px; height: 22px; }
+.au-badge { position: absolute; top: 3px; right: 6px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #DC2626; color: #fff; font: 800 10.5px var(--font-sans); display: grid; place-items: center; font-style: normal; }
+.au-badge--mano { background: #F59E0B; color: #111; }
+.au-espectador { display: inline-flex; align-items: center; gap: 6px; color: #94A3B8; font-size: 13px; padding: 0 8px; }
+.au-emojis-wrap { position: relative; }
+/* Fuera de la barra: la barra se desliza de lado en pantallas angostas y recortaría el menú. */
+.au-emojis { position: absolute; bottom: 76px; left: 50%; transform: translateX(-50%); display: flex; flex-wrap: wrap; justify-content: center; max-width: calc(100% - 24px); gap: 2px; background: var(--surface); border-radius: 14px; padding: 6px; box-shadow: var(--shadow-lg); z-index: 40; }
+.au-emojis button { font-size: 24px; background: transparent; border: 0; cursor: pointer; border-radius: 10px; width: 42px; min-height: 42px !important; }
+.au-emojis button:hover { background: var(--surface-3); }
+.au-disposicion { font: 600 12.5px var(--font-sans); padding: 8px; border-radius: 10px; border: 0; background: rgba(255,255,255,.08); color: #E2E8F0; min-height: 52px; }
+.au-disposicion option { color: #111; }
+
+@media (max-width: 1000px) {
+  .au-previa { grid-template-columns: minmax(0, 1fr); }
+  .au-sala.con-panel { grid-template-columns: minmax(0, 1fr); grid-template-areas: 'cab' 'esc' 'ctl'; }
+  /* Hoja inferior ENCIMA de la barra de controles, que sigue a la vista. */
+  .au-panel { position: absolute; left: 8px; right: 8px; bottom: calc(72px + env(safe-area-inset-bottom)); height: min(62vh, calc(100% - 150px)); z-index: 30; box-shadow: var(--shadow-lg); }
+  /* Una sola fila que se desliza de lado, en vez de tres filas que se comen el escenario. */
+  .au-controles { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
+  .au-controles::-webkit-scrollbar { display: none; }
+  .au-controles__grupo, .au-controles__paneles { flex-wrap: nowrap; flex: none; }
+}
+@media (max-width: 640px) {
+  .au-ctrl { min-width: 48px; }
+  .au-ctrl span { display: none; }
+  .au-disposicion { display: none; }
+  .au-cab__titulo strong { max-width: 60vw; }
+}

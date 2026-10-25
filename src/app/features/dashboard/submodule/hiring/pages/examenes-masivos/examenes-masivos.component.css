@@ -1,0 +1,453 @@
+/* ============================================================
+   CARGA MASIVA DE EXÁMENES MÉDICOS (pedido #11)
+   Solo tokens del tema: funciona en claro y oscuro.
+   ============================================================ */
+
+:host {
+  display: block;
+  background: var(--bg);
+  min-height: 100%;
+}
+
+.em-pagina {
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ── Cabecera ──────────────────────────────────────────────── */
+.em-hero {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: var(--r-lg, 14px);
+  background: var(--navy);
+  color: #fff;
+}
+
+.em-hero-icono {
+  width: 48px;
+  height: 48px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .14);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.em-hero-icono mat-icon {
+  color: var(--lime);
+  font-size: 26px;
+  width: 26px;
+  height: 26px;
+}
+
+.em-hero-textos {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.em-hero-titulo {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #fff;
+}
+
+.em-hero-sub {
+  margin: 4px 0 0;
+  font-size: .85rem;
+  color: rgba(255, 255, 255, .85);
+  line-height: 1.45;
+}
+
+.em-volver {
+  color: #fff !important;
+  border-color: rgba(255, 255, 255, .45) !important;
+  flex-shrink: 0;
+}
+
+/* ── Bloques ───────────────────────────────────────────────── */
+.em-bloque {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg, 14px);
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+
+.em-bloque-cabecera {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.em-paso {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: var(--navy);
+  color: var(--lime);
+  font-size: .8rem;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.em-bloque-titulo {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.em-lote {
+  margin-left: auto;
+  font-size: .8rem;
+  color: var(--muted);
+}
+
+.em-nota {
+  margin: 0;
+  font-size: .84rem;
+  color: var(--text-2);
+  line-height: 1.5;
+}
+
+.em-nota code {
+  font-family: var(--font-mono, monospace);
+  font-size: .8rem;
+  padding: 1px 5px;
+  border-radius: 4px;
+  background: var(--surface-3);
+  color: var(--text);
+}
+
+.em-fila-campos {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.em-campo {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+.em-campo-etiqueta {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+}
+
+/* ── Controles nativos (dentro de la tabla: livianos) ──────── */
+.em-control {
+  height: 34px;
+  padding: 0 8px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--text);
+  font: inherit;
+  font-size: .84rem;
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.em-control:focus {
+  outline: 2px solid var(--ring, var(--brand-blue));
+  outline-offset: 1px;
+}
+
+.em-control:disabled {
+  opacity: .6;
+  cursor: not-allowed;
+}
+
+.em-control-falta {
+  border-color: var(--warn-border);
+  background: var(--warn-bg);
+}
+
+.em-control-chico {
+  width: auto;
+  min-width: 150px;
+}
+
+.em-control-cedula {
+  max-width: 150px;
+}
+
+.em-oculto {
+  display: none;
+}
+
+/* ── Zona de arrastre ──────────────────────────────────────── */
+.em-dropzone {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 26px 16px;
+  border: 2px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface-2);
+  color: var(--muted);
+  text-align: center;
+  cursor: pointer;
+  transition: border-color .15s ease, background .15s ease;
+}
+
+.em-dropzone:hover,
+.em-dropzone-activa {
+  border-color: var(--brand-blue);
+  background: var(--info-bg);
+  color: var(--info-fg);
+}
+
+.em-dropzone-bloqueada {
+  cursor: progress;
+  opacity: .75;
+}
+
+.em-dropzone-icono {
+  font-size: 36px;
+  width: 36px;
+  height: 36px;
+}
+
+.em-dropzone-texto {
+  margin: 0;
+  font-size: .92rem;
+  color: var(--text);
+}
+
+.em-dropzone-ayuda {
+  margin: 0;
+  font-size: .78rem;
+}
+
+.em-girando {
+  animation: em-girar 1s linear infinite;
+}
+
+@keyframes em-girar {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .em-girando { animation: none; }
+}
+
+/* ── Avisos ────────────────────────────────────────────────── */
+.em-aviso {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  font-size: .84rem;
+  line-height: 1.45;
+}
+
+.em-aviso > mat-icon {
+  flex: none;
+}
+
+.em-aviso-cuerpo {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.em-aviso ul {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  max-height: 160px;
+  overflow: auto;
+}
+
+.em-aviso-warn {
+  background: var(--warn-bg);
+  border-color: var(--warn-border);
+  color: var(--warn-fg);
+}
+
+.em-aviso-error {
+  background: var(--danger-bg);
+  border-color: var(--danger-border);
+  color: var(--danger-fg);
+}
+
+.em-aviso-ok {
+  background: var(--ok-bg);
+  border-color: var(--ok-border);
+  color: var(--ok-fg);
+}
+
+.em-recientes {
+  font-size: .82rem;
+  color: var(--text-2);
+}
+
+.em-recientes summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.em-recientes ul {
+  margin: 6px 0 0;
+  padding-left: 18px;
+}
+
+.em-rojo {
+  color: var(--danger-fg);
+}
+
+/* ── Revisión ──────────────────────────────────────────────── */
+.em-kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.em-kpi {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  font-size: .8rem;
+  font-weight: 600;
+}
+
+.em-kpi mat-icon {
+  font-size: 17px;
+  width: 17px;
+  height: 17px;
+}
+
+.em-kpi-ok { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-fg); }
+.em-kpi-warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg); }
+.em-kpi-danger { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-fg); }
+.em-kpi-info { background: var(--info-bg); border-color: var(--info-border); color: var(--info-fg); }
+
+.em-herramientas {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.em-cedula {
+  font-family: var(--font-mono, monospace);
+  font-size: .84rem;
+}
+
+.em-archivo {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.em-archivo mat-icon {
+  flex: none;
+  font-size: 18px;
+  width: 18px;
+  height: 18px;
+  color: var(--danger);
+}
+
+.em-archivo-nombre {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.em-archivo-tam {
+  flex: none;
+  font-size: .74rem;
+  color: var(--muted);
+}
+
+.em-tenue {
+  color: var(--muted);
+}
+
+/* ── Subida ────────────────────────────────────────────────── */
+.em-progreso {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.em-progreso-texto {
+  display: flex;
+  justify-content: space-between;
+  font-size: .84rem;
+  color: var(--text-2);
+}
+
+.em-acciones {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.em-btn-subir {
+  background: var(--navy) !important;
+  color: #fff !important;
+}
+
+.em-btn-subir:disabled {
+  opacity: .5;
+}
+
+/* ── Móvil ─────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .em-pagina {
+    padding: 10px;
+  }
+
+  .em-hero {
+    flex-wrap: wrap;
+  }
+
+  .em-volver {
+    width: 100%;
+  }
+
+  .em-lote {
+    margin-left: 0;
+  }
+
+  .em-acciones {
+    justify-content: stretch;
+  }
+
+  .em-acciones > button {
+    flex: 1 1 100%;
+  }
+}

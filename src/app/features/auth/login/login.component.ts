@@ -1,3 +1,4 @@
+import { Capacitor } from '@capacitor/core';
 import { Component, OnInit, ChangeDetectionStrategy, inject, signal } from '@angular/core';
 import {
   AbstractControl, FormBuilder, FormGroup,
@@ -19,6 +20,7 @@ import {
   CredencialesGuardadas, ErrorAccesoRapido, EstadoAccesoRapido, MetodoAcceso,
   QuickAccessService,
 } from '../../../core/security/quick-access.service';
+import { guardarRefresh } from '../../../core/security/renovacion-token';
 import {
   DatosSetupAcceso, QuickAccessSetupComponent, ResultadoSetupAcceso,
 } from '../../../shared/components/quick-access/quick-access-setup.component';
@@ -47,18 +49,9 @@ function emailOrDocValidator(control: AbstractControl): ValidationErrors | null 
   return isEmail || isDoc ? null : { emailOrDoc: true };
 }
 
-function passwordStrengthValidator(control: AbstractControl): ValidationErrors | null {
-  const v: string = control.value || '';
-  if (v.length < 12) return { minLength: true };
-  let hasLower = false, hasUpper = false, hasDigit = false, hasSymbol = false;
-  for (const c of v) {
-    if (c >= 'a' && c <= 'z') hasLower = true;
-    else if (c >= 'A' && c <= 'Z') hasUpper = true;
-    else if (c >= '0' && c <= '9') hasDigit = true;
-    else hasSymbol = true;
-  }
-  const classes = [hasLower, hasUpper, hasDigit, hasSymbol].filter(Boolean).length;
-  return classes >= 3 ? null : { passwordStrength: true };
+// Desde 2026-10-22 se acepta la clave que cada quien quiera (solo obligatoria).
+function passwordStrengthValidator(_control: AbstractControl): ValidationErrors | null {
+  return null;
 }
 
 /**
@@ -196,6 +189,12 @@ export class LoginComponent implements OnInit {
     }
   }
 
+  /**
+   * Dentro de la app instalada desde Google Play no se ofrece descargar el APK ni el .exe:
+   * Play prohíbe que una app se actualice o se reinstale por fuera de la tienda.
+   */
+  readonly enAppNativa = (() => { try { return Capacitor.isNativePlatform(); } catch { return false; } })();
+
   descargarEscritorio(): void {
     const r = this.desktopRelease();
     if (!r) return;
@@ -266,6 +265,9 @@ export class LoginComponent implements OnInit {
       }
       setLocalStorageItem('token', resp.token);
       setLocalStorageItem('user', JSON.stringify(resp.user));
+      // Con JWT_REFRESH_ENABLED el login trae refresh_token: el interceptor lo usa para renovar
+      // el access token (minutos) sin volver a pedir la clave. Sin él se borra el de una sesión anterior.
+      guardarRefresh((resp as any)?.refresh_token);
       const rolNombre = resp.user?.rol?.nombre ?? '';
 
       // V86: la cuenta sigue con la clave INICIAL con la que se creó desde el formulario

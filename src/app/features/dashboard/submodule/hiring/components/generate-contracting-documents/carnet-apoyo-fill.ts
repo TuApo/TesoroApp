@@ -28,6 +28,7 @@ import {
   ConfigImpresionCarnet,
   dibujarCaraReverso,
   normalizarImpresion,
+  normalizarPorHoja,
 } from './carnet-impresion';
 
 /** Tamaño del carnet en mm (CR80, el estándar). */
@@ -42,7 +43,10 @@ export const CARNET_FILAS = 3;
 export const ARL_FIJA = 'SURA';
 export const CCF_FIJA = 'COMPENSAR';
 
-/** Teléfono del coordinador impreso en el reverso. */
+/**
+ * Teléfono del coordinador impreso en el reverso cuando no se pudo resolver el
+ * del gestor del centro de costo (ver `DatosCarnet.telefonoCoordinador`).
+ */
 export const TELEFONO_COORDINADOR = '3102518013';
 
 export interface DatosCarnet {
@@ -58,6 +62,12 @@ export interface DatosCarnet {
   afp: string;
   emergenciaNombre: string;
   emergenciaTelefono: string;
+  /**
+   * "Contacto Coordinador de la Temporal": el teléfono del GESTOR del centro de
+   * costo al que aspira la persona (`centros_costos.telefono_gestor`). Si no se
+   * pudo resolver, se imprime el fijo `TELEFONO_COORDINADOR`.
+   */
+  telefonoCoordinador?: string | null;
   /** DataURL del logo y de la foto; si faltan, se omiten sin romper. */
   logoDataUrl?: string | null;
   fotoDataUrl?: string | null;
@@ -272,7 +282,7 @@ function dibujarReverso(doc: jsPDF, d: DatosCarnet, ox: number, oy: number): voi
   doc.rect(X(3), Y(y2 - 2.8), W - 6, 4.2);
   doc.setFont('helvetica', 'bold').setFontSize(6);
   doc.text(
-    `Contacto Coordinador de la Temporal  ${TELEFONO_COORDINADOR}`,
+    `Contacto Coordinador de la Temporal  ${s(d.telefonoCoordinador) || TELEFONO_COORDINADOR}`,
     X(W / 2), Y(y2), { align: 'center' },
   );
 }
@@ -281,7 +291,10 @@ function dibujarReverso(doc: jsPDF, d: DatosCarnet, ox: number, oy: number): voi
 export const CARNETS_POR_HOJA = CARNET_FILAS * CARNET_COLUMNAS;
 
 /**
- * Lote: llena las 9 celdas de cada hoja y agrega hojas mientras haya gente.
+ * Lote: llena `porHoja` celdas de cada hoja (1..9, por defecto las 9) y agrega
+ * hojas mientras haya gente. Las celdas se ocupan en orden de lectura sobre la
+ * MISMA grilla de 3x3, así que con cualquier cantidad el carnet queda en su
+ * sitio de siempre y no hay forma de que se salga de la hoja.
  *
  * El reverso se dibuja en la columna espejada (col → COLUMNAS-1-col) por la
  * misma razón que el carnet individual: es lo que pide el volteo sobre el eje
@@ -292,17 +305,19 @@ export const CARNETS_POR_HOJA = CARNET_FILAS * CARNET_COLUMNAS;
  */
 export function buildCarnetApoyoLotePdf(
   lista: readonly DatosCarnet[], impresion?: Partial<ConfigImpresionCarnet> | null,
+  porHoja: number = CARNETS_POR_HOJA,
 ): Blob {
   const gente = (lista ?? []).filter(Boolean);
   const cfg = normalizarImpresion(impresion);
+  const cupo = normalizarPorHoja(porHoja, CARNETS_POR_HOJA);
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'letter', compress: true });
   doc.setProperties({ title: `Carnets_lote_${gente.length}` });
 
-  const hojas = Math.max(1, Math.ceil(gente.length / CARNETS_POR_HOJA));
+  const hojas = Math.max(1, Math.ceil(gente.length / cupo));
   let primeraPagina = true;
 
   for (let hoja = 0; hoja < hojas; hoja++) {
-    const tanda = gente.slice(hoja * CARNETS_POR_HOJA, (hoja + 1) * CARNETS_POR_HOJA);
+    const tanda = gente.slice(hoja * cupo, (hoja + 1) * cupo);
 
     // Cara 1 (frentes) de la hoja.
     if (!primeraPagina) doc.addPage('letter', 'landscape');

@@ -7,6 +7,7 @@ import {
   mergeMap, toArray
 } from 'rxjs/operators';
 import * as _moment from 'moment';
+import { conAliasCamel } from './claves-api';
 // @ts-ignore
 const moment = _moment.default || _moment;
 
@@ -21,6 +22,7 @@ import {
   Canal,
   Expediente,
   DocumentoExpediente,
+  GrupoDoc,
   ResumenPersona,
   EmpresaUsuariaOpcion
 } from '../models/afiliaciones-dashboard.models';
@@ -104,6 +106,20 @@ export class AfiliacionesGestionService {
     shareReplay(1)
   );
 
+
+  /**
+   * Toda respuesta de ms-hr pasa por `conAliasCamel`: ver `claves-api.ts`. El servicio lee los
+   * campos en camelCase y ms-hr los entrega en snake_case, asi que sin este paso cada campo de
+   * mas de una palabra llega vacio.
+   */
+  private apiGet<T>(url: string, options?: any): Observable<T> {
+    return this.http.get<any>(url, options).pipe(map(v => conAliasCamel(v) as T));
+  }
+
+  private apiPost<T>(url: string, body: any, options?: any): Observable<T> {
+    return this.http.post<any>(url, body, options).pipe(map(v => conAliasCamel(v) as T));
+  }
+
   private toParams(f: any): HttpParams {
     let p = new HttpParams()
       .set('desde', moment(f.range.start).format('YYYY-MM-DD'))
@@ -136,7 +152,7 @@ export class AfiliacionesGestionService {
       if (empresa) params = params.set('empresa', empresa);
       if (empresaUsuaria) params = params.set('empresa_usuaria', empresaUsuaria);
       if (oficina) params = params.set('oficina', oficina);
-      return this.http.get<CatalogosResp>(
+      return this.apiGet<CatalogosResp>(
         `${this.apiUrl}/contratos/catalogos`, { params }).pipe(
         catchError(() => of({ oficinas: [], responsables: [], empresasUsuarias: [] } as CatalogosResp))
       );
@@ -155,7 +171,7 @@ export class AfiliacionesGestionService {
   ]).pipe(
     switchMap(([f, pg]) => {
       const params = this.toParams(f).set('page', String(pg.page)).set('size', String(pg.size));
-      return this.http.get<any>(`${this.apiUrl}/contratos`, { params }).pipe(
+      return this.apiGet<any>(`${this.apiUrl}/contratos`, { params }).pipe(
         map(res => ({
           rows: (res?.results || []).map((r: any) => this.mapRow(r)),
           total: res?.total || 0
@@ -197,7 +213,7 @@ export class AfiliacionesGestionService {
 
   // ── Detalle / cédula ───────────────────────────────────────────────
   getCaso(candidatoId: number): Observable<CasoDetalle> {
-    return this.http.get<any>(`${this.apiUrl}/casos/${candidatoId}`).pipe(
+    return this.apiGet<any>(`${this.apiUrl}/casos/${candidatoId}`).pipe(
       map(r => ({
         candidato_id: r.candidatoId,
         contrato: r.contrato || null,
@@ -214,7 +230,7 @@ export class AfiliacionesGestionService {
    * mapeo — de ahí que sirva para alimentar el PDF con gente que no está en la página visible.
    */
   getContratoRow(candidatoId: number): Observable<ContratacionRow | null> {
-    return this.http.get<any>(`${this.apiUrl}/casos/${candidatoId}`).pipe(
+    return this.apiGet<any>(`${this.apiUrl}/casos/${candidatoId}`).pipe(
       map(r => (r?.contrato ? this.mapRow(r.contrato) : null)),
       catchError(() => of(null))
     );
@@ -252,7 +268,7 @@ export class AfiliacionesGestionService {
   }
 
   getCedula(candidatoId: number): Observable<CedulaDoc> {
-    return this.http.get<any>(`${this.apiUrl}/casos/${candidatoId}/cedula`).pipe(
+    return this.apiGet<any>(`${this.apiUrl}/casos/${candidatoId}/cedula`).pipe(
       map(r => ({
         found: !!r.found, cedula: r.cedula, owner_id: r.ownerId, documentos: r.documentos || []
       } as CedulaDoc)),
@@ -269,7 +285,7 @@ export class AfiliacionesGestionService {
   getExpediente(candidatoId: number, maxPorGrupo?: number): Observable<Expediente> {
     let params = new HttpParams();
     if (maxPorGrupo) params = params.set('max_por_grupo', String(maxPorGrupo));
-    return this.http.get<any>(`${this.apiUrl}/casos/${candidatoId}/expediente`, { params }).pipe(
+    return this.apiGet<any>(`${this.apiUrl}/casos/${candidatoId}/expediente`, { params }).pipe(
       map(r => this.mapExpediente(candidatoId, r)),
       catchError(() => of(this.expedienteVacio(candidatoId)))
     );
@@ -282,7 +298,7 @@ export class AfiliacionesGestionService {
   resumenMasivo(cedulas: string[]): Observable<Map<string, ResumenPersona>> {
     const limpias = Array.from(new Set((cedulas || []).map(c => (c || '').trim()).filter(Boolean)));
     if (!limpias.length) return of(new Map<string, ResumenPersona>());
-    return this.http.post<any[]>(`${this.apiUrl}/expediente/resumen-masivo`, { cedulas: limpias }).pipe(
+    return this.apiPost<any[]>(`${this.apiUrl}/expediente/resumen-masivo`, { cedulas: limpias }).pipe(
       map(rows => {
         const out = new Map<string, ResumenPersona>();
         (rows || []).forEach(r => {
@@ -321,9 +337,40 @@ export class AfiliacionesGestionService {
     );
   }
 
+  /**
+   * TODOS los documentos que gestión documental tiene de esa cédula, sea del tipo que sea.
+   *
+   * El expediente de ms-hr solo consulta cédula, ADRES y traslado; esto va directo a
+   * ms-documents (`/api/v1/documents/by-owner`, sin filtro de tipo) para la pestaña «Otros».
+   * `latest=true` a propósito: ADRES acumula miles de versiones por cédula y pedirlas todas
+   * tumba la pantalla.
+   */
+  documentosDelDueno(cedula: string): Observable<DocumentoExpediente[]> {
+    const owner = (cedula || '').trim();
+    if (!owner) return of([]);
+    const params = new HttpParams().set('ownerId', owner).set('latest', 'true');
+    return this.apiGet<any>(`${this.base}/api/v1/documents/by-owner`, { params }).pipe(
+      map(r => (r?.documents || []).map((d: any) => ({
+        grupo: 'OTROS' as GrupoDoc,
+        document_id: d.document_id,
+        version_id: d.version_id ?? null,
+        owner_id: d.owner_id,
+        tipo: d.type_name,
+        archivo: d.file_name,
+        mime: d.mime_type,
+        tamano_bytes: d.size_bytes,
+        version: d.version_number,
+        vigente: d.latest !== false,
+        subido_en: d.uploaded_at,
+        registrado_en: d.created_at,
+      } as DocumentoExpediente))),
+      catchError(() => of([] as DocumentoExpediente[]))
+    );
+  }
+
   /** Último ADRES reportado por el robot (documento tipo ADRES de la persona). */
   getAdres(candidatoId: number): Observable<CedulaDoc> {
-    return this.http.get<any>(`${this.apiUrl}/casos/${candidatoId}/adres`).pipe(
+    return this.apiGet<any>(`${this.apiUrl}/casos/${candidatoId}/adres`).pipe(
       map(r => ({
         found: !!r.found, cedula: r.cedula, owner_id: r.ownerId, documentos: r.documentos || []
       } as CedulaDoc)),
@@ -345,22 +392,26 @@ export class AfiliacionesGestionService {
 
   // ── Mutaciones individuales ────────────────────────────────────────
   confirmar(candidatoId: number, validador: Validador, canal: Canal, nota?: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/casos/${candidatoId}/confirmar/${validador.toLowerCase()}`,
+    return this.apiPost<any>(`${this.apiUrl}/casos/${candidatoId}/confirmar/${validador.toLowerCase()}`,
       { canal, nota: nota || null });
   }
   registrarIntento(candidatoId: number, validador: Validador, canal: Canal, resultado: string, nota?: string): Observable<any> {
-    return this.http.post(`${this.apiUrl}/casos/${candidatoId}/intento-contacto`,
+    return this.apiPost<any>(`${this.apiUrl}/casos/${candidatoId}/intento-contacto`,
       { validador, canal, resultado, nota: nota || null });
   }
 
   // ── Mutaciones MASIVAS ─────────────────────────────────────────────
   confirmarMasivo(candidatoIds: number[], validador: Validador, canal: Canal, nota?: string): Observable<MasivoResult> {
-    return this.http.post<any>(`${this.apiUrl}/casos/confirmar-masivo`,
-      { candidatoIds, validador, canal, nota: nota || null }).pipe(map(r => this.mapMasivo(r)));
+    return this.apiPost<any>(`${this.apiUrl}/casos/confirmar-masivo`,
+      // ms-hr deserializa en snake_case: enviar 'candidatoIds' hacía que la lista llegara
+      // NULA y la acción masiva respondiera 0 procesados sin un solo error.
+      { candidato_ids: candidatoIds, validador, canal, nota: nota || null })
+      .pipe(map(r => this.mapMasivo(r)));
   }
   registrarIntentoMasivo(candidatoIds: number[], validador: Validador, canal: Canal, resultado: string, nota?: string): Observable<MasivoResult> {
-    return this.http.post<any>(`${this.apiUrl}/casos/intento-masivo`,
-      { candidatoIds, validador, canal, resultado, nota: nota || null }).pipe(map(r => this.mapMasivo(r)));
+    return this.apiPost<any>(`${this.apiUrl}/casos/intento-masivo`,
+      { candidato_ids: candidatoIds, validador, canal, resultado, nota: nota || null })
+      .pipe(map(r => this.mapMasivo(r)));
   }
 
   // ── Mapeo ──────────────────────────────────────────────────────────
@@ -479,6 +530,7 @@ export class AfiliacionesGestionService {
       estado_afiliacion: r.estadoAfiliacion,
       ingreso_confirmado: !!r.ingresoConfirmado,
       ingreso_confirmado_canal: r.ingresoConfirmadoCanal,
+      ingreso_confirmado_at: this.toIso(r.ingresoConfirmadoAt),
       coord_confirmado: !!r.coordConfirmado,
       nomina_confirmado: !!r.nominaConfirmado,
       pago_confirmado: !!r.pagoConfirmado,
@@ -504,6 +556,7 @@ export class AfiliacionesGestionService {
       salario: r.salario,
       adres_estado: r.adresEstado,
       adres_eps: r.adresEps,
+      adres_regimen: r.adresRegimen ?? r.adres_regimen,
       adres_fecha: this.toIso(r.adresFecha)
     };
   }

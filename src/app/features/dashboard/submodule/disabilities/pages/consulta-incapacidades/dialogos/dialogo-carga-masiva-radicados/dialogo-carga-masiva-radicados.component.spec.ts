@@ -7,11 +7,15 @@ import {
 } from '@angular/common/http/testing';
 import { MAT_DIALOG_DATA, MatDialogRef } from '@angular/material/dialog';
 import { provideNoopAnimations } from '@angular/platform-browser/animations';
+import * as XLSX from 'xlsx';
 
 import { environment } from '@/environments/environment';
 
 import { ResultadoCargaMasivaRadicados } from '../../../../models/incapacidad-v2.model';
-import { DialogoCargaMasivaRadicadosComponent } from './dialogo-carga-masiva-radicados.component';
+import {
+  CABECERAS_FALLIDOS,
+  DialogoCargaMasivaRadicadosComponent,
+} from './dialogo-carga-masiva-radicados.component';
 
 const BASE = `${environment.apiUrl}/Incapacidades/v2`;
 const URL_CARGA = `${BASE}/radicados/carga-masiva`;
@@ -24,6 +28,7 @@ const RESULTADO: ResultadoCargaMasivaRadicados = {
   filas: [
     {
       fila: 2,
+      codigo: 'TASB018',
       cedula: '1070982591',
       fechaInicio: '12/08/2026',
       numeroRadicado: 'RAD-000123',
@@ -33,6 +38,7 @@ const RESULTADO: ResultadoCargaMasivaRadicados = {
     },
     {
       fila: 3,
+      codigo: '5212345646235',
       cedula: '52123456',
       fechaInicio: '01/08/2026',
       numeroRadicado: 'RAD-000124',
@@ -42,11 +48,12 @@ const RESULTADO: ResultadoCargaMasivaRadicados = {
     },
     {
       fila: 4,
-      cedula: '900000000',
-      fechaInicio: '02/08/2026',
+      codigo: 'TASB999',
+      cedula: '',
+      fechaInicio: '',
       numeroRadicado: 'RAD-000125',
       ok: false,
-      mensaje: 'No existe incapacidad para esa cedula y fecha de inicio',
+      mensaje: 'No existe ninguna incapacidad activa con el código TASB999',
       incapacidadId: null,
     },
   ],
@@ -175,5 +182,87 @@ describe('DialogoCargaMasivaRadicadosComponent', () => {
     expect(componente.resultado()).toBeNull();
     expect(componente.error()).toContain('HTTP 400');
     expect(refFalso.close).not.toHaveBeenCalled();
+  });
+
+  // ═══════════════════════════════════════════════════════════════════
+  // Iteracion 3: la incapacidad se identifica por CODIGO UNICO
+  // ═══════════════════════════════════════════════════════════════════
+
+  /** Primera hoja del libro como matriz de celdas. */
+  const celdas = (libro: XLSX.WorkBook): unknown[][] =>
+    XLSX.utils.sheet_to_json<unknown[]>(libro.Sheets[libro.SheetNames[0]], { header: 1 });
+
+  it('la plantilla pide Codigo unico y despues los demas campos, sin Cedula ni Fecha inicio', () => {
+    const guardar = spyOn(componente, 'guardarLibro');
+
+    componente.descargarPlantilla();
+
+    expect(guardar).toHaveBeenCalledTimes(1);
+    const [libro, nombre] = guardar.calls.mostRecent().args;
+    expect(nombre).toBe('plantilla-carga-radicados.xlsx');
+    const [cabeceras, ejemplo] = celdas(libro);
+    expect(cabeceras).toEqual(['Codigo unico', 'Numero radicado', 'Fecha radicado', 'Donde se radico']);
+    expect(ejemplo).toEqual(['TASB018', 'RAD-000123', '18/08/2026', 'pagina']);
+  });
+
+  it('explica en el dialogo que el codigo es el de oficina o el general', () => {
+    const texto = (fixture.nativeElement as HTMLElement).querySelector('.cmr-nota')?.textContent ?? '';
+
+    expect(texto).toContain('Código único');
+    expect(texto).toContain('el de oficina');
+    expect(texto).toContain('el general');
+    expect(texto).not.toContain('Fecha inicio');
+    // El código general es un número largo: Excel lo deforma si la columna no es Texto.
+    expect(texto).toContain('formato Texto');
+  });
+
+  it('un 400 de ms-hr ({"error": ...}) muestra el motivo que da el servidor', () => {
+    componente.tomarArchivo(archivoDePrueba());
+    fixture.detectChanges();
+    componente.procesar();
+
+    const motivo =
+      'No se pudo leer el Excel: hoja vacía. Suba un .xlsx con las columnas código único, número radicado, ' +
+      'fecha radicado y dónde se radicó.';
+    httpMock.expectOne(URL_CARGA).flush({ error: motivo }, { status: 400, statusText: 'Bad Request' });
+    fixture.detectChanges();
+
+    expect(componente.error()).toContain('HTTP 400');
+    expect(componente.error()).toContain(`Detalle: ${motivo}`);
+    expect(refFalso.close).not.toHaveBeenCalled();
+  });
+
+  it('el resultado trae la columna Codigo y pinta el codigo leido de cada fila', () => {
+    procesarConRespuesta(RESULTADO);
+
+    const columna = componente.columnasResultado.find((c) => c.id === 'codigo');
+    expect(columna?.header).toBe('Código');
+    expect(componente.columnasResultado[1].id).toBe('codigo');
+    expect(columna?.valor(RESULTADO.filas[0])).toBe('TASB018');
+    // Archivo del formato anterior: sin codigo, celda vacia (no "undefined").
+    expect(columna?.valor({ ...RESULTADO.filas[0], codigo: undefined })).toBe('');
+
+    const html = (fixture.nativeElement as HTMLElement).querySelector('app-tabla-estandar');
+    expect(html?.textContent).toContain('TASB018');
+    expect(html?.textContent).toContain('TASB999');
+  });
+
+  it('el Excel de fallidos lleva el Codigo de cada fila fallida', () => {
+    procesarConRespuesta(RESULTADO);
+    const guardar = spyOn(componente, 'guardarLibro');
+
+    componente.exportarFallidos();
+
+    expect(guardar).toHaveBeenCalledTimes(1);
+    const [libro, nombre] = guardar.calls.mostRecent().args;
+    expect(nombre).toMatch(/^radicados-fallidos-\d{8}-\d{4}\.xlsx$/);
+    const [cabeceras, ...filas] = celdas(libro);
+    expect(cabeceras).toEqual([...CABECERAS_FALLIDOS]);
+    expect(cabeceras[1]).toBe('Código');
+    // Solo la fila que fallo, con su codigo y su motivo.
+    expect(filas.length).toBe(1);
+    expect(filas[0][0]).toBe(4);
+    expect(filas[0][1]).toBe('TASB999');
+    expect(filas[0][5]).toBe('No existe ninguna incapacidad activa con el código TASB999');
   });
 });

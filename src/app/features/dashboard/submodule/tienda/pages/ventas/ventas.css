@@ -1,0 +1,35 @@
+.burbuja { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; margin-left: 4px; border-radius: 999px; background: #dc2626; color: #fff; font-size: 11.5px; font-weight: 800; }
+.cabeza-lista { display: flex; gap: 8px; margin-bottom: 10px; }
+.lista-ventas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; max-height: 70vh; overflow-y: auto; }
+.venta { width: 100%; display: flex; flex-direction: column; gap: 2px; text-align: left; padding: 10px 12px; border: 1px solid var(--border); border-radius: 12px; background: var(--surface); color: var(--text); font: inherit; cursor: pointer; }
+.venta.activa { border-color: #0b6b58; box-shadow: 0 0 0 1px #0b6b58 inset; }
+.v1, .v2 { display: flex; justify-content: space-between; gap: 8px; min-width: 0; }
+.v2 span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: var(--text-2, var(--text)); }
+.venta small { color: var(--muted); font-size: 12px; }
+.estado { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; background: var(--surface-3, #eef2f7); color: var(--text); }
+.estado[data-e='CONFIRMADA'], .estado[data-e='VERIFICADO'], .estado[data-e='APLICADA'] { background: #d1fae5; color: #065f46; }
+.estado[data-e='PENDIENTE'], .estado[data-e='REGISTRADA'], .estado[data-e='BORRADOR'] { background: #fef3c7; color: #92400e; }
+.estado[data-e='ANULADA'], .estado[data-e='RECHAZADO'], .estado[data-e='FALLIDA'] { background: #fee2e2; color: #991b1b; }
+.estado[data-e='DEVUELTA'], .estado[data-e='DEVUELTA_PARCIAL'] { background: #e0e7ff; color: #3730a3; }
+:host-context(html[data-theme='dark']) .estado { filter: brightness(.85) saturate(1.2); }
+.detalle { display: flex; flex-direction: column; gap: 10px; }
+.detalle h3 { margin: 0; }
+h4 { margin: 4px 0 0; font-size: 13.5px; }
+td.desc { white-space: normal; min-width: 140px; }
+tr.total td { font-weight: 800; border-bottom: 0; }
+.enlace { border: 0; background: none; padding: 0; color: #0b6b58; font: inherit; font-weight: 700; cursor: pointer; text-decoration: underline; min-height: 0 !important; }
+.movs li.nueva { border-color: #0b6b58; }
+.dev-lineas { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.dev-lineas li { display: grid; grid-template-columns: minmax(0, 1fr) 80px minmax(0, 180px); gap: 8px; align-items: center; }
+@media (max-width: 600px) { .dev-lineas li { grid-template-columns: 1fr 80px; } .dev-lineas li .desc { grid-column: 1 / -1; } .dev-lineas li select { grid-column: 2 / 3; } }
+.resultado.ok { grid-template-columns: 1fr; }
+.boton.peligro { background: #b91c1c; color: #fff; }
+/* En caja.css .m-fila span es inline-flex: aquí el texto debe fluir y partir línea. */
+.m-fila > span { display: block; flex: 1 1 auto; min-width: 0; overflow-wrap: anywhere; }
+.m-fila > b { flex: none; }
+.detalle > * { flex-shrink: 0; }
+.detalle > .boton { align-self: flex-start; }
+.movs small { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
+.saldo { display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 12px; border: 1px solid #fca5a5; background: color-mix(in srgb, #dc2626 6%, transparent); }
+.saldo mat-icon { color: #b91c1c; font-size: 18px; width: 18px; height: 18px; vertical-align: -3px; }
+.segmentos { flex-wrap: wrap; }

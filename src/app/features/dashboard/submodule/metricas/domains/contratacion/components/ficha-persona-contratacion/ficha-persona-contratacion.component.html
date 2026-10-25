@@ -1,0 +1,120 @@
+<div class="fp">
+  <header class="fp-cab">
+    <span class="fp-av">{{ iniciales(ficha()?.nombre ?? data.nombre) }}</span>
+    <div class="fp-cab-txt">
+      <h2>{{ ficha()?.nombre || data.nombre || data.cedula }}</h2>
+      <p>
+        {{ ficha()?.tipo_documento || 'CC' }} {{ ficha()?.cedula || data.cedula }}
+        <button mat-icon-button class="fp-copiar" (click)="copiar(ficha()?.cedula ?? data.cedula)" matTooltip="Copiar cédula"><mat-icon>content_copy</mat-icon></button>
+      </p>
+    </div>
+    <button mat-icon-button mat-dialog-close aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+  </header>
+  @if (cargando()) { <mat-progress-bar mode="indeterminate" /> }
+
+  <div class="fp-cuerpo">
+    @if (error()) {
+      <div class="fp-error"><mat-icon>error_outline</mat-icon> {{ error() }}</div>
+    }
+
+    @if (ficha(); as f) {
+      <div class="fp-acciones">
+        <button mat-flat-button color="primary" (click)="verDocumentos(null)"><mat-icon>folder_open</mat-icon> Ver documentos</button>
+        @if (f.celular) { <a mat-stroked-button [href]="'tel:' + f.celular"><mat-icon>call</mat-icon> {{ f.celular }}</a> }
+        @if (f.whatsapp || f.celular) {
+          <a mat-stroked-button target="_blank" rel="noopener" [href]="'https://wa.me/57' + (f.whatsapp || f.celular)"><mat-icon>chat</mat-icon> WhatsApp</a>
+        }
+      </div>
+
+      <section class="fp-datos">
+        <h3>Datos personales</h3>
+        <dl>
+          <div><dt>Edad</dt><dd>{{ f.edad ?? '—' }} {{ f.fecha_nacimiento ? '· ' + fecha(f.fecha_nacimiento) : '' }}</dd></div>
+          <div><dt>Sexo</dt><dd>{{ f.sexo || '—' }}</dd></div>
+          <div><dt>Estado civil</dt><dd>{{ f.estado_civil || '—' }}</dd></div>
+          <div><dt>RH</dt><dd>{{ f.rh || '—' }}</dd></div>
+          <div><dt>Nacionalidad</dt><dd>{{ f.nacionalidad || '—' }}</dd></div>
+          <div><dt>Expedición</dt><dd>{{ f.fecha_expedicion ? fecha(f.fecha_expedicion) : '—' }} {{ f.lugar_expedicion || '' }}</dd></div>
+          <div><dt>Nacimiento</dt><dd>{{ f.lugar_nacimiento || '—' }}</dd></div>
+          <div><dt>Correo</dt><dd>{{ f.email || '—' }}</dd></div>
+          <div class="ancho"><dt>Residencia</dt><dd>{{ residencia(f) }}
+            {{ f.tiempo_residencia ? '(' + f.tiempo_residencia + ')' : '' }}</dd></div>
+          <div><dt>Registrada</dt><dd>{{ f.registrado ? fecha(f.registrado) : '—' }}</dd></div>
+        </dl>
+      </section>
+
+      <section>
+        <h3>Procesos <small>{{ f.procesos.length }}</small></h3>
+        @for (p of f.procesos; track p.proceso_id) {
+          <article class="fp-proc" [class.abierto]="abierto() === p.proceso_id">
+            <button type="button" class="fp-proc-cab" (click)="abierto.set(abierto() === p.proceso_id ? null : p.proceso_id)">
+              <i class="fp-punto" [style.background]="RESULTADOS[p.resultado]?.color"></i>
+              <div>
+                <b>{{ RESULTADOS[p.resultado]?.texto ?? p.resultado }}</b>
+                <span>{{ fecha(p.fecha) }} · {{ p.oficina }}{{ p.contrato?.finca ? ' · ' + p.contrato?.finca : (p.vacante.finca ? ' · ' + p.vacante.finca : '') }}</span>
+              </div>
+              <mat-icon>{{ abierto() === p.proceso_id ? 'expand_less' : 'expand_more' }}</mat-icon>
+            </button>
+            @if (abierto() === p.proceso_id) {
+              <ol class="fp-linea">
+                @for (s of pasos(p); track $index) {
+                  <li [class]="s.estado">
+                    <div class="fp-linea-cab"><b>{{ s.titulo }}</b><time>{{ fecha(s.fecha) }}</time></div>
+                    @if (s.detalle) { <p>{{ s.detalle }}</p> }
+                  </li>
+                }
+              </ol>
+
+              <div class="fp-bloques">
+                <div class="fp-bloque">
+                  <h4>Entrevista</h4>
+                  <dl>
+                    <div><dt>Cómo se enteró</dt><dd>{{ p.entrevista.medio_texto || p.entrevista.medio }}</dd></div>
+                    <div><dt>Experiencia en flores</dt><dd>{{ p.entrevista.experiencia_flores || '—' }}</dd></div>
+                    @if (p.entrevista.fincas_trabajadas) { <div><dt>Fincas trabajadas</dt><dd>{{ p.entrevista.fincas_trabajadas }}</dd></div> }
+                    @if (p.entrevista.labores) { <div><dt>Labores</dt><dd>{{ p.entrevista.labores }}</dd></div> }
+                    @if (p.entrevista.referenciado) { <div><dt>Referido</dt><dd>{{ p.entrevista.referenciado }} {{ p.entrevista.nombre_referenciado || '' }}</dd></div> }
+                    <div><dt>Evaluador</dt><dd>{{ p.evaluacion.evaluador || 'Sin registrar' }}</dd></div>
+                    @if (p.evaluacion.detalle) { <div><dt>Observación</dt><dd>{{ p.evaluacion.detalle }}</dd></div> }
+                  </dl>
+                </div>
+                @if (p.contrato; as c) {
+                  <div class="fp-bloque">
+                    <h4>Contrato</h4>
+                    <dl>
+                      <div><dt>Código</dt><dd>{{ c.codigo || '—' }}</dd></div>
+                      <div><dt>Temporal</dt><dd>{{ c.temporal ? TEMPORAL_TEXTO[c.temporal] : '—' }}</dd></div>
+                      <div><dt>Empresa</dt><dd>{{ c.empresa || '—' }}</dd></div>
+                      <div><dt>Finca</dt><dd>{{ c.finca || '—' }}</dd></div>
+                      <div><dt>Ingreso</dt><dd>{{ c.fecha_ingreso ? fecha(c.fecha_ingreso) : '—' }}</dd></div>
+                      <div><dt>Contrató</dt><dd>{{ c.usuario || '—' }}</dd></div>
+                      <div><dt>Forma de pago</dt><dd>{{ c.forma_pago || '—' }}</dd></div>
+                      <div><dt>EPS</dt><dd>{{ c.eps || '—' }}</dd></div>
+                      <div><dt>Cesantías</dt><dd>{{ c.cesantias || '—' }}</dd></div>
+                      <div><dt>Estado</dt><dd>{{ c.fecha_retiro ? 'Retirado ' + fecha(c.fecha_retiro) + (c.motivo_retiro ? ' — ' + c.motivo_retiro : '') : 'Activo' }}</dd></div>
+                    </dl>
+                    <button mat-stroked-button (click)="verDocumentos(p)"><mat-icon>description</mat-icon> Documentos de este contrato</button>
+                  </div>
+                }
+                @if (p.examen.ips || p.examen.concepto) {
+                  <div class="fp-bloque">
+                    <h4>Examen médico</h4>
+                    <dl>
+                      <div><dt>IPS</dt><dd>{{ p.examen.ips || '—' }}</dd></div>
+                      <div><dt>Concepto</dt><dd>{{ p.examen.concepto || '—' }}</dd></div>
+                      <div><dt>Fecha</dt><dd>{{ p.examen.fecha ? fecha(p.examen.fecha) : '—' }}</dd></div>
+                      @if (p.examen.restricciones) { <div><dt>Restricciones</dt><dd>{{ p.examen.restricciones }}</dd></div> }
+                    </dl>
+                  </div>
+                }
+              </div>
+              <p class="fp-pie">Proceso #{{ p.proceso_id }} · origen {{ p.origen || '—' }}</p>
+            }
+          </article>
+        } @empty {
+          <p class="fp-vacio">Sin procesos registrados.</p>
+        }
+      </section>
+    }
+  </div>
+</div>

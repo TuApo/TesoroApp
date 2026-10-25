@@ -1,21 +1,39 @@
-<div class="tienda-pagina">
+<div class="tienda-pagina caja">
 
   <header class="tienda-encabezado">
     <div>
-      <h1 class="tienda-titulo"><mat-icon>point_of_sale</mat-icon> Punto de venta</h1>
+      <h1 class="tienda-titulo"><mat-icon>point_of_sale</mat-icon> Caja</h1>
       <p class="tienda-subtitulo">
-        Arme la compra, cobre con uno o varios medios y confirme. El cupo de nómina solo
-        se pide cuando se va a fiar.
+        Toque los productos, cobre con uno o varios medios a la vez y confirme. Puede atender a
+        varias personas: cada venta queda abierta y guardada hasta que la confirme.
       </p>
     </div>
     <app-selector-tienda />
   </header>
 
+  @if (turno() === null) {
+    <div class="tienda-error"><mat-icon>lock</mat-icon> La caja está cerrada en esta tienda: <a routerLink="/dashboard/tienda/caja">abra el turno</a> para poder vender.</div>
+  } @else if (turno(); as t) {
+    <div class="franja">
+      <span class="turno-ok"><mat-icon>lock_open</mat-icon> Caja abierta por {{ t.usuario_nombre }} desde {{ t.abierto_en | date:'h:mm a' }} · <a routerLink="/dashboard/tienda/caja">ver cuadre</a></span>
+      @if (resumen(); as r) {
+        <span class="hoy">
+          <strong>Hoy:</strong> {{ r.totales.ventas }} venta(s) · {{ pesos(r.totales.total) }}
+          @if (r.totales.ventas) { · ticket {{ pesos(r.totales.ticket_promedio) }} }
+          @for (m of r.por_medio; track m.metodo) { <span class="chip-medio"><mat-icon>{{ iconoMedio(m.metodo) }}</mat-icon>{{ pesos(m.monto) }}</span> }
+          <a routerLink="/dashboard/tienda/ventas" [queryParams]="{ vista: 'caja' }">estadísticas</a>
+        </span>
+      }
+    </div>
+  }
+
   @if (aviso()) {
-    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div>
+    <div class="tienda-aviso"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span>
+      <button type="button" class="mini" aria-label="Cerrar aviso" (click)="aviso.set(null)"><mat-icon>close</mat-icon></button></div>
   }
   @if (error()) {
-    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div>
+    <div class="tienda-error"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span>
+      <button type="button" class="mini" aria-label="Cerrar error" (click)="error.set(null)"><mat-icon>close</mat-icon></button></div>
   }
 
   @if (!ctx.puedeVender() && ctx.tiendaId()) {
@@ -23,209 +41,477 @@
       <mat-icon>lock</mat-icon>
       <p>Su rol en esta tienda ({{ ctx.rolEnTienda() ?? 'sin rol' }}) no permite vender.</p>
     </div>
-  } @else if (!hayVenta()) {
-    <section class="tienda-tarjeta abrir-venta">
-      <h2 class="titulo-seccion">Nueva venta</h2>
-      <p class="nota">
-        Busque a la persona si va a fiar: verá si está contratada, si está bloqueada y si
-        <strong>ya tiene autorización de mercado</strong>. Para efectivo o billetera puede
-        abrir la venta directamente.
-      </p>
+  } @else if (ctx.tiendaId()) {
 
-      @if (ctx.tiendaId(); as tienda) {
-        <app-buscador-personas
-          [tiendaId]="tienda"
-          [puedeAutorizar]="ctx.puedeAdministrarTienda()"
-          (seleccionada)="personaElegida($event)" />
-      }
-
-      <div class="tienda-barra separador">
-        <button type="button" class="boton" (click)="abrirVenta()" [disabled]="!ctx.tiendaId()">
-          <mat-icon>add_shopping_cart</mat-icon>
-          @if (persona()) { Abrir venta para {{ persona()!.nombre || persona()!.cedula }} }
-          @else { Abrir venta sin identificar }
+    <!-- ── Sesiones: una pestaña por persona que se está atendiendo ─────── -->
+    <nav class="sesiones" aria-label="Ventas abiertas">
+      @for (s of abiertas(); track s.id) {
+        <button type="button" class="sesion" [class.activa]="venta()?.id === s.id" (click)="abrirSesion(s.id)">
+          <mat-icon>{{ s.cliente_tipo === 'COLABORADOR' ? 'badge' : 'person' }}</mat-icon>
+          <span class="sesion-nombre">{{ nombreSesion(s) }}</span>
+          <span class="sesion-total">{{ pesos(s.total) }}</span>
+          @if (s.lineas) { <span class="sesion-lineas">{{ s.lineas }}</span> }
         </button>
-        @if (!persona()) {
-          <span class="nota sin-margen">Sin persona identificada no se podrá fiar.</span>
-        }
-      </div>
-    </section>
-  } @else {
+      }
+      <button type="button" class="sesion nueva" (click)="nuevaVenta()" [class.activa]="nueva() !== null">
+        <mat-icon>add</mat-icon> Nueva venta
+      </button>
+    </nav>
 
-    <div class="disposicion-pos">
-
-      <!-- ── Compra ──────────────────────────────────────────────────── -->
-      <section class="tienda-tarjeta">
-        <div class="titulo-con-accion">
-          <h2 class="titulo-seccion">Venta {{ venta()?.numero }}</h2>
-          <button type="button" class="boton secundario" (click)="anular()">Anular</button>
+    @if (exito(); as x) {
+      <!-- ── Venta confirmada ─────────────────────────────────────────── -->
+      <section class="tienda-tarjeta venta-ok">
+        <mat-icon class="exito-icono">task_alt</mat-icon>
+        <h2>Venta {{ x.numero }} confirmada</h2>
+        <p class="exito-total">{{ pesos(x.total) }}</p>
+        <p class="nota">{{ x.medios }}</p>
+        @if (x.vueltas > 0) { <p class="exito-vueltas">Vueltas entregadas: <strong>{{ pesos(x.vueltas) }}</strong></p> }
+        <div class="tienda-barra centrada">
+          <button type="button" class="boton grande" (click)="despuesDeExito()"><mat-icon>add_shopping_cart</mat-icon> Nueva venta</button>
+          @if (abiertas().length) {
+            <span class="nota sin-margen">o retome una de las {{ abiertas().length }} ventas abiertas arriba</span>
+          }
         </div>
-
-        <div class="campo buscador">
-          <label>Buscar producto</label>
-          <input [ngModel]="busqueda()" (ngModelChange)="busqueda.set($event); buscar()"
-                 placeholder="Nombre o SKU…" />
-        </div>
-
-        @if (resultados().length > 0) {
-          <ul class="resultados">
-            @for (p of resultados(); track p.id) {
-              <li>
-                <span>{{ p.nombre }} <em class="sku">{{ p.sku }}</em></span>
-                <button type="button" class="boton" (click)="agregar(p)">Agregar</button>
-              </li>
-            }
-          </ul>
-        }
-
-        <!-- Sin buscador propio de la tabla: justo encima está «Buscar producto» y dos
-             cajas de búsqueda juntas en el mostrador se confunden. Sin paginar: el tendero
-             tiene que ver todas las líneas de la venta. -->
-        <app-tabla-estandar
-          id="tienda-pos-venta"
-          titulo="Venta en curso"
-          modulo="Tienda"
-          vacio="La venta está vacía."
-          [busqueda]="false"
-          [filasPorPagina]="0"
-          [datos]="lineas()"
-          [columnas]="columnasLineas"
-          [filaId]="idLinea">
-
-          <ng-template tablaAcciones let-l>
-            <button type="button" class="mini peligro" title="Quitar" (click)="quitar($any(l)['id'])">
-              <mat-icon>close</mat-icon>
-            </button>
-          </ng-template>
-        </app-tabla-estandar>
       </section>
 
-      <!-- ── Cobro ───────────────────────────────────────────────────── -->
-      <section class="tienda-tarjeta">
-        <h2 class="titulo-seccion">Cobro</h2>
-
-        <div class="totales">
-          <div><span>Total</span>
-            <strong>{{ venta()?.total | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-          <div><span>Cobrado</span>
-            <strong>{{ cobrado() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-          <div [class.falta]="pendiente() > 0"><span>Pendiente</span>
-            <strong>{{ pendiente() | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-        </div>
-
-        @if (pagos().length > 0) {
-          <ul class="lista-pagos">
-            @for (p of pagos(); track p.id) {
-              <li>
-                <span>{{ nombreMetodo(p.metodo) }}</span>
-                <span class="numero">{{ p.monto | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-                <span class="insignia" [class.exito]="p.estado === 'VERIFICADO'"
-                      [class.aviso]="p.estado === 'PENDIENTE'">{{ p.estado }}</span>
-              </li>
-            }
-          </ul>
+    } @else if (nueva()) {
+      <!-- ── Nueva venta: ¿a quién se le vende? ───────────────────────── -->
+      <section class="tienda-tarjeta nueva-venta">
+        @if (nueva() === 'elegir') {
+          <h2 class="titulo-seccion">¿A quién le va a vender?</h2>
+          <div class="opciones-cliente">
+            <button type="button" class="opcion" (click)="nueva.set('colaborador')">
+              <mat-icon>badge</mat-icon>
+              <strong>Colaborador</strong>
+              <span>Persona contratada. Puede pagar con <b>bono mercado</b> (autorización o descuento por nómina) y con cualquier otro medio.</span>
+            </button>
+            <button type="button" class="opcion" (click)="nueva.set('mostrador')">
+              <mat-icon>storefront</mat-icon>
+              <strong>Cliente de mostrador</strong>
+              <span>Venta natural a quien no está registrado. Efectivo, QR, tarjeta o transferencia; sin bono.</span>
+            </button>
+          </div>
+        } @else if (nueva() === 'colaborador') {
+          <div class="titulo-con-accion">
+            <h2 class="titulo-seccion">Venta a colaborador</h2>
+            <button type="button" class="boton secundario" (click)="nueva.set('elegir')"><mat-icon>arrow_back</mat-icon> Volver</button>
+          </div>
+          <app-buscador-personas [tiendaId]="ctx.tiendaId()!" [puedeAutorizar]="ctx.puedeAdministrarTienda()"
+                                 (seleccionada)="personaElegidaNueva($event)" />
+          <div class="tienda-barra separador">
+            <button type="button" class="boton grande" (click)="abrirVenta('COLABORADOR')" [disabled]="!personaNueva() || trabajando()">
+              <mat-icon>add_shopping_cart</mat-icon>
+              Abrir venta @if (personaNueva()) { para {{ personaNueva()!.nombre || personaNueva()!.cedula }} }
+            </button>
+          </div>
+        } @else {
+          <div class="titulo-con-accion">
+            <h2 class="titulo-seccion">Cliente de mostrador</h2>
+            <button type="button" class="boton secundario" (click)="nueva.set('elegir')"><mat-icon>arrow_back</mat-icon> Volver</button>
+          </div>
+          <p class="nota">Todo es opcional. El nombre o la etiqueta sirven para reconocer la venta si atiende a varias personas a la vez.</p>
+          <div class="campos-mostrador">
+            <div class="campo"><label>Etiqueta</label><input [(ngModel)]="mostrador.etiqueta" maxlength="60" placeholder="Ej.: señora de chaqueta roja" /></div>
+            <div class="campo"><label>Nombre</label><input [(ngModel)]="mostrador.nombre" maxlength="180" /></div>
+            <div class="campo"><label>Teléfono</label><input [(ngModel)]="mostrador.telefono" inputmode="tel" maxlength="30" /></div>
+            <div class="campo"><label>Cédula / NIT (para la factura)</label><input [(ngModel)]="mostrador.cedula" maxlength="20" /></div>
+          </div>
+          <div class="tienda-barra separador">
+            <button type="button" class="boton grande" (click)="abrirVenta('MOSTRADOR')" [disabled]="trabajando()">
+              <mat-icon>add_shopping_cart</mat-icon> Abrir venta
+            </button>
+          </div>
         }
+      </section>
 
-        <!-- Cupo: solo cuando se va a fiar -->
-        <div class="bloque-cupo">
-          @if (!persona()) {
-            <app-buscador-personas
-              [tiendaId]="ctx.tiendaId()!"
-              [puedeAutorizar]="ctx.puedeAdministrarTienda()"
-              (seleccionada)="personaElegida($event)" />
-          } @else if (persona()!.tiene_autorizacion_mercado) {
-            <div class="tienda-aviso">
-              <mat-icon>verified</mat-icon>
-              <span>
-                Tiene {{ persona()!.monto_autorizado | currency:'COP':'symbol-narrow':'1.0-0' }}
-                autorizados en mercado ({{ persona()!.autorizaciones_pendientes }} autorización(es)).
-              </span>
+    } @else if (hayVenta()) {
+
+      <div class="caja-rejilla">
+
+        <!-- ── Productos ──────────────────────────────────────────────── -->
+        <section class="tienda-tarjeta panel-productos">
+          <div class="buscador-caja">
+            <mat-icon>search</mat-icon>
+            <input [value]="texto()" (input)="escribir($any($event.target).value)" (keydown.enter)="enterBuscador()"
+                   placeholder="Buscar por nombre, marca, SKU o código de barras…" autocomplete="off" aria-label="Buscar producto" />
+            @if (buscandoProductos()) { <mat-icon class="girando">progress_activity</mat-icon> }
+            @if (texto()) { <button type="button" class="mini" aria-label="Limpiar" (click)="escribir('')"><mat-icon>close</mat-icon></button> }
+            @if (leyendo()) { <mat-icon class="girando">barcode_reader</mat-icon> }
+            <app-escaner-codigo modo="continuo" titulo="Escanear productos a la venta" [procesar]="procesarCodigoCamara" />
+          </div>
+          <p class="nota sin-margen">{{ totalProductos() }} producto(s){{ texto() ? ' para «' + texto() + '»' : ' · lo más vendido primero' }} · toque para agregar · lector de barras listo (también <b>3*código</b> para varias unidades)</p>
+
+          <div class="rejilla-productos">
+            @for (p of productos(); track p.id) {
+              <article class="producto" [class.agotado]="p.estado === 'NO_DISPONIBLE'" [class.pedido]="p.estado === 'BAJO_PEDIDO'">
+                <app-imagen-ampliable class="producto-foto" [doc]="p.imagen" [docs]="p.imagenes" [nombre]="p.nombre" [tamano]="96" icono="inventory_2" />
+                <button type="button" class="producto-cuerpo" (click)="tocarProducto(p)" [disabled]="p.estado === 'NO_DISPONIBLE'">
+                  <span class="producto-nombre">{{ p.nombre }}</span>
+                  @if (p.marca) { <span class="producto-marca">{{ p.marca }}</span> }
+                  <span class="producto-precio">{{ p.precio != null ? pesos(p.precio) : 'Sin precio' }}@if (p.variantes.length > 1) { <small> desde</small> }</span>
+                  <span class="producto-estado" [attr.data-estado]="p.estado">{{ textoEstado(p) }}</span>
+                  @if (p.compuesto) { <span class="producto-marca">Paquete (descuenta sus unidades)</span> }
+                  @if (p.ubicacion) { <span class="producto-marca"><mat-icon class="mini-icono">place</mat-icon>{{ p.ubicacion }}</span> }
+                </button>
+              </article>
+            } @empty {
+              <p class="nota">@if (buscandoProductos()) { Buscando… } @else { Nada coincide. Pruebe con otra palabra. }</p>
+            }
+          </div>
+        </section>
+
+        <!-- ── Tiquete ────────────────────────────────────────────────── -->
+        <section class="tienda-tarjeta panel-tiquete">
+          <div class="tiquete-cabecera">
+            <div class="tiquete-titulo">
+              <span class="mono">{{ venta()!.numero }}</span>
+              <input class="etiqueta" [(ngModel)]="etiqueta" (blur)="guardarEtiqueta()" (keydown.enter)="guardarEtiqueta()"
+                     maxlength="60" placeholder="Etiqueta de esta venta" aria-label="Etiqueta de esta venta" />
+            </div>
+            @if (ctx.puedeAdministrarTienda()) {
+              <button type="button" class="boton secundario" (click)="anular()"><mat-icon>delete</mat-icon> Anular</button>
+            }
+          </div>
+
+          <!-- Cliente -->
+          <div class="cliente">
+            @if (esColaborador()) {
+              <app-imagen-ampliable [doc]="persona()?.foto_url" [tamano]="52" icono="person" [nombre]="venta()!.cliente_nombre || ''" />
+              <div class="cliente-datos">
+                <strong>{{ persona()?.nombre || venta()!.cliente_nombre || venta()!.cliente_cedula }}</strong>
+                <span class="mono">{{ venta()!.cliente_cedula }}</span>
+                @if (persona(); as p) {
+                  <span class="nota sin-margen">
+                    Bono disponible: <b>{{ pesos(p.monto_autorizado) }}</b> autorizado
+                    @if (p.cupo_mercado_disponible > 0) { · puede sacar hasta {{ pesos(p.cupo_mercado_disponible) }} más }
+                  </span>
+                }
+              </div>
+              @if (puntosCliente() != null) { <span class="puntos-cliente" title="Puntos de la persona"><mat-icon>stars</mat-icon>{{ puntosCliente() | number: '1.0-0' }}</span> }
+              <button type="button" class="mini" title="Venta de mostrador (sin bono)" (click)="quitarPersona()"><mat-icon>person_remove</mat-icon></button>
+            } @else {
+              <mat-icon class="cliente-icono">storefront</mat-icon>
+              <div class="cliente-datos">
+                <strong>{{ venta()!.cliente_nombre || 'Cliente de mostrador' }}</strong>
+                <span class="nota sin-margen">Venta natural · sin bono mercado@if (venta()!.cliente_telefono) { · {{ venta()!.cliente_telefono }} }</span>
+              </div>
+              <button type="button" class="boton secundario" (click)="asignandoPersona.set(!asignandoPersona())"><mat-icon>badge</mat-icon> Es colaborador</button>
+            }
+          </div>
+          @if (esColaborador() && premiosPendientes().length) {
+            <div class="premios-caja">
+              <mat-icon>redeem</mat-icon>
+              <div class="pc-cuerpo">
+                <b>Tiene {{ premiosPendientes().length }} premio{{ premiosPendientes().length === 1 ? '' : 's' }} por reclamar</b>
+                @for (k of premiosPendientes(); track k.id) {
+                  <div class="pc-item"><span>{{ k.premio_nombre }} <small>· {{ k.puntos | number: '1.0-0' }} pts · {{ k.codigo }}</small></span>
+                    <button type="button" class="boton" (click)="entregarPremio(k)"><mat-icon>check</mat-icon> Entregar</button></div>
+                }
+              </div>
+            </div>
+          }
+          @if (avisoPremio()) { <div class="aviso-premio"><mat-icon>celebration</mat-icon> {{ avisoPremio() }}</div> }
+          @if (asignandoPersona()) {
+            <div class="asignar">
+              <app-buscador-personas [tiendaId]="ctx.tiendaId()!" [puedeAutorizar]="ctx.puedeAdministrarTienda()" (seleccionada)="asignarPersona($event)" />
             </div>
           }
 
-          @if (cupo(); as c) {
-            @if (!c.existe) {
-              <div class="tienda-error"><mat-icon>person_off</mat-icon>
-                <span>Esa cédula no está registrada en tesorería. No se puede fiar.</span></div>
-            } @else {
-              <div class="ficha-cupo">
-                @if (c.foto_url) {
-                  <img [src]="c.foto_url" alt="Foto de contratación" class="foto" />
-                } @else {
-                  <div class="foto sin-foto"><mat-icon>no_photography</mat-icon></div>
-                }
-                <div class="datos-cupo">
-                  <strong>{{ c.nombre }}</strong>
-                  <span>{{ c.finca }}@if (c.codigo) { · {{ c.codigo }} }</span>
-                  @if (c.bloqueado) {
-                    <span class="insignia peligro">Bloqueada</span>
-                    <span class="motivo">{{ c.observacion_bloqueo }}</span>
-                  } @else {
-                    <span class="cupo-valor">
-                      Cupo: <strong>{{ c.saldo_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
-                    </span>
-                  }
-                  @if (c.tiene_foto === null) {
-                    <span class="insignia aviso">No se pudo consultar la foto</span>
-                  } @else if (!c.tiene_foto) {
-                    <span class="insignia aviso">Sin foto en contratación</span>
-                  }
+          <!-- Líneas -->
+          <ul class="lineas">
+            @for (l of lineas(); track l.id) {
+              <li class="linea">
+                <app-imagen-ampliable [doc]="l.producto_id ? fotos()[l.producto_id] : null" [tamano]="56" icono="inventory_2" [nombre]="l.descripcion" />
+                <div class="linea-datos">
+                  <span class="linea-nombre">{{ l.descripcion }}</span>
+                  <span class="linea-precio">{{ pesos(l.precio_unitario) }} c/u
+                    @if (l.descuento > 0) { · <span class="descuento">− {{ pesos(l.descuento) }}</span> }
+                    @if (l.bajo_pedido) { · <span class="insignia aviso">bajo pedido@if (l.dias_entrega) { · {{ l.dias_entrega }} días }</span> }
+                  </span>
                 </div>
-              </div>
+                <div class="cantidad">
+                  <button type="button" class="paso" aria-label="Uno menos" (click)="cambiarCantidad(l, -1)"><mat-icon>{{ l.cantidad > 1 ? 'remove' : 'delete' }}</mat-icon></button>
+                  <span class="cantidad-valor">{{ l.cantidad | number:'1.0-2' }}</span>
+                  <button type="button" class="paso" aria-label="Uno más" (click)="cambiarCantidad(l, 1)"><mat-icon>add</mat-icon></button>
+                </div>
+                <strong class="linea-total">{{ pesos(l.total) }}</strong>
+              </li>
+            } @empty {
+              <li class="vacio"><mat-icon>shopping_basket</mat-icon> Toque un producto para agregarlo.</li>
+            }
+          </ul>
 
-              @if (!c.bloqueado && !identidadConfirmada()) {
-                <div class="verificar">
-                  <span>¿Quien está enfrente es esta persona?</span>
-                  <button type="button" class="boton" (click)="confirmarIdentidad(true)">Sí, es</button>
-                  <button type="button" class="boton peligro" (click)="confirmarIdentidad(false)">No</button>
-                </div>
-              } @else if (identidadConfirmada()) {
-                <div class="tienda-aviso"><mat-icon>verified_user</mat-icon>
-                  <span>Identidad verificada</span></div>
+          <div class="tiquete-total">
+            <span>{{ unidades() | number:'1.0-2' }} artículo(s)</span>
+            <strong>{{ pesos(venta()!.total) }}</strong>
+          </div>
+
+          <div class="campo observacion">
+            <label>Observación</label>
+            <textarea [(ngModel)]="observacion" (blur)="guardarObservacion()" rows="2" maxlength="1000"
+                      placeholder="Ej.: se entrega mañana, pidió factura a nombre de…"></textarea>
+          </div>
+        </section>
+
+        <!-- ── Cobro ──────────────────────────────────────────────────── -->
+        <section class="tienda-tarjeta panel-cobro">
+          <div class="pantalla">
+            <div><span>Total</span><strong>{{ pesos(venta()!.total) }}</strong></div>
+            <div><span>Cobrado</span><strong>{{ pesos(cobrado()) }}</strong></div>
+            <div [class.falta]="pendiente() > 0" [class.listo]="pendiente() === 0 && lineas().length > 0">
+              <span>{{ pendiente() > 0 ? 'Falta' : 'Completo' }}</span><strong>{{ pesos(pendiente()) }}</strong>
+            </div>
+          </div>
+
+          @if (pagos().length) {
+            <ul class="pagos">
+              @for (p of pagos(); track p.id) {
+                <li>
+                  <mat-icon>{{ iconoMedio(p.metodo) }}</mat-icon>
+                  <span class="pago-medio">{{ nombreMedio(p.metodo) }}
+                    @if (p.referencia) { <small class="mono">{{ p.referencia }}</small> }
+                    @if (p.recibido) { <small>recibió {{ pesos(p.recibido) }} · vueltas {{ pesos(p.cambio) }}</small> }
+                  </span>
+                  @if (p.evidencia_doc_id) { <app-imagen-ampliable [doc]="p.evidencia_doc_id" [tamano]="36" [nombre]="'Comprobante ' + nombreMedio(p.metodo)" /> }
+                  <strong>{{ pesos(p.monto) }}</strong>
+                  <span class="insignia" [class.exito]="p.estado === 'VERIFICADO'" [class.aviso]="p.estado === 'PENDIENTE'">{{ p.estado === 'PENDIENTE' ? (p.pasarela ? 'esperando pago' : p.metodo === 'NOMINA' ? 'se descuenta al confirmar' : 'por verificar') : p.estado === 'VERIFICADO' && p.pasarela ? 'aprobado' : p.estado.toLowerCase() }}</span>
+                  <button type="button" class="mini peligro" aria-label="Quitar pago" (click)="quitarPago(p)"><mat-icon>close</mat-icon></button>
+                </li>
               }
+            </ul>
+          }
+
+          @if (cobro(); as c) {
+              <!-- Cobro por pasarela en curso: la persona escanea y paga; se confirma solo -->
+              <div class="cobro-pasarela">
+                <p class="etiqueta-bloque">Escanee con la cámara del celular para pagar</p>
+                <strong class="cobro-monto-grande">{{ pesos(c.pago.monto) }}</strong>
+                @if (c.qr) { <img class="qr-pago" [src]="c.qr" alt="Código QR del cobro" /> }
+                @else { <mat-icon class="girando">progress_activity</mat-icon> }
+                <a class="enlace" [href]="c.url" target="_blank" rel="noopener">Abrir la página de pago en este equipo</a>
+                <p class="esperando"><mat-icon class="girando">progress_activity</mat-icon>
+                  Esperando el pago… {{ mediosCaja()?.pasarela?.proveedor }}@if (mediosCaja()?.pasarela?.ambiente === 'SANDBOX') { · PRUEBAS }
+                  @if (c.pago.pasarela_estado === 'PENDING') { · la persona está pagando }
+                </p>
+                <p class="nota sin-margen">Se confirma solo cuando la pasarela lo aprueba (Nequi, PSE, tarjeta, Bancolombia…). Ref. <span class="mono">{{ c.pago.pasarela_ref }}</span></p>
+                <button type="button" class="boton secundario" (click)="cancelarCobro()"><mat-icon>close</mat-icon> Cancelar cobro</button>
+              </div>
+            }
+          @if (pendiente() > 0 && !cobro()) {
+            <div class="medios" role="radiogroup" aria-label="Medio de pago">
+              @for (m of mediosDisponibles(); track m.codigo) {
+                <button type="button" class="medio" role="radio" [attr.aria-checked]="metodo() === m.codigo"
+                        [class.activo]="metodo() === m.codigo" (click)="elegirMetodo(m.codigo)">
+                  <mat-icon>{{ m.icono }}</mat-icon><span>{{ m.nombre }}</span>
+                </button>
+              }
+            </div>
+
+            <!-- Bono mercado -->
+            @if (metodo() === 'NOMINA') {
+              <div class="bloque-bono">
+                @if (persona(); as p) {
+                  @if (!identidadVerificada()) {
+                    <div class="verificar">
+                      <app-imagen-ampliable [doc]="p.foto_url" [tamano]="88" icono="no_photography" [nombre]="'Foto de contratación · ' + (p.nombre || p.cedula)" />
+                      <div>
+                        <strong>¿Quien está enfrente es {{ p.nombre || p.cedula }}?</strong>
+                        @if (p.tiene_foto === false) { <p class="nota sin-margen">Sin foto en contratación: pida la cédula.</p> }
+                        <div class="tienda-barra">
+                          <button type="button" class="boton grande" (click)="confirmarIdentidad(true)">Sí, es</button>
+                          <button type="button" class="boton peligro grande" (click)="confirmarIdentidad(false)">No</button>
+                        </div>
+                      </div>
+                    </div>
+                  } @else {
+                    <div class="tienda-aviso"><mat-icon>verified_user</mat-icon><span>Identidad verificada</span></div>
+                  }
+                  @if (autorizaciones().length) {
+                    <p class="etiqueta-bloque">Usar autorización de mercado</p>
+                    <div class="autorizaciones-caja">
+                      @for (a of autorizaciones(); track a['codigo_autorizacion']) {
+                        <button type="button" class="aut" [class.activo]="autorizacionElegida() === a['codigo_autorizacion']" (click)="elegirAutorizacion(a['codigo_autorizacion'])">
+                          <app-imagen-ampliable [doc]="a['foto_doc_id']" [tamano]="40" icono="no_photography" nombre="Foto al autorizar" />
+                          <span><strong>{{ pesos(a['autorizacion_monto']) }}</strong>
+                            <small class="mono">{{ a['codigo_autorizacion'] }}</small>
+                            <small>autorizó {{ a['autorizador_nombre'] || a['autorizado_por'] }}@if (a['autorizador_cedula']) { · C.C. {{ a['autorizador_cedula'] }} }</small></span>
+                        </button>
+                      }
+                      @if (p.cupo_mercado_disponible > 0) {
+                        <button type="button" class="aut" [class.activo]="!autorizacionElegida()" (click)="elegirAutorizacion(null)">
+                          <mat-icon>add_card</mat-icon>
+                          <span><strong>Descuento directo</strong><small>hasta {{ pesos(p.cupo_mercado_disponible) }}</small></span>
+                        </button>
+                      }
+                    </div>
+                    @if (autorizacionActual(); as a) {
+                      <p class="nota sin-margen">Se usa lo que cubra la compra; el resto de la autorización ({{ pesos(a['autorizacion_monto'] - montoAplicado()) }}) queda libre al confirmar.</p>
+                    }
+                  } @else if (p.cupo_mercado_disponible > 0) {
+                    <p class="nota">Sin autorización previa: se descuenta por nómina directamente (hasta {{ pesos(p.cupo_mercado_disponible) }}).</p>
+                  } @else {
+                    <p class="motivo"><mat-icon>block</mat-icon> {{ p.motivo_no_puede || 'No tiene bono disponible' }}</p>
+                  }
+                  @if (!autorizacionElegida()) {
+                    <div class="campo cuotas"><label>Cuotas</label>
+                      <input type="number" inputmode="numeric" [(ngModel)]="cuotas" min="1" max="4" /></div>
+                  }
+                } @else {
+                  <p class="nota">Cargando la ficha de la persona…</p>
+                }
+              </div>
+            }
+
+            <!-- Teclado: efectivo = lo que entrega la persona; demás = monto -->
+            <div class="cobro-monto">
+              <div class="visor" [class.efectivo]="metodo() === 'EFECTIVO'">
+                <span>{{ metodo() === 'EFECTIVO' ? 'Recibe' : 'Monto ' + medioActual().nombre }}</span>
+                <strong>{{ pesos(valorTecleado()) }}</strong>
+              </div>
+              @if (metodo() === 'EFECTIVO') {
+                <div class="vueltas" [class.hay]="vueltas() > 0">
+                  <span>Vueltas</span><strong>{{ pesos(vueltas()) }}</strong>
+                </div>
+              }
+            </div>
+            @if (metodo() === 'EFECTIVO') {
+              <div class="billetes">
+                <button type="button" class="billete exacto" (click)="exacto()">Exacto</button>
+                @for (b of billetes; track b) {
+                  <button type="button" class="billete" (click)="sumarBillete(b)">+{{ pesos(b) }}</button>
+                }
+              </div>
+            }
+            <div class="teclado">
+              @for (t of teclas; track t) {
+                <button type="button" class="tecla" (click)="tecla(t)" [attr.aria-label]="t === '⌫' ? 'Borrar' : t">{{ t }}</button>
+              }
+            </div>
+            <div class="tienda-barra">
+              <button type="button" class="boton secundario" (click)="borrarTeclado()">Borrar</button>
+              @if (metodo() !== 'EFECTIVO') { <button type="button" class="boton secundario" (click)="exacto()">Todo lo que falta</button> }
+            </div>
+
+            @if (usaPasarela()) {
+              <p class="tienda-aviso"><mat-icon>bolt</mat-icon><span>{{ medioActual().nombre }} se cobra por {{ mediosCaja()?.pasarela?.proveedor }}: se genera un QR de pago y se confirma solo, sin foto.</span></p>
+            } @else if (datosMedio().length) {
+              <div class="datos-medio">
+                <p class="etiqueta-bloque">Datos para que le paguen</p>
+                @for (d of datosMedio(); track d.id) {
+                  <div class="dato">
+                    @if (d.qr_doc_id) { <app-imagen-ampliable [doc]="d.qr_doc_id" [tamano]="120" icono="qr_code_2" [nombre]="d.nombre || 'Código QR'" /> }
+                    <div class="dato-texto">
+                      <strong>{{ d.nombre || d.entidad || medioActual().nombre }}</strong>
+                      @if (d.numero) { <span class="dato-numero mono">{{ d.numero }}</span> }
+                      @if (d.titular) { <span>{{ d.titular }}@if (d.documento_titular) { · {{ d.documento_titular }} }</span> }
+                      @if (d.entidad || d.tipo_cuenta) { <span>{{ d.entidad }} {{ d.tipo_cuenta ? '· ' + d.tipo_cuenta : '' }}</span> }
+                      @if (d.enlace_pago) { <a class="enlace" [href]="d.enlace_pago" target="_blank" rel="noopener">Link de pago</a> }
+                      @if (d.instrucciones) { <small>{{ d.instrucciones }}</small> }
+                    </div>
+                  </div>
+                }
+              </div>
+            } @else if (medioActual().soporte) {
+              <p class="nota sin-margen">Esta tienda no tiene cargados los datos de {{ medioActual().nombre }}. Configúrelos en <a routerLink="/dashboard/tienda/medios-pago">Medios de pago</a>.</p>
+            }
+            @if (medioActual().soporte && !usaPasarela()) {
+              <div class="soporte">
+                <div class="campo"><label>Referencia / número de aprobación</label>
+                  <input [ngModel]="referencia()" (ngModelChange)="referencia.set($event)" maxlength="80" placeholder="Opcional si toma la foto" /></div>
+                <app-tomar-foto etiqueta="Foto del comprobante" icono="receipt_long" camara="environment" [multiple]="true"
+                                tipoDueno="STORE_PAGO" [obligatoria]="!referencia().trim()" (cambio)="soportes.set($event)" />
+                <p class="nota sin-margen">Voucher del datáfono, pantallazo del QR o de la transferencia, consignación o extracto. Queda para conciliar.</p>
+              </div>
+            }
+            @if (metodo() === 'BONO') {
+              <div class="campo"><label>Código del vale o bono</label>
+                <input [ngModel]="referencia()" (ngModelChange)="referencia.set($event)" maxlength="80" /></div>
+            }
+
+            @if (usaPasarela()) {
+              <button type="button" class="boton grande agregar-pago" (click)="generarCobro()" [disabled]="!puedeAgregarPago()">
+                <mat-icon>qr_code_2</mat-icon> Generar cobro de {{ pesos(montoAplicado()) }} ({{ medioActual().nombre }})
+              </button>
+            } @else {
+              <button type="button" class="boton grande agregar-pago" (click)="agregarPago()"
+                      [disabled]="!puedeAgregarPago() || faltaSoporte()">
+                <mat-icon>{{ medioActual().icono }}</mat-icon>
+                Cobrar {{ pesos(montoAplicado()) }} con {{ medioActual().nombre }}
+              </button>
             }
           }
-        </div>
 
-        <!-- Agregar un medio de pago -->
-        <div class="formulario">
-          <div class="campo"><label>Medio de pago</label>
-            <select [(ngModel)]="nuevoPago.metodo">
-              @for (m of metodos; track m.codigo) {
-                <option [value]="m.codigo">{{ m.nombre }}</option>
+          <button type="button" class="boton confirmar" (click)="confirmar()" [disabled]="!puedeConfirmar()">
+            <mat-icon>check_circle</mat-icon>
+            @if (esperandoPasarela()) { Esperando que la pasarela apruebe el pago… }
+            @else if (pendiente() > 0 && lineas().length) { Faltan {{ pesos(pendiente()) }} }
+            @else if (!lineas().length) { Agregue productos }
+            @else { Confirmar venta @if (vueltasTotales() > 0) { · vueltas {{ pesos(vueltasTotales()) }} } }
+          </button>
+        </section>
+      </div>
+
+      <!-- Código de barras repetido en varios productos -->
+      @if (eligiendoEntre(); as e) {
+        <div class="velo" (click)="eligiendoEntre.set(null)">
+          <div class="hoja" role="dialog" aria-modal="true" aria-label="Elegir producto" (click)="$event.stopPropagation()">
+            <div class="titulo-con-accion">
+              <h2 class="titulo-seccion">El código {{ e.codigo }} está en {{ e.opciones.length }} productos</h2>
+              <button type="button" class="mini" aria-label="Cerrar" (click)="eligiendoEntre.set(null)"><mat-icon>close</mat-icon></button>
+            </div>
+            <div class="variantes">
+              @for (o of e.opciones; track o.id) {
+                <button type="button" class="variante" (click)="agregarLeido(o, e.cantidad)">
+                  <strong>{{ o.nombre }}</strong>
+                  <span>{{ o.precio != null ? pesos(o.precio) : 'Sin precio' }} · {{ o.sku }}</span>
+                  <span class="producto-estado" [attr.data-estado]="o.estado">{{ textoEstado(o) }}</span>
+                </button>
               }
-            </select>
-          </div>
-          <div class="campo"><label>Monto</label>
-            <input type="number" [(ngModel)]="nuevoPago.monto" min="0" /></div>
-          @if (metodoActual().requiereReferencia) {
-            <div class="campo"><label>Referencia de la transacción</label>
-              <input [(ngModel)]="nuevoPago.referencia" placeholder="Número que da la billetera" /></div>
-          }
-          @if (nuevoPago.metodo === 'NOMINA') {
-            <div class="campo"><label>Cuotas</label>
-              <input type="number" [(ngModel)]="nuevoPago.cuotas" min="1" max="12" /></div>
-          }
-          <div class="acciones-pago">
-            <button type="button" class="boton secundario" (click)="cobrarPendiente()">
-              Todo el pendiente
-            </button>
-            <button type="button" class="boton" (click)="agregarPago()"
-                    [disabled]="trabajando() || nuevoPago.monto <= 0">
-              <mat-icon>add_card</mat-icon> Agregar pago
-            </button>
+            </div>
           </div>
         </div>
+      }
 
-        <button type="button" class="boton confirmar" (click)="confirmar()"
-                [disabled]="!puedeConfirmar() || trabajando()">
-          <mat-icon>check_circle</mat-icon>
-          Confirmar venta
-        </button>
-        @if (!puedeConfirmar() && lineas().length > 0) {
-          <p class="nota">Faltan {{ pendiente() | currency:'COP':'symbol-narrow':'1.0-0' }} por cobrar.</p>
-        }
+      <!-- Elegir opción (talla, color, capacidad…) -->
+      @if (eligiendoVariante(); as p) {
+        <div class="velo" (click)="eligiendoVariante.set(null)">
+          <div class="hoja" role="dialog" aria-modal="true" [attr.aria-label]="'Opciones de ' + p.nombre" (click)="$event.stopPropagation()">
+            <div class="titulo-con-accion">
+              <h2 class="titulo-seccion">{{ p.nombre }}</h2>
+              <button type="button" class="mini" aria-label="Cerrar" (click)="eligiendoVariante.set(null)"><mat-icon>close</mat-icon></button>
+            </div>
+            <div class="variantes">
+              @for (v of p.variantes; track v.id) {
+                <button type="button" class="variante" [disabled]="v.estado === 'NO_DISPONIBLE'" (click)="agregar(p, v.id)">
+                  <strong>{{ v.nombre }}</strong>
+                  <span>{{ v.precio != null ? pesos(v.precio) : 'Sin precio' }}</span>
+                  <span class="producto-estado" [attr.data-estado]="v.estado">{{ textoEstado(v) }}</span>
+                </button>
+              }
+            </div>
+          </div>
+        </div>
+      }
+    } @else {
+      <section class="tienda-tarjeta tienda-vacio">
+        <mat-icon>point_of_sale</mat-icon>
+        <p>Elija una venta abierta arriba o empiece una nueva.</p>
       </section>
-    </div>
+    }
   }
 </div>
+
+@if (canjeLeido(); as k) {
+  <div class="velo-canje" (click)="canjeLeido.set(null)">
+    <div class="dialogo-canje" role="dialog" aria-modal="true" (click)="$event.stopPropagation()">
+      <mat-icon class="dc-icono">redeem</mat-icon>
+      <h3>Entregar premio por puntos</h3>
+      <p><b>{{ k.premio_nombre }}</b> · {{ k.puntos | number: '1.0-0' }} puntos</p>
+      <p class="nota">Para {{ k.nombre || 'el colaborador' }} · cédula {{ k.cedula }} · código {{ k.codigo }}</p>
+      <div class="dc-acciones">
+        <button type="button" class="boton secundario" (click)="canjeLeido.set(null)">Cancelar</button>
+        <button type="button" class="boton" (click)="entregarPremio(k, false)"><mat-icon>check_circle</mat-icon> Entregar</button>
+      </div>
+    </div>
+  </div>
+}

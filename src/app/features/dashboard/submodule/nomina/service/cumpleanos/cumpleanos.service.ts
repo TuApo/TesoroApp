@@ -31,6 +31,26 @@ export interface PersonaCumpleanos {
   anios_empresa: number | null;
   activo: boolean;
   inactivado_en: string | null;
+  /**
+   * EXCEL = la maneja la hoja de RRHH (entra y sale con ella); MANUAL = la agregó
+   * Marketing a mano y el Excel no la toca. Falta en respuestas de antes del 17-oct.
+   */
+  origen?: 'EXCEL' | 'MANUAL';
+  alta_manual_por?: string | null;
+  /** Cuándo se hizo el alta manual: si es después del envío de su día, ese día no le llegó. */
+  alta_manual_en?: string | null;
+}
+
+/** Alta manual de UNA persona en el padrón (upsert por cédula). */
+export interface AltaManualPadron {
+  cedula: string;
+  nombre: string;
+  /** AAAA-MM-DD completa: el año cuenta para la edad del correo. */
+  fecha_nacimiento: string;
+  correo: string;
+  /** APOYO_LABORAL | ALIANZA. Sin ella recibe la plantilla por defecto. */
+  empresa?: string | null;
+  finca?: string | null;
 }
 
 export interface PadronPage {
@@ -259,6 +279,19 @@ export class CumpleanosService {
   cambiarActivo(id: number, activo: boolean): Observable<PersonaCumpleanos> {
     const params = new HttpParams().set('activo', activo);
     return this.http.patch<PersonaCumpleanos>(`${this.base}/padron/${id}/activo`, null, { params });
+  }
+
+  /**
+   * Agrega (o corrige) a una persona a mano. Queda MANUAL: el Excel no la
+   * actualiza ni la inactiva. 409 si ya está activa por el Excel (se corrige allá).
+   */
+  altaManual(body: AltaManualPadron): Observable<PersonaCumpleanos> {
+    return this.http.put<PersonaCumpleanos>(`${this.base}/padron/persona`, body);
+  }
+
+  /** Quita un alta manual: queda inactiva y deja de recibir el correo. 409 si es del Excel. */
+  quitarAltaManual(cedula: string): Observable<PersonaCumpleanos> {
+    return this.http.delete<PersonaCumpleanos>(`${this.base}/padron/persona/${encodeURIComponent(cedula)}`);
   }
 
   // ── Configuración ──────────────────────────────────────────────────────────

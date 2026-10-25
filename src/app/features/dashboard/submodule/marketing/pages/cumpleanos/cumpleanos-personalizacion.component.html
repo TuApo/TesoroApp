@@ -1,0 +1,142 @@
+<div class="telon" (click)="cerrar.emit()">
+  <div class="panel panel--ancho cp" (click)="$event.stopPropagation()">
+    <header class="cp-cab">
+      <span class="cp-foto">
+        @if (persona().foto_url) {
+          <img [src]="url(persona().foto_url)" alt="" [style.object-position]="persona().enfoque_x + '% ' + persona().enfoque_y + '%'" />
+        } @else { <mat-icon>cake</mat-icon> }
+      </span>
+      <div>
+        <h3>Personalizar a {{ persona().primer_nombre }}</h3>
+        <p class="sub">{{ fecha() }} · {{ persona().nombre }}</p>
+      </div>
+      <button type="button" class="mini cp-x" (click)="cerrar.emit()" title="Cerrar"><mat-icon>close</mat-icon></button>
+    </header>
+
+    @if (datos(); as d) {
+      <ol class="cp-pasos">
+        <!-- 1 · el equipo -->
+        <li class="cp-paso">
+          <span class="cp-paso__n">1</span>
+          <div class="cp-paso__cuerpo">
+            <h4>El equipo elige cómo es</h4>
+            @if (d.enlace) {
+              <div class="cp-enlace">
+                <code>{{ enlace() }}</code>
+                <button type="button" class="btn btn--fantasma" (click)="copiar()"><mat-icon>content_copy</mat-icon> Copiar</button>
+                <a class="btn btn--fantasma" [href]="whatsapp()" target="_blank" rel="noopener"><mat-icon>chat</mat-icon> WhatsApp</a>
+              </div>
+            } @else {
+              <p class="sub">Crea un enlace y compártelo con su equipo: cada quien elige hasta 6 etiquetas, y su jefe le escribe un mensaje.</p>
+              <button type="button" class="btn btn--primario" (click)="crearEnlace()"><mat-icon>link</mat-icon> Crear enlace para el equipo</button>
+            }
+            @if (d.etiquetas.length) {
+              <p class="sub">{{ d.personas_votaron }} {{ d.personas_votaron === 1 ? 'persona ha votado' : 'personas han votado' }}:</p>
+              <div class="cp-etiquetas">
+                @for (e of d.etiquetas; track e.id; let i = $index) {
+                  <span class="cp-etq" [class.cp-etq--top]="i < 4">{{ e.emoji }} {{ e.nombre }} <b>{{ e.votos }}</b></span>
+                }
+              </div>
+              <p class="sub cp-nota">Las 4 más votadas (resaltadas) son las que usa la IA y las que salen en la celebración.</p>
+            } @else if (d.enlace) {
+              <p class="sub">Todavía nadie ha votado.</p>
+            }
+          </div>
+        </li>
+
+        <!-- 2 · el jefe -->
+        <li class="cp-paso">
+          <span class="cp-paso__n">2</span>
+          <div class="cp-paso__cuerpo">
+            <h4>Mensaje de su jefe</h4>
+            <p class="sub">
+              @if (d.jefe_nombre) { Lo escribe {{ d.jefe_nombre }} desde el enlace (entra con su cédula {{ d.jefe_documento }}). }
+              @else { No tiene jefe designado: ponlo en «Editar» (nombre y cédula) o escríbelo aquí. }
+              Sale firmado debajo de su foto.
+            </p>
+            <label class="campo"><span>Mensaje</span>
+              <textarea rows="3" maxlength="500" [ngModel]="mensaje()" (ngModelChange)="mensaje.set($event)"
+                        [placeholder]="persona().primer_nombre + ', gracias por…'"></textarea></label>
+            <div class="cp-fila">
+              <label class="campo"><span>Firma</span>
+                <input maxlength="120" [ngModel]="firma()" (ngModelChange)="firma.set($event)" placeholder="Carlos, tu jefe" /></label>
+              <button type="button" class="btn btn--fantasma" [disabled]="guardandoMensaje()" (click)="guardarMensaje()">
+                <mat-icon>save</mat-icon> Guardar</button>
+            </div>
+          </div>
+        </li>
+
+        <!-- 3 · la IA -->
+        <li class="cp-paso">
+          <span class="cp-paso__n">3</span>
+          <div class="cp-paso__cuerpo">
+            <h4>Su fondo con IA (Higgsfield)</h4>
+            <p class="sub">Con sus etiquetas y los colores de la plantilla del día se crea un fondo propio en horizontal (computador)
+              y vertical (celular). Sale en su celebración cuando lo apruebes. El nombre y el mensaje no se envían a la IA.</p>
+            @if (!d.higgsfield_configurado) {
+              <p class="cp-aviso"><mat-icon>info</mat-icon> El servidor aún no tiene la llave de Higgsfield: la solicitud la completa el
+                asistente y aquí aparece lista para revisar.</p>
+            }
+            <div class="cp-fila">
+              <label class="check"><input type="checkbox" [ngModel]="animar()" (ngModelChange)="animar.set($event)" />
+                También animarlo (video en bucle; tarda y cuesta más)</label>
+              <button type="button" class="btn btn--primario" [disabled]="!d.etiquetas.length || pidiendo()" (click)="generar()"
+                      [title]="d.etiquetas.length ? '' : 'Primero el equipo debe elegir etiquetas'">
+                <mat-icon>auto_awesome</mat-icon> {{ d.piezas.length ? 'Volver a generar' : 'Generar con IA' }}</button>
+            </div>
+
+            @if (d.piezas.length) {
+              <div class="cp-piezas">
+                @for (g of piezasPorOrientacion(); track g.o) {
+                  @if (g.piezas.length) {
+                    <div class="cp-columna" [class.cp-columna--v]="g.o === 'V'">
+                      <span class="cp-columna__t">{{ g.o === 'H' ? 'Horizontal · computador' : 'Vertical · celular' }}</span>
+                      @for (p of g.piezas; track p.id) {
+                        <figure class="cp-pieza" [class]="'cp-pieza cp-pieza--' + p.estado.toLowerCase()">
+                          <div class="cp-pieza__medio" [class.cp-pieza__medio--v]="p.orientacion === 'V'">
+                            @if (p.url) {
+                              @if (p.tipo === 'VIDEO') {
+                                <video [src]="url(p.url)" [muted]="true" autoplay loop playsinline></video>
+                              } @else {
+                                <img [src]="url(p.url)" alt="Pieza generada" />
+                              }
+                            } @else {
+                              <span class="cp-pieza__espera"><mat-icon>{{ p.estado === 'FALLIDA' ? 'error' : 'hourglass_top' }}</mat-icon></span>
+                            }
+                          </div>
+                          <figcaption>
+                            <span class="cp-chip">{{ p.tipo === 'VIDEO' ? '🎬 Video' : '🖼️ Imagen' }} · {{ estados[p.estado] }}</span>
+                            @if (p.error && p.estado !== 'LISTA' && p.estado !== 'APROBADA') { <small class="cp-error">{{ p.error }}</small> }
+                            <span class="cp-acciones">
+                              @if (p.estado === 'LISTA') {
+                                <button type="button" class="btn btn--primario cp-mini" (click)="aprobar(p)"><mat-icon>check</mat-icon> Aprobar</button>
+                              }
+                              @if (p.estado !== 'APROBADA') {
+                                <label class="btn btn--fantasma cp-mini" title="Subir un archivo propio para esta pieza">
+                                  <mat-icon>upload</mat-icon>
+                                  <input type="file" [accept]="p.tipo === 'VIDEO' ? 'video/mp4' : 'image/jpeg,image/png,image/webp'" (change)="subir(p, $event)" hidden /></label>
+                              }
+                              <button type="button" class="mini" (click)="descartar(p)" title="Descartar"><mat-icon>delete</mat-icon></button>
+                            </span>
+                          </figcaption>
+                        </figure>
+                      }
+                    </div>
+                  }
+                }
+              </div>
+              @if (enCurso()) { <p class="sub cp-nota"><mat-icon>sync</mat-icon> Se actualiza solo cada 15 segundos.</p> }
+            }
+          </div>
+        </li>
+      </ol>
+
+      <div class="pie">
+        <button type="button" class="btn btn--fantasma" (click)="probar.emit()"><mat-icon>play_arrow</mat-icon> Ver cómo queda</button>
+        <button type="button" class="btn btn--primario" (click)="cerrar.emit()">Listo</button>
+      </div>
+    } @else {
+      <p class="sub">Cargando…</p>
+    }
+  </div>
+</div>

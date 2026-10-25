@@ -1,0 +1,132 @@
+@if (sinPermiso()) {
+  <div class="vacio"><mat-icon>lock</mat-icon><p><strong>Solo el equipo de Marketing administra los cumpleaños.</strong></p></div>
+} @else if (!cal()) {
+  <p class="sub">Cargando…</p>
+} @else {
+  <div class="tb">
+    <!-- Hoy -->
+    <article class="tb-hoy" [class.tb-hoy--vacio]="!diaHoy()?.personas?.length">
+      @if (diaHoy(); as d) {
+        @if (d.personas.length) {
+          <div class="tb-hoy__txt">
+            <span class="tb-ceja">Hoy · {{ fecha(d.fecha) }}</span>
+            <h3>Celebramos a {{ d.personas.length === 1 ? d.personas[0].nombre : d.personas.length + ' personas' }}</h3>
+            <p>{{ nombreDia(d) }} ·
+              <button type="button" class="tb-vistas" (click)="viendoVistas.set(true)" [disabled]="!d.vistas" title="Ver quién la vio">
+                {{ d.vistas }} {{ d.vistas === 1 ? 'persona la ha visto' : 'personas la han visto' }}
+                @if (d.vistas) { <mat-icon>chevron_right</mat-icon> }</button></p>
+            <div class="tb-acciones">
+              <button type="button" class="btn tb-btn" (click)="simularIngreso()"><mat-icon>replay</mat-icon> Verla como al entrar</button>
+              <a class="btn tb-btn tb-btn--claro" routerLink="../calendario"><mat-icon>calendar_month</mat-icon> Calendario</a>
+            </div>
+          </div>
+          <div class="tb-caras">
+            @for (p of d.personas.slice(0, 5); track p.id) {
+              <span class="tb-cara" [title]="p.nombre">
+                @if (p.foto_url) { <img [src]="url(p.foto_url)" [alt]="p.nombre" [style.object-position]="p.enfoque_x + '% ' + p.enfoque_y + '%'" /> }
+                @else { {{ iniciales(p.nombre) }} }
+              </span>
+            }
+          </div>
+        }
+      }
+      @if (!diaHoy()?.personas?.length) {
+        <div class="tb-hoy__txt">
+          <span class="tb-ceja">Hoy · {{ fecha(hoy) }}</span>
+          <h3>Hoy nadie cumple años</h3>
+          @if (proximos30()[0]; as sig) {
+            <p>El próximo: {{ sig.personas[0].nombre }}{{ sig.personas.length > 1 ? ' y ' + (sig.personas.length - 1) + ' más' : '' }} · {{ relativo(sig.fecha) }}</p>
+          } @else { <p>No hay nadie programado en los próximos 30 días.</p> }
+          <div class="tb-acciones">
+            <a class="btn tb-btn" routerLink="../calendario" [queryParams]="{ nuevo: '' }"><mat-icon>person_add</mat-icon> Agregar cumpleañero</a>
+          </div>
+        </div>
+      }
+    </article>
+
+    <!-- Indicadores -->
+    <div class="tb-kpis">
+      <a class="tb-kpi" routerLink="../calendario"><b>{{ kpis().semana }}</b><span>cumpleañeros esta semana</span></a>
+      <a class="tb-kpi" routerLink="../ia" [class.tb-kpi--alerta]="kpis().porRevisar"><b>{{ kpis().porRevisar }}</b><span>fondos con IA por revisar</span></a>
+      <a class="tb-kpi" routerLink="../calendario" [class.tb-kpi--alerta]="kpis().sinFoto"><b>{{ kpis().sinFoto }}</b><span>sin foto (próximos 30 días)</span></a>
+      @if (correoHoy(); as ch) {
+        <a class="tb-kpi" routerLink="../correos" [class.tb-kpi--alerta]="ch.alerta"><b>{{ ch.valor }}</b><span>{{ ch.texto }}</span></a>
+      }
+      <div class="tb-kpi"><b>{{ kpis().promedio | number: '1.0-0' }}</b><span>personas la ven por día (últimos 30)</span></div>
+      <div class="tb-kpi"><b>{{ kpis().cierre * 100 | number: '1.0-0' }} %</b><span>la cierran antes de terminar</span></div>
+    </div>
+
+    <div class="tb-columnas">
+      <!-- Semana -->
+      <section class="tb-tarjeta">
+        <header><h3>Próximos 7 días</h3><a class="link" routerLink="../calendario">Ver todo</a></header>
+        @for (d of semana(); track d.fecha) {
+          <div class="tb-dia">
+            <span class="tb-dia__f"><b>{{ relativo(d.fecha) }}</b><small>{{ fecha(d.fecha) }}</small></span>
+            <span class="tb-dia__p">
+              @for (p of d.personas; track p.id) {
+                <a class="tb-persona" routerLink="../calendario" [queryParams]="{ persona: p.id }" [title]="'Personalizar a ' + p.nombre">
+                  <span class="tb-cara tb-cara--chica">
+                    @if (p.foto_url) { <img [src]="url(p.foto_url)" alt="" [style.object-position]="p.enfoque_x + '% ' + p.enfoque_y + '%'" /> }
+                    @else { {{ iniciales(p.nombre) }} }
+                  </span>
+                  {{ p.nombre }}
+                  @if (p.etiquetas?.length) { <span class="tb-emojis">@for (e of p.etiquetas; track e.nombre) {{{ e.emoji }}}</span> }
+                </a>
+              }
+            </span>
+          </div>
+        } @empty {
+          <p class="sub">Nadie cumple en los próximos 7 días.</p>
+        }
+      </section>
+
+      <!-- Atención -->
+      <section class="tb-tarjeta">
+        <header><h3>Necesita atención</h3><a class="link" routerLink="../ia">Personalización con IA</a></header>
+        @for (a of alertas(); track a.persona.id) {
+          <a class="tb-alerta" [class.tb-alerta--ia]="a.pendientes[0].tipo === 'ia'" routerLink="../calendario" [queryParams]="{ persona: a.persona.id }"
+             [title]="'Abrir a ' + a.persona.nombre">
+            <span class="tb-cara tb-cara--chica">
+              @if (a.persona.foto_url) { <img [src]="url(a.persona.foto_url)" alt="" [style.object-position]="a.persona.enfoque_x + '% ' + a.persona.enfoque_y + '%'" /> }
+              @else { {{ iniciales(a.persona.nombre) }} }
+            </span>
+            <span class="tb-alerta__txt">
+              <span class="tb-alerta__quien"><b>{{ a.persona.nombre }}</b><small>{{ relativo(a.fecha) }}</small></span>
+              <span class="tb-pend">
+                @for (p of a.pendientes; track p.tipo) {
+                  <span class="tb-pend__c" [class]="'tb-pend__c tb-pend__c--' + p.tipo"><mat-icon>{{ p.icono }}</mat-icon>{{ p.texto }}</span>
+                }
+              </span>
+            </span>
+            <mat-icon class="tb-ir">chevron_right</mat-icon>
+          </a>
+        } @empty {
+          <p class="sub">✅ Todo en orden para los próximos 30 días.</p>
+        }
+      </section>
+    </div>
+
+    <!-- Resultados -->
+    <section class="tb-tarjeta">
+      <header><h3>Cuánta gente la vio</h3><span class="sub">{{ kpis().vistas | number }} vistas en {{ kpis().diasConCelebracion }} días con celebración</span></header>
+      @if (barras().length) {
+        <div class="tb-barras" role="img" [attr.aria-label]="'Vistas por día de los últimos días con celebración'">
+          @for (b of barras(); track b.fecha) {
+            <div class="tb-barra" [title]="b.nombres + ': ' + b.vistas + ' vistas'">
+              <span class="tb-barra__n">{{ b.vistas }}</span>
+              <span class="tb-barra__b" [style.height.%]="b.alto"></span>
+              <small>{{ corta(b.fecha) }}</small>
+            </div>
+          }
+        </div>
+      } @else {
+        <p class="sub">Todavía no hay celebraciones pasadas que medir.</p>
+      }
+    </section>
+  </div>
+}
+
+@if (viendoVistas() && diaHoy(); as d) {
+  <app-cumpleanos-vistas [fecha]="d.fecha" [personas]="d.personas" (cerrar)="viendoVistas.set(false)" />
+}

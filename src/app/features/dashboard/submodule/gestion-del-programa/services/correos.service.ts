@@ -13,6 +13,12 @@ import {
   ProveedorCorreo,
   VerificacionCorreo,
 } from '../models/correo-cuenta.model';
+import {
+  DireccionRebotada,
+  EnvioRebotado,
+  EstadoRebotes,
+  ResumenRebotes,
+} from '../models/correo-rebote.model';
 
 /**
  * Cliente HTTP del submódulo Correos electrónicos (cuentas remitentes).
@@ -89,5 +95,33 @@ export class CorreosService {
 
   resumenCuota(): Observable<CuotaResumen> {
     return this.http.get<CuotaResumen>(`${this.base}/cuota/resumen`);
+  }
+
+  // ── Rebotes (fase 1: solo marcar) ────────────────────────────────────────
+
+  estadoRebotes(): Observable<EstadoRebotes> {
+    return this.http.get<EstadoRebotes>(`${this.base}/rebotes/estado`);
+  }
+
+  /** Lee el buzón de rebotes ahora, sin esperar a la tarea programada. */
+  revisarRebotes(): Observable<{ resumen: ResumenRebotes; estado: EstadoRebotes }> {
+    return this.http.post<{ resumen: ResumenRebotes; estado: EstadoRebotes }>(`${this.base}/rebotes/revisar`, {});
+  }
+
+  enviosRebotados(q?: string | null): Observable<EnvioRebotado[]> {
+    const params: Record<string, string> = {};
+    if (q && q.trim()) params['q'] = q.trim();
+    return this.http.get<EnvioRebotado[]>(`${this.base}/rebotes/envios`, { params });
+  }
+
+  direccionesRebotadas(soloInvalidas = false): Observable<DireccionRebotada[]> {
+    return this.http.get<DireccionRebotada[]>(`${this.base}/rebotes/direcciones`, {
+      params: { solo_invalidas: String(soloInvalidas) },
+    });
+  }
+
+  /** La persona corrigió su buzón: deja de figurar como inválida (el historial queda). */
+  desmarcarDireccion(id: number): Observable<DireccionRebotada> {
+    return this.http.patch<DireccionRebotada>(`${this.base}/rebotes/direcciones/${id}/desmarcar`, {});
   }
 }

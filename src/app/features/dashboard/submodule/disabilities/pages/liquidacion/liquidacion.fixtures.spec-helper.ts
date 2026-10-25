@@ -142,6 +142,7 @@ export function pagoItem(p: Partial<PagoItem> = {}): PagoItem {
     fechaPago: '2026-07-03',
     numeroIncapacidadEps: '9988',
     soporteContable: 'DOC-072',
+    causalTexto: null,
     observaciones: null,
     cargaId: 7,
     creadoPor: 'ligia',

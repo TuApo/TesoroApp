@@ -365,12 +365,14 @@
             }
           </ng-template>
 
-          <ng-template tablaAcciones let-s>
-            @if (s.estado === 'PENDIENTE') {
-              <button type="button" class="tsr-boton pequeno peligro"
-                      (click)="anular(s)">Anular</button>
-            }
-          </ng-template>
+          @if (puedeAnular) {
+            <ng-template tablaAcciones let-s>
+              @if (s.estado === 'PENDIENTE') {
+                <button type="button" class="tsr-boton pequeno peligro"
+                        (click)="anular(s)">Anular</button>
+              }
+            </ng-template>
+          }
         </app-tabla-estandar>
       </div>
     }

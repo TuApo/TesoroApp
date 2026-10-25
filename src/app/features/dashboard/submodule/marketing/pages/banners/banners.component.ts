@@ -4,6 +4,7 @@ import { FormsModule } from '@angular/forms';
 import { MatIconModule } from '@angular/material/icon';
 import { CdkDragDrop, DragDropModule, moveItemInArray } from '@angular/cdk/drag-drop';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ActivatedRoute, Router, RouterLink } from '@angular/router';
 import { forkJoin } from 'rxjs';
 import Swal from 'sweetalert2';
 
@@ -34,7 +35,7 @@ type Filtro = 'TODOS' | 'EN_AIRE' | 'PROGRAMADO' | 'BORRADOR' | 'PAUSADO' | 'VEN
   standalone: true,
   imports: [
     FormsModule, MatIconModule, DragDropModule, DatePipe, DecimalPipe, BannerSlideComponent, BannerEditorComponent,
-    PlantillasBannerComponent, EventosPlataformaComponent,
+    PlantillasBannerComponent, EventosPlataformaComponent, RouterLink,
   ],
   changeDetection: ChangeDetectionStrategy.OnPush,
   templateUrl: './banners.component.html',
@@ -43,6 +44,8 @@ type Filtro = 'TODOS' | 'EN_AIRE' | 'PROGRAMADO' | 'BORRADOR' | 'PAUSADO' | 'VEN
 export class BannersComponent implements OnInit {
   private readonly api = inject(CarruselService);
   private readonly audiencia = inject(AudienceCatalogService);
+  private readonly ruta = inject(ActivatedRoute);
+  private readonly router = inject(Router);
 
   readonly pestana = signal<Pestana>('banners');
   readonly cargando = signal(true);
@@ -105,6 +108,11 @@ export class BannersComponent implements OnInit {
   ];
 
   ngOnInit(): void {
+    // Enlace directo a una pestaña: /dashboard/marketing/banners?pestana=eventos
+    const pedida = this.ruta.snapshot.queryParamMap.get('pestana');
+    // Cumpleaños ya es un módulo propio (Marketing › Cumpleaños): los enlaces viejos siguen sirviendo.
+    if (pedida === 'cumpleanos') { void this.router.navigate(['/dashboard/marketing/cumpleanos/calendario'], { replaceUrl: true }); return; }
+    if (pedida === 'plantillas' || pedida === 'eventos') this.pestana.set(pedida);
     forkJoin({ catalogo: this.api.catalogo(), plantillas: this.api.plantillas() }).subscribe({
       next: (r) => { this.catalogo.set(r.catalogo); this.plantillas.set(r.plantillas); },
       error: (e: HttpErrorResponse) => { if (e.status === 403) this.sinPermiso.set(true); },

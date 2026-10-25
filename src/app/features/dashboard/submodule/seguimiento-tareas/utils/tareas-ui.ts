@@ -154,6 +154,7 @@ export function etiquetaOrigen(tipo: string | null | undefined): string {
     TAREA: 'Subtarea de otra tarea',
     SOLICITUD: 'Solicitud',
     EVENTO: 'Evento de la plataforma',
+    COMUNICACION: 'Correo o WhatsApp (Bandeja)',
   };
   return tipo ? (m[tipo.toUpperCase()] ?? tipo) : '';
 }

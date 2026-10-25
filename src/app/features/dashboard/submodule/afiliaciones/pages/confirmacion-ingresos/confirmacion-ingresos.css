@@ -10,8 +10,21 @@
   margin: 0.25rem 0 1rem;
   padding: 0 0.25rem;
 }
-.base-toggle { display: flex; align-items: center; gap: 0.5rem; }
-.base-label { font-size: 0.85rem; color: var(--muted); }
+.cola-toggle .mat-icon { font-size: 18px; width: 18px; height: 18px; vertical-align: -4px; margin-right: 4px; }
+
+/* Guía del proceso: orden en que se trabaja a cada persona, de izquierda a derecha. */
+.pasos-proceso {
+  display: flex; flex-wrap: wrap; gap: 0.35rem 1.1rem;
+  margin: 0; padding: 0; list-style: none; counter-reset: paso;
+  font-size: 0.8rem; color: var(--muted);
+}
+.pasos-proceso li { display: flex; align-items: center; gap: 0.3rem; counter-increment: paso; }
+.pasos-proceso li::before {
+  content: counter(paso); display: inline-grid; place-items: center;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: var(--border); color: var(--text); font-size: 0.7rem; font-weight: 600;
+}
+.pasos-proceso .mat-icon { font-size: 16px; width: 16px; height: 16px; }
 
 
 /* Barra masiva */
@@ -60,22 +73,53 @@
 
 /* Drawer de detalle */
 .drawer-backdrop {
-  position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); z-index: 1000;
+  position: fixed; inset: 0; background: var(--surface); z-index: 1000;
 }
+/* Ficha individual A PANTALLA COMPLETA.
+   Antes era un cajón de 480 px pegado a la derecha: con 23 datos, los cuatro validadores,
+   el expediente y el visor de documentos dentro, todo quedaba en una columna estrecha y
+   había que bajar media pantalla para ver la cédula. Ahora ocupa el viewport y las secciones
+   fluyen en varias columnas según el ancho; `Documentos` ocupa la fila entera porque el
+   visor es lo que más espacio agradece. */
 .drawer {
-  position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 92vw;
-  background: var(--surface); z-index: 1001; box-shadow: -4px 0 24px rgba(0,0,0,0.15);
+  position: fixed; inset: 0; width: 100%; max-width: none;
+  background: var(--surface); z-index: 1001;
   display: flex; flex-direction: column;
 }
 .drawer-header {
-  display: flex; align-items: flex-start; justify-content: space-between;
-  padding: 1rem 1.25rem; border-bottom: 1px solid var(--border);
+  position: sticky; top: 0; z-index: 2;
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem;
+  padding: 0.9rem clamp(1rem, 3vw, 2.25rem);
+  border-bottom: 1px solid var(--border); background: var(--surface);
 }
-.drawer-header h3 { margin: 0; font-size: 1.1rem; color: var(--text); }
-.drawer-sub { font-size: 0.82rem; color: var(--muted); }
-.drawer-body { overflow-y: auto; padding: 1rem 1.25rem; }
-.drawer-section { margin-bottom: 1.5rem; }
-.drawer-section h4 { margin: 0 0 0.6rem; font-size: 0.9rem; color: var(--text); }
+.drawer-header h3 { margin: 0; font-size: 1.35rem; line-height: 1.2; color: var(--text); }
+.drawer-ident { min-width: 0; }
+/* Los datos de identificación en fila, separados por puntos, y que bajen de línea si no caben. */
+.drawer-sub {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.15rem 0.85rem;
+  margin-top: 0.25rem; font-size: 0.88rem; color: var(--muted);
+}
+.drawer-sub > span { display: inline-flex; align-items: center; }
+.drawer-sub > span + span::before {
+  content: '·'; margin-right: 0.85rem; color: var(--text-faint);
+}
+/* Reparto del ancho. «Datos» es una lista larga y estrecha de pares; todo lo demás —el
+   seguimiento, ADRES, el traslado y el visor— quiere ancho. Con bloques que se envuelven,
+   la altura de «Datos» abría un hueco muerto de media pantalla debajo del seguimiento, así
+   que son dos columnas de verdad: «Datos» fija a la izquierda y el resto fluyendo seguido
+   a la derecha. */
+.drawer-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding: 1.25rem clamp(1rem, 3vw, 2.25rem) 2.5rem;
+  display: grid; align-items: start;
+  grid-template-columns: minmax(320px, 430px) minmax(0, 1fr);
+  column-gap: clamp(1.25rem, 2.5vw, 2.5rem);
+}
+/* Dos columnas independientes, no una rejilla de filas compartidas: así lo alto de «Datos»
+   no arrastra a lo que tiene enfrente ni deja huecos muertos. */
+.col-izq, .col-der { min-width: 0; }
+.drawer-section { margin-bottom: 1.5rem; min-width: 0; }
+.drawer-section h4 { margin: 0 0 0.6rem; font-size: 0.95rem; color: var(--text); }
 
 .kv-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 1rem; }
 .kv-grid > div { font-size: 0.85rem; color: var(--text-2); }
@@ -91,9 +135,12 @@
 .adres-bad { background: #ffedd5; background: light-dark(#ffedd5, #382d24); color: #9a3412; color: light-dark(#9a3412, #f3b19b); }
 .adres-muerto { background: #fee2e2; background: light-dark(#fee2e2, #371725); color: #991b1b; color: light-dark(#991b1b, #eea0a0); }
 .adres-neutro { background: var(--surface-4); color: var(--text-2); }
+/* Régimen especial o de excepción en ADRES (V65): ámbar con borde, hay que revisarlo. */
+.adres-excepcion { background: light-dark(#fef3c7, #373625); color: light-dark(#92400e, #f5bc99); box-shadow: inset 0 0 0 1px light-dark(#fde68a, #6a5d1c); }
 .adres-sin { font-size: 0.75rem; color: var(--text-faint); }
 
-.conf-controls { display: flex; gap: 0.75rem; }
+.conf-controls { display: flex; flex-wrap: wrap; gap: 0.75rem; }
+.conf-field { min-width: 160px; }
 .conf-field { flex: 1; }
 .conf-nota { width: 100%; }
 .drawer-section ::ng-deep .mat-mdc-form-field-subscript-wrapper { display: none; }
@@ -306,8 +353,9 @@
   /* Sin min-width:0 el interruptor y el grupo de fechas medían lo que su
      texto en una línea (462 px) y empujaban la página fuera de la pantalla. */
   .controls-row > * { min-width: 0; max-width: 100%; }
-  .base-toggle { justify-content: space-between; flex-wrap: wrap; }
-  .base-toggle mat-button-toggle-group { flex: 1; max-width: 100%; overflow-x: auto; }
+  .cola-toggle { width: 100%; }
+  .cola-toggle mat-button-toggle { flex: 1; }
+  .pasos-proceso { display: none; }
   .btn-pegado { width: 100%; height: 44px; }
 
   /* La barra masiva pasa a bloque: los selects a ancho completo y los
@@ -320,8 +368,8 @@
 }
 
 @media (max-width: 640px) {
-  .drawer { width: 100%; max-width: 100vw; }
-  .drawer-body { padding: 0.9rem 1rem; }
+  /* Una sola columna: con poco ancho, partir en bloques solo encoge el texto. */
+  .drawer-body { grid-template-columns: 1fr; padding: 0.9rem 1rem 2rem; }
   .kv-grid { grid-template-columns: minmax(0, 1fr); }
   .kv-grid.compact { grid-template-columns: 1fr 1fr; }
   .doc-preview iframe { height: 320px; }
@@ -340,3 +388,141 @@
   .vcard-body { grid-template-columns: minmax(0, 1fr); }
   .vcard-link { font-size: 0.76rem; }
 }
+
+
+/* ── Seguimiento de la afiliación ──────────────────────────────────────────── */
+.seg-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem; margin-bottom: 0.9rem; }
+.seg-estado {
+  padding: 0.2rem 0.7rem; border-radius: 999px;
+  font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em;
+}
+.seg-estado--pend  { background: var(--surface-4); color: var(--text-2); }
+.seg-estado--curso { background: light-dark(#dbeafe, #17263f); color: light-dark(#1e40af, #a9c9f7); }
+.seg-estado--ok    { background: light-dark(#d1fae5, #133b38); color: light-dark(#065f46, #97f7dc); }
+.seg-estado--mal   { background: light-dark(#fee2e2, #371725); color: light-dark(#991b1b, #eea0a0); }
+.seg-rad {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.82rem; color: var(--text-2);
+}
+.seg-rad strong { color: var(--text); }
+.seg-rad--none { color: var(--text-faint); }
+
+/* Los pasos van en columnas: en una ficha a pantalla completa una lista vertical de siete
+   puntos obliga a recorrer con la vista toda la altura para nada. */
+.seg-pasos {
+  list-style: none; margin: 0 0 1rem; padding: 0;
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 0.45rem 1rem;
+}
+.seg-paso { display: flex; align-items: flex-start; gap: 0.5rem; min-width: 0; }
+.seg-punto {
+  flex: none; width: 20px; height: 20px; border-radius: 50%; margin-top: 1px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: var(--surface-4); color: var(--text-faint);
+}
+.seg-paso--hecho .seg-punto { background: light-dark(#d1fae5, #133b38); color: light-dark(#047857, #6ee7b7); }
+.seg-paso--curso .seg-punto { background: light-dark(#fef3c7, #373625); color: light-dark(#92400e, #fcd34d); }
+.seg-txt { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; }
+.seg-txt strong { font-size: 0.83rem; font-weight: 600; color: var(--text); }
+.seg-txt em { font-style: normal; font-size: 0.75rem; color: var(--text-faint); overflow-wrap: anywhere; }
+.seg-paso--pendiente .seg-txt strong { color: var(--text-2); font-weight: 500; }
+
+/* Estado de lo que hay en gestión documental. */
+.seg-docs {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 0.5rem;
+  padding-top: 0.85rem; border-top: 1px solid var(--border);
+}
+.seg-docs-tit {
+  display: inline-flex; align-items: center; gap: 0.3rem;
+  font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-faint);
+  margin-right: 0.25rem;
+}
+.seg-docs-cargando { font-size: 0.78rem; color: var(--text-faint); }
+.seg-doc {
+  display: inline-flex; align-items: center; gap: 0.4rem;
+  padding: 0.3rem 0.65rem; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-2);
+  font: inherit; font-size: 0.78rem; color: var(--text-2); text-align: left;
+}
+.seg-doc:hover:not(:disabled) { border-color: var(--primary); }
+.seg-doc:disabled { cursor: default; opacity: 0.75; }
+.seg-doc--ok    { border-color: light-dark(#a7f3d0, #1f5147); }
+.seg-doc--ok    mat-icon { color: light-dark(#047857, #6ee7b7); }
+.seg-doc--aviso { border-color: light-dark(#fde68a, #6a5d1c); }
+.seg-doc--aviso mat-icon { color: light-dark(#92400e, #fcd34d); }
+.seg-doc--falta mat-icon { color: var(--text-faint); }
+.seg-doc-nom { font-weight: 600; color: var(--text); }
+.seg-doc--falta .seg-doc-nom { color: var(--text-2); font-weight: 500; }
+.seg-doc-det { color: var(--text-faint); font-size: 0.72rem; }
+.seg-doc-n {
+  min-width: 1.1rem; padding: 0 0.3rem; border-radius: 999px;
+  background: var(--surface-4); color: var(--text-2); font-size: 0.68rem; text-align: center;
+}
+
+/* ── Documentos: lista a la izquierda, visor cuadrado a la derecha ──────────── */
+/* El visor iba debajo de cada tarjeta, como una tira ancha que empujaba el resto de la lista
+   fuera de pantalla. Ahora es un panel fijo: se elige a la izquierda y se ve al lado. */
+.doc-zona {
+  display: grid; align-items: start; gap: 1rem;
+  grid-template-columns: minmax(0, 1fr) minmax(340px, 0.9fr);
+}
+.doc-lista-col { min-width: 0; }
+.doc-card--viendo {
+  border-color: var(--primary);
+  box-shadow: inset 2px 0 0 var(--primary);
+}
+.doc-tipo-badge {
+  display: inline-block; margin-right: 0.35rem; padding: 0.05rem 0.4rem;
+  border-radius: 5px; background: var(--surface-4); color: var(--text-2);
+  font-size: 0.68rem; font-weight: 700; letter-spacing: 0.02em; vertical-align: 1px;
+}
+
+.doc-visor {
+  position: sticky; top: 0.5rem;
+  border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2);
+  overflow: hidden; display: flex; flex-direction: column;
+  /* Cuadrado: alto igual al ancho de la columna, con tope para que quepa en pantalla. */
+  aspect-ratio: 1 / 1; max-height: calc(100vh - 160px);
+}
+.doc-visor-cab {
+  display: flex; align-items: center; gap: 0.3rem;
+  padding: 0.3rem 0.4rem 0.3rem 0.65rem;
+  border-bottom: 1px solid var(--border); background: var(--surface);
+}
+.doc-visor-nom {
+  flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 0.78rem; font-weight: 600; color: var(--text);
+}
+.doc-visor-cab button { flex: none; }
+.doc-visor-cab .doc-tipo-badge { flex: none; margin-right: 0; }
+.doc-visor-cuerpo { flex: 1; min-height: 0; display: flex; }
+.doc-visor-cuerpo iframe { flex: 1; width: 100%; height: 100%; border: 0; }
+.doc-visor-cuerpo img { width: 100%; height: 100%; object-fit: contain; background: #111; }
+.doc-visor-cuerpo .preview-vacio { flex: 1; }
+.doc-visor-vacio {
+  flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 0.5rem; color: var(--text-faint); font-size: 0.82rem; text-align: center; padding: 1rem;
+}
+.doc-visor-vacio mat-icon { font-size: 30px; width: 30px; height: 30px; opacity: 0.6; }
+
+@media (max-width: 1100px) {
+  /* Sin ancho para dos columnas, el visor vuelve debajo de la lista. */
+  .doc-zona { grid-template-columns: 1fr; }
+  .doc-visor { position: static; aspect-ratio: auto; height: 60vh; }
+}
+
+/* Documento EPS por fila: rojo = no se puede, amarillo = listo, verde = ya generado */
+.doc-eps { color: #0891b2; }
+.doc-eps--no-puede { color: #dc2626; }
+.doc-eps--puede { color: #d97706; }
+.doc-eps--generado { color: #16a34a; }
+.doc-eps-resumen { display: inline-flex; gap: 4px; margin-left: 6px; }
+.pto { min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; font-size: 11px; line-height: 18px; color: #fff; font-weight: 600; }
+.pto--puede { background: #d97706; }
+.pto--generado { background: #16a34a; }
+.pto--no-puede { background: #dc2626; }
+
+/* Con trámite EPS abierto el botón toma el color de su etapa */
+.doc-eps--t-radicada { color: #2563eb; }
+.doc-eps--t-con-respuesta { color: #ea580c; }
+.doc-eps--t-confirmada { color: #15803d; }
+.doc-eps--t-rechazada { color: #991b1b; }

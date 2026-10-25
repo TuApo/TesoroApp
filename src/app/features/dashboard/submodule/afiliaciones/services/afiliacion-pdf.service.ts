@@ -221,6 +221,7 @@ export class AfiliacionPdfService {
     y = this.seccion(doc, autoTable, '4. Consulta ADRES (robot)', [
       ['EPS registrada en ADRES', r.adres_eps || 'Sin consulta'],
       ['Estado en ADRES', r.adres_estado || 'Sin consulta'],
+      ['Régimen en ADRES', r.adres_regimen || 'Sin consulta'],
       ['Fecha de la consulta', this.fechaHora(r.adres_fecha)],
       ['', '']
     ], y);

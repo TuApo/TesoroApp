@@ -50,6 +50,11 @@ export interface MensajeChat {
   adjuntos: ArchivoChat[];
   archivos: ArchivoChat[];
   voz?: ArchivoChat | null;
+  /** Avatar Agent: el personaje que respondió (el principal; los demás van marcados [[clave]] en el contenido). */
+  personaje?: string | null;
+  /** Lo que el Asistente operador le pide a la pantalla (navegar, refrescar listas…). */
+  acciones?: { tipo: string; ruta?: string; etiqueta?: string; tareaId?: string; texto?: string; ronda?: number; archivo?: ArchivoChat;
+    id?: string; nombre?: string; titulo?: string; args?: Record<string, unknown>; confirmar?: boolean }[] | null;
 }
 
 export interface ConversacionChat {

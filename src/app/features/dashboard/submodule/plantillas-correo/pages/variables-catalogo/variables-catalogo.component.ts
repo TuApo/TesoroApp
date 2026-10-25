@@ -18,7 +18,7 @@ import { MatTooltipModule } from '@angular/material/tooltip';
 import { firstValueFrom } from 'rxjs';
 import Swal from 'sweetalert2';
 
-import { ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
+import { AccionMasiva, ColumnaTabla, TABLA_ESTANDAR } from '../../../../../../shared/components/tabla-estandar';
 import { PlantillasCorreoService } from '../../services/plantillas-correo.service';
 import { OrigenDatos, TipoVariable, Variable } from '../../models/plantilla-correo.model';
 
@@ -82,6 +82,30 @@ export class VariablesCatalogoComponent implements OnInit {
   marcador(clave: string): string {
     return `{{${clave}}}`;
   }
+
+  /**
+   * Acción sobre lo marcado (estándar de la tabla): desactivar varias de una
+   * vez. Igual que una a una: dejan de ofrecerse en el editor, pero las
+   * plantillas publicadas que ya las citan las siguen resolviendo.
+   */
+  readonly accionesMasivas: AccionMasiva<Variable>[] = [
+    {
+      id: 'desactivar', etiqueta: 'Desactivar', icono: 'block', tono: 'aviso',
+      aplicaA: (v) => v.activo,
+      confirmar: {
+        icono: 'warning',
+        texto: 'Dejan de ofrecerse en el editor, pero las plantillas publicadas que ya las citan '
+          + 'las siguen resolviendo. No se borran a propósito.',
+      },
+      ejecutar: (v) => this.srv.desactivarVariable(v.id),
+      etiquetaFila: (v) => v.clave,
+      verbo: 'desactivada(s)',
+      alTerminar: () => {
+        const o = this.origenSel();
+        if (o) void this.elegirOrigen(o);
+      },
+    },
+  ];
 
   async ngOnInit(): Promise<void> {
     this.titulo.setTitle('Catálogo de variables | Plantillas de correo');

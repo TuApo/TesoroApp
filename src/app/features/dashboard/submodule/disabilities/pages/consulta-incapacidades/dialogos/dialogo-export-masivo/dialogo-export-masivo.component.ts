@@ -54,6 +54,8 @@ export function nombrePorDefectoExport(tipo: TipoExportJob): string {
       return 'sevenet-incapacidades.zip';
     case 'EXCEL_BASE_ACTUAL':
       return 'base-actual-incapacidades.xlsx';
+    case 'EXCEL_CONSOLIDADO_ANTIGUO':
+      return 'consolidado-plantilla-antigua-incapacidades.xlsx';
     default:
       return 'incapacidades.xlsx';
   }
@@ -87,6 +89,14 @@ export const TARJETAS_TIPO_EXPORT: readonly TarjetaTipoExport[] = [
     titulo: 'Excel consolidado (servidor)',
     descripcion: 'Todas las columnas y todas las filas del filtro actual, sin límite',
   },
+  {
+    // Formato anterior de 41 columnas que pidió la funcional (2026-10-09); el principal es el de arriba.
+    tipo: 'EXCEL_CONSOLIDADO_ANTIGUO',
+    icono: 'history',
+    titulo: 'Excel consolidado (plantilla antigua)',
+    descripcion:
+      'Las 41 columnas del formato anterior, con el filtro actual. El formato recomendado es el Excel consolidado actual',
+  },
 ];
 
 /**
@@ -98,7 +108,8 @@ export const TARJETAS_TIPO_EXPORT: readonly TarjetaTipoExport[] = [
  * dialogo se limita a sondear su estado cada 2,5 s hasta COMPLETADO o ERROR.
  *
  * Flujo:
- *   1. El usuario elige el tipo (ZIP de soportes o Excel consolidado).
+ *   1. El usuario elige el tipo (ZIP de soportes, Excel consolidado o el
+ *      consolidado con la plantilla antigua).
  *   2. "Generar" crea el trabajo con los filtros YA aplicados en la consulta.
  *   3. Barra de progreso con `procesados / totalRegistros` (indeterminada
  *      mientras el servidor no informa el total).

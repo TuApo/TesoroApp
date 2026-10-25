@@ -1,5 +1,6 @@
 import { Injectable } from '@angular/core';
 import { environment } from '@/environments/environment';
+import { tokenParaUsar } from '../../../core/security/renovacion-token';
 
 /**
  * Visor de documentos centralizado. El gateway exige JWT en /api/v1/** y el front usa
@@ -17,21 +18,10 @@ export class DocViewerService {
     return b.endsWith('/') ? b.slice(0, -1) : b;
   }
 
-  private authHeader(): Record<string, string> {
-    try {
-      let raw = localStorage.getItem('token') || localStorage.getItem('Authorization');
-      if (!raw) {
-        const u = localStorage.getItem('user');
-        if (u) {
-          const user = JSON.parse(u);
-          raw = user?.token || user?.jwt || user?.access_token || user?.accessToken || null;
-        }
-      }
-      if (!raw) return {};
-      return { Authorization: raw.startsWith('Bearer ') ? raw : `Bearer ${raw}` };
-    } catch {
-      return {};
-    }
+  /** Va por `fetch`, fuera del interceptor: renueva aquí el token si venció. */
+  private async authHeader(): Promise<Record<string, string>> {
+    const raw = await tokenParaUsar();
+    return raw ? { Authorization: `Bearer ${raw}` } : {};
   }
 
   private toAbsolute(url: string): string {
@@ -66,7 +56,7 @@ export class DocViewerService {
     if (!url) return null;
     const abs = this.toAbsolute(url);
     try {
-      const res = await fetch(abs, this.isApiUrl(abs) ? { headers: this.authHeader() } : {});
+      const res = await fetch(abs, this.isApiUrl(abs) ? { headers: await this.authHeader() } : {});
       if (!res.ok) return null;
       const buf = await res.arrayBuffer();
       const type = DocViewerService.sniffType(buf, res.headers.get('content-type'));

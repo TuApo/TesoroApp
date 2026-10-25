@@ -1,0 +1,214 @@
+<div class="arl" [class.arl-cerrado]="!!bloqueo()">
+  <header class="arl-header">
+    <div class="arl-header-icon"><mat-icon>health_and_safety</mat-icon></div>
+    <div class="arl-header-text">
+      <h3>ARL · Riesgos laborales</h3>
+      <p>Carga el certificado de afiliación a la ARL y confirma sus datos. Sin él no se puede pasar a Contratación.</p>
+    </div>
+    @if (certificadoCargado()) {
+      <span class="arl-badge"><mat-icon>check_circle</mat-icon> Certificado cargado</span>
+    }
+  </header>
+
+  @if (bloqueo(); as motivo) {
+    <div class="arl-aviso arl-aviso-espera" role="status">
+      <mat-icon>lock</mat-icon>
+      <span>{{ motivo }}</span>
+    </div>
+  }
+
+  @if (errorEstado(); as err) {
+    <div class="arl-aviso arl-aviso-bloqueo">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ err }}</span>
+      <button type="button" mat-button (click)="recargar()">Reintentar</button>
+    </div>
+  }
+
+  <!-- ───── 1. Certificado ───── -->
+  <section class="arl-section">
+    <div class="arl-section-head">
+      <span class="arl-num">1</span>
+      <h4>Certificado de afiliación</h4>
+      <span class="arl-hint">PDF que expide la ARL (p. ej. «Hace constar» de SURA)</span>
+    </div>
+
+    <input #fileInput type="file" accept="application/pdf" class="arl-file-input" (change)="alElegirArchivo($event)" />
+    @if (archivo(); as f) {
+      <div class="arl-file">
+        <mat-icon class="arl-file-icon">picture_as_pdf</mat-icon>
+        <div class="arl-file-meta">
+          <span class="arl-file-name" [title]="f.name">{{ f.name }}</span>
+          @if (leido(); as l) {
+            <span class="arl-file-leido" [class.arl-file-leido-mal]="!l.cedulaEncontrada">
+              <mat-icon>{{ l.cedulaEncontrada ? 'auto_fix_high' : 'help_outline' }}</mat-icon>
+              {{ l.cedulaEncontrada
+                  ? 'Datos leídos del certificado: revísalos abajo'
+                  : 'No se encontró la cédula del trabajador en el texto del PDF' }}
+            </span>
+          }
+        </div>
+        <button type="button" mat-icon-button matTooltip="Ver PDF" (click)="verArchivoLocal()"><mat-icon>visibility</mat-icon></button>
+        <button type="button" mat-icon-button matTooltip="Reemplazar" [disabled]="subiendo()" (click)="fileInput.click()"><mat-icon>swap_horiz</mat-icon></button>
+        <button type="button" mat-icon-button matTooltip="Quitar" [disabled]="subiendo()" (click)="quitarArchivo()"><mat-icon>close</mat-icon></button>
+      </div>
+    } @else {
+      <button type="button" class="arl-upload-zone" [disabled]="!!bloqueo() || subiendo()" (click)="fileInput.click()">
+        <mat-icon>{{ bloqueo() ? 'lock' : 'attach_file' }}</mat-icon>
+        <span>{{ certificadoCargado() ? 'Adjuntar un certificado nuevo (PDF)' : 'Haz click para adjuntar el certificado (PDF)' }}</span>
+      </button>
+    }
+
+    @if (docs().length) {
+      <ul class="arl-docs">
+        @for (d of docs(); track d.id) {
+          <li class="arl-doc" [class.arl-doc-enlazado]="afiliacion()?.documento_id === d.id">
+            <mat-icon>description</mat-icon>
+            <span class="arl-doc-nombre" [title]="nombreDoc(d)">{{ nombreDoc(d) }}</span>
+            @if (d.uploaded_at || d.created_at) {
+              <span class="arl-doc-fecha">{{ (d.uploaded_at || d.created_at) | date:'dd/MM/yyyy HH:mm' }}</span>
+            }
+            @if (afiliacion()?.documento_id === d.id) { <span class="arl-chip arl-chip-ok">De este proceso</span> }
+            <button type="button" mat-icon-button matTooltip="Ver" (click)="verDoc.emit(d)"><mat-icon>open_in_new</mat-icon></button>
+            <button type="button" mat-icon-button matTooltip="Descargar" (click)="descargarDoc.emit(d)"><mat-icon>download</mat-icon></button>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <!-- ───── 2. Datos ───── -->
+  <section class="arl-section">
+    <div class="arl-section-head">
+      <span class="arl-num">2</span>
+      <h4>Datos de la afiliación</h4>
+      <span class="arl-hint">Obligatorios. Se llenan solos al adjuntar el certificado; revísalos. Se guardan al cambiar.</span>
+    </div>
+
+    <div class="arl-grid">
+      <mat-form-field appearance="outline">
+        <mat-label>Nombre de la ARL *</mat-label>
+        <input matInput [ngModel]="arlNombre()" [matAutocomplete]="autoArl" [disabled]="!!bloqueo()"
+               (ngModelChange)="arlNombre.set($event)" (blur)="alCambiarArl(arlNombre())" />
+        <mat-icon matSuffix>shield</mat-icon>
+        <mat-autocomplete #autoArl="matAutocomplete" (optionSelected)="alCambiarArl($event.option.value)">
+          @for (a of arlFiltradas(); track a) { <mat-option [value]="a">{{ a }}</mat-option> }
+        </mat-autocomplete>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Fecha de inicio de afiliación *</mat-label>
+        <input matInput readonly [matDatepicker]="pickerArl" [value]="fechaInicio()" [disabled]="!!bloqueo()"
+               (click)="pickerArl.open()" (dateChange)="alCambiarFecha($event.value)" />
+        <mat-datepicker-toggle matIconSuffix [for]="pickerArl"></mat-datepicker-toggle>
+        <mat-datepicker #pickerArl></mat-datepicker>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Clase de riesgo *</mat-label>
+        <mat-select [value]="claseRiesgo()" [disabled]="!!bloqueo()" (selectionChange)="alCambiarClase($event.value)">
+          @for (c of CLASES_RIESGO; track c) { <mat-option [value]="c">Clase {{ c }}</mat-option> }
+        </mat-select>
+        <mat-icon matSuffix>warning_amber</mat-icon>
+      </mat-form-field>
+
+      <mat-form-field appearance="outline">
+        <mat-label>Porcentaje de cotización *</mat-label>
+        <input matInput inputmode="decimal" placeholder="2.436" [ngModel]="porcentaje()" [disabled]="!!bloqueo()"
+               (blur)="alCambiarPorcentaje($any($event.target).value)" />
+        <span matTextSuffix>%</span>
+      </mat-form-field>
+
+      <div class="arl-tipo">
+        <span class="arl-label">Tipo de cotizante *</span>
+        <mat-button-toggle-group hideSingleSelectionIndicator [value]="tipoCotizante()" [disabled]="!!bloqueo()"
+                                 (change)="alCambiarTipo($event.value)" aria-label="Tipo de cotizante">
+          @for (t of TIPOS_COTIZANTE; track t.valor) {
+            <mat-button-toggle [value]="t.valor">{{ t.etiqueta }}</mat-button-toggle>
+          }
+        </mat-button-toggle-group>
+      </div>
+    </div>
+
+    <!-- Fecha de inicio vs. fecha de ingreso -->
+    <div class="arl-fechas" aria-live="polite">
+      @if (referencia().fecha; as ref) {
+        @if (coinciden() === true) {
+          <div class="arl-aviso arl-aviso-ok">
+            <mat-icon>event_available</mat-icon>
+            <span>La fecha de inicio coincide con la fecha de ingreso
+              {{ referencia().origen === 'VACANTE' ? 'propuesta por la vacante' : 'del contrato' }} ({{ fechaCorta(ref) }}).</span>
+          </div>
+        } @else if (coinciden() === false) {
+          <div class="arl-aviso arl-aviso-bloqueo">
+            <mat-icon>event_busy</mat-icon>
+            <span><strong>Las fechas no coinciden.</strong> Inicio de afiliación {{ fechaCorta(fechaInicio()) }} ·
+              fecha de ingreso {{ referencia().origen === 'VACANTE' ? 'propuesta por la vacante' : 'del contrato' }}
+              {{ fechaCorta(ref) }}. No se podrá contratar hasta que coincidan.</span>
+          </div>
+        } @else {
+          <p class="arl-nota"><mat-icon>event</mat-icon> Fecha de ingreso
+            {{ referencia().origen === 'VACANTE' ? 'propuesta por la vacante' : 'del contrato' }}: {{ fechaCorta(ref) }}</p>
+        }
+      } @else if (!cargandoEstado()) {
+        <p class="arl-nota"><mat-icon>event</mat-icon> Aún no hay fecha de ingreso: se comparará al fijarla en Contratación.</p>
+      }
+    </div>
+  </section>
+
+  <!-- ───── 3. Cargar ───── -->
+  <div class="arl-cargar">
+    <button type="button" mat-flat-button color="primary" (click)="cargarCertificado()"
+            [disabled]="!archivo() || subiendo() || !!bloqueo() || faltantesFormulario().length > 0"
+            [matTooltip]="!archivo() ? 'Adjunta el PDF del certificado'
+                          : (faltantesFormulario().length ? 'Falta: ' + faltantesFormulario().join(', ') : null)">
+      <mat-icon>{{ subiendo() ? 'hourglass_top' : 'cloud_upload' }}</mat-icon>
+      {{ subiendo() ? 'Cargando…' : (certificadoCargado() ? 'Cargar certificado nuevo' : 'Cargar certificado') }}
+    </button>
+    @if (guardando()) { <span class="arl-nota">Guardando…</span> }
+  </div>
+
+  <!-- ───── Estado para contratar ───── -->
+  @if (estado(); as e) {
+    @if (afiliacion()?.identidad_resultado; as r) {
+      <p class="arl-identidad" [class.arl-identidad-ok]="r === 'COINCIDE'" [class.arl-identidad-mal]="r === 'NO_COINCIDE'">
+        <mat-icon>{{ r === 'COINCIDE' ? 'verified_user' : (r === 'NO_COINCIDE' ? 'gpp_bad' : 'help_outline') }}</mat-icon>
+        {{ etiquetaIdentidad(r) }}
+        @if (afiliacion()?.identidad_justificacion; as j) { · «{{ j }}» }
+      </p>
+    }
+    @if (afiliacion()?.registrado_at) {
+      <p class="arl-registro">Registrado por <strong>{{ afiliacion()?.registrado_por || '—' }}</strong>
+        el {{ afiliacion()?.registrado_at | date:'dd/MM/yyyy HH:mm' }}</p>
+    }
+
+    @if (e.aplica) {
+      @if (e.salto; as s) {
+        <div class="arl-aviso arl-aviso-salto">
+          <mat-icon>admin_panel_settings</mat-icon>
+          <span><strong>Bloqueo saltado</strong> por {{ s.por || 'un ADMIN' }}
+            @if (s.at) { el {{ s.at | date:'dd/MM/yyyy HH:mm' }} }. Motivo: {{ s.motivo }}</span>
+        </div>
+      } @else if (e.faltantes_carga.length) {
+        <div class="arl-aviso arl-aviso-bloqueo">
+          <mat-icon>lock</mat-icon>
+          <div>
+            <strong>Contratación bloqueada hasta tener:</strong>
+            <ul>@for (f of e.faltantes_carga; track f) { <li>{{ f }}</li> }</ul>
+          </div>
+          @if (esAdmin()) {
+            <button type="button" class="arl-salto-btn" (click)="saltarBloqueo()"
+                    matTooltip="Solo ADMIN. Pide un motivo y queda registrado.">
+              <mat-icon>lock_open</mat-icon> Saltar bloqueo
+            </button>
+          }
+        </div>
+      } @else {
+        <div class="arl-aviso arl-aviso-ok">
+          <mat-icon>verified</mat-icon>
+          <span>ARL completa. Al contratar se comprobará que la fecha de inicio sea la fecha de ingreso del contrato.</span>
+        </div>
+      }
+    }
+  }
+</div>

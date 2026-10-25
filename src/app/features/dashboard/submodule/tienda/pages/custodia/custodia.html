@@ -1,0 +1,92 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>inventory</mat-icon> Custodia de solicitudes de préstamo</h1>
+      <p class="tienda-subtitulo">Cada solicitud de bono mercado firmada en papel: dónde está y quién responde por ella hasta que queda archivada.</p>
+    </div>
+    <div class="cab-acciones">
+      <button type="button" class="boton" (click)="abrirEscaneo()"><mat-icon>document_scanner</mat-icon> Digitalizar papeles</button>
+      <app-selector-tienda />
+    </div>
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (escaneando()) { <app-escaneo-custodia [documentos]="candidatas()" (cerrar)="escaneando.set(false)" (cambio)="cargar()" /> }
+  @if (filtro() === 'CON_DOMICILIARIO') {
+    <div class="recibir">
+      <mat-icon>assignment_return</mat-icon>
+      <span>Formatos firmados que traen los domiciliarios. Recíbalos uno a uno o escaneando el QR de cada hoja.</span>
+      <app-escaner-codigo modo="continuo" formatoMira="qr" etiqueta="Recibir escaneando" titulo="Recibir formatos" [procesar]="recibirEscaneando" />
+    </div>
+  }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="barra">
+    <div class="segmentos">
+      @for (f of [['CON_DOMICILIARIO','Con domiciliarios'],['POR_ARCHIVAR','Por archivar'],['SIN_ESCANEAR','Sin escanear'],['ARCHIVADO','Archivadas'],['FIRMADO_VIRTUAL','Firmadas electrónicamente'],['PENDIENTE_FIRMA','Sin firmar'],['','Todas']]; track f[0]) {
+        <button type="button" [class.activo]="filtro() === f[0]" (click)="filtro.set(f[0])">{{ f[1] }}</button>
+      }
+    </div>
+    <span class="con-escaner"><input class="campo-texto" placeholder="Buscar número, cédula, pedido" [ngModel]="q()" (ngModelChange)="q.set($event)" (keyup.enter)="cargar()" /><app-escaner-codigo titulo="Buscar documento o pedido" (leido)="q.set($event); cargar()" /></span>
+  </div>
+
+  <div class="rejilla" [class.con-detalle]="sel()">
+    <ul class="lista">
+      @for (d of lista(); track d.id) {
+        <li [class.activa]="sel()?.id === d.id" (click)="abrir(d.id)">
+          <div class="fila"><b>{{ d.numero }}</b><span class="est" [attr.data-e]="d.estado">{{ ESTADOS[d.estado] || d.estado }}</span></div>
+          <small>{{ d.nombre }} · {{ d.cedula }} · {{ d.monto | currency:'COP':'symbol-narrow':'1.0-0' }} · {{ d.tienda }}</small>
+          <small><mat-icon>place</mat-icon> {{ d.custodia_ubicacion || '—' }}@if (d.custodia_responsable) { · {{ d.custodia_responsable }} }</small>
+          @if (d.papel_estado === 'CON_DOMICILIARIO') {
+            <div class="fila-recibir">
+              <small [class.warn]="!d.escaneo_doc_id">{{ d.escaneo_doc_id ? 'Escaneado' : 'Sin escanear' }}</small>
+              <button type="button" class="boton" (click)="$event.stopPropagation(); recibir(d)"><mat-icon>move_to_inbox</mat-icon> Recibido</button>
+            </div>
+          }
+        </li>
+      } @empty {
+        <li class="vacio">{{ cargando() ? 'Cargando…' : 'Nada en esta bandeja.' }}</li>
+      }
+    </ul>
+
+    @if (sel(); as d) {
+      <section class="tienda-tarjeta detalle">
+        <div class="d-cab">
+          <button type="button" class="atras-movil" (click)="sel.set(null)"><mat-icon>arrow_back</mat-icon></button>
+          <div><h2>{{ d.numero }}</h2><small>{{ ESTADOS[d.estado] || d.estado }} · {{ d.nombre }} · C.C. {{ d.cedula }}</small></div>
+        </div>
+        <div class="acciones-docs">
+          @if (d.escaneo_doc_id) { <button type="button" class="boton secundario" (click)="ver(d.escaneo_doc_id)"><mat-icon>description</mat-icon> {{ d.escaneo_origen === 'ESCANER' ? 'Papel escaneado' : 'Foto del papel firmado' }}</button> }
+          @if (d.firma_virtual_doc_id) { <button type="button" class="boton secundario" (click)="ver(d.firma_virtual_doc_id)"><mat-icon>draw</mat-icon> Firma electrónica{{ d.firma_canal === 'ENTREGA' ? ' (en la entrega)' : '' }}</button> }
+          @if (d.acta?.foto_documento_doc_id) { <button type="button" class="boton secundario" (click)="ver(d.acta.foto_documento_doc_id)"><mat-icon>badge</mat-icon> Documento de quien recibió</button> }
+          @if (d.acta?.firma_receptor_doc_id) { <button type="button" class="boton secundario" (click)="ver(d.acta.firma_receptor_doc_id)"><mat-icon>draw</mat-icon> Firma de recibido</button> }
+          <a class="boton secundario" [routerLink]="['/dashboard/tienda/pedidos']">Pedido {{ d.pedido_numero }}</a>
+        </div>
+        @if (d.acta) { <p class="muted">Recibió {{ d.acta.receptor_nombre }} ({{ d.acta.receptor_tipo === 'TITULAR' ? 'titular' : 'autorizado' }}) · {{ d.acta.via === 'BIOMETRIA' ? 'verificado con rostro' : 'verificado con cédula' }} · {{ d.acta.canal === 'DOMICILIO' ? 'a domicilio' : 'en el punto' }}</p> }
+
+        @if (d.estado === 'FIRMADO_FISICO' || d.estado === 'ARCHIVADO') {
+          <div class="mover">
+            <label>Ubicación (caja / carpeta)<input class="campo-texto" [ngModel]="ubicacion()" (ngModelChange)="ubicacion.set($event)" placeholder="Ej. Caja 3 / Carpeta 12" /></label>
+            <label>Nota<input class="campo-texto" [ngModel]="nota()" (ngModelChange)="nota.set($event)" /></label>
+            <div class="botones">
+              @if (d.estado === 'FIRMADO_FISICO') {
+                <button type="button" class="boton secundario" (click)="mover('RECIBIDO_EN_TIENDA')">Recibido en la tienda</button>
+                <button type="button" class="boton" [disabled]="!ubicacion().trim()" (click)="mover('ARCHIVADO')"><mat-icon>archive</mat-icon> Archivar</button>
+              } @else {
+                <button type="button" class="boton secundario" (click)="mover('PRESTADO')">Prestar</button>
+                <button type="button" class="boton secundario" (click)="mover('DEVUELTO')">Devuelto al archivo</button>
+              }
+            </div>
+          </div>
+        }
+
+        <h3>Historial</h3>
+        <ol class="historial">
+          @for (e of d.eventos; track e.id) {
+            <li><b>{{ EVENTOS[e.evento] || e.evento }}</b><small>{{ e.creado_en | date:'short' }} · {{ e.responsable || '—' }}@if (e.ubicacion) { · {{ e.ubicacion }} }@if (e.nota) { · {{ e.nota }} }</small></li>
+          }
+        </ol>
+        <details><summary>Texto firmado</summary><pre>{{ d.texto }}</pre></details>
+      </section>
+    }
+  </div>
+</div>

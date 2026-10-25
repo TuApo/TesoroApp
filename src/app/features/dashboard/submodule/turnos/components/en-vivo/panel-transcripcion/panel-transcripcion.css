@@ -1,0 +1,153 @@
+/* Transcripción en vivo. Los dos hablantes son dos CANALES con color propio (asesor = azul de
+   marca, persona = lima legible) y la conversación se cierra como una cremallera sobre una
+   columna de tiempo: la persona entra por la izquierda, el asesor por la derecha. */
+:host {
+  --rv-asesor: var(--link);
+  --rv-persona: var(--lime-ink);
+  container: panel-tx / inline-size;
+  display: flex;
+  min-height: 0;
+  height: 100%;
+}
+
+.tx {
+  display: flex; flex-direction: column; gap: 10px; min-width: 0; width: 100%; min-height: 0;
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r-md, 14px);
+  padding: 14px 16px 10px; box-shadow: var(--shadow-sm);
+}
+.tx button { min-height: 0 !important; font-family: inherit; }
+
+/* ── Cabecera ── */
+.tx__cab { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.tx__titulo { display: flex; align-items: center; gap: 8px; flex: 1 1 auto; min-width: 0; }
+.tx__titulo h3 { margin: 0; font-size: 14px; font-weight: 800; color: var(--text); letter-spacing: -.005em; white-space: nowrap; }
+.tx__punto { width: 9px; height: 9px; border-radius: 50%; background: var(--text-faint); flex: none; }
+.tx__punto--on { background: var(--danger); box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 60%, transparent); animation: tx-latido 1.6s ease-out infinite; }
+.tx__punto--error { background: var(--danger-fg); }
+@keyframes tx-latido { 0% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 55%, transparent); } 70%, 100% { box-shadow: 0 0 0 7px transparent; } }
+.tx__estado { font-size: 11px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; padding: 2px 8px; border-radius: 999px; background: var(--surface-3); color: var(--text-2); border: 1px solid var(--border); white-space: nowrap; }
+.tx__estado[data-estado='transcribiendo'] { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+.tx__estado[data-estado='conectando'] { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+.tx__estado[data-estado='pausada'] { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+.tx__estado[data-estado='error'] { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+.tx__acciones { display: flex; align-items: center; gap: 6px; }
+.tx__btn { display: inline-flex; align-items: center; gap: 5px; height: 34px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--border-strong); background: var(--surface); color: var(--text); font-size: 12.5px; font-weight: 700; cursor: pointer; white-space: nowrap; }
+.tx__btn mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.tx__btn:hover { background: var(--surface-2); }
+.tx__btn:focus-visible { outline: none; box-shadow: var(--ring); border-color: var(--brand-blue); }
+.tx__btn--primario { background: var(--brand-blue); border-color: var(--brand-blue); color: #fff; }
+.tx__btn--primario:hover { background: var(--brand-blue-strong); }
+.tx__btn--icono { width: 34px; padding: 0; justify-content: center; }
+.tx__btn--icono[aria-pressed='true'] { color: var(--rv-asesor); border-color: color-mix(in srgb, var(--rv-asesor) 45%, var(--border)); }
+
+/* ── Canales: quién habla ── */
+.tx__canales { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.canal { --c: var(--rv-persona); display: flex; align-items: center; gap: 10px; min-width: 0; padding: 7px 10px; border-radius: 12px; background: var(--surface-2); border: 1px solid var(--border); border-left: 3px solid var(--c); }
+.canal[data-h='asesor'] { --c: var(--rv-asesor); order: 2; }
+.canal[data-h='persona'] { order: 1; }
+.canal__quien { display: flex; flex-direction: column; min-width: 0; flex: 1; line-height: 1.2; }
+.canal__quien b { font-size: 12.5px; font-weight: 800; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canal__quien small { font-size: 11px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.canal__estado { font-size: 11px; font-weight: 700; color: var(--muted); white-space: nowrap; }
+.canal--vivo .canal__estado { color: var(--c); }
+.canal--error { border-left-color: var(--danger); }
+.canal--error .canal__estado { color: var(--danger-fg); }
+/* Medidor: cinco barras que crecen con el nivel de voz (--nivel 0..1), cada una con su propio techo. */
+.canal__medidor { --nivel: 0; display: inline-flex; align-items: center; gap: 2px; height: 22px; flex: none; }
+.canal__medidor i { display: block; width: 3px; border-radius: 2px; background: var(--c); height: calc(4px + var(--nivel) * 18px * var(--k, 1)); opacity: calc(.28 + var(--nivel) * .72); transition: height .09s linear, opacity .09s linear; }
+.canal__medidor i:nth-child(1) { --k: .45; }
+.canal__medidor i:nth-child(2) { --k: .8; }
+.canal__medidor i:nth-child(3) { --k: 1; }
+.canal__medidor i:nth-child(4) { --k: .7; }
+.canal__medidor i:nth-child(5) { --k: .4; }
+
+/* ── Avisos ── */
+.tx__aviso, .tx__motivo { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 12px; color: var(--text-2); }
+.tx__aviso mat-icon, .tx__motivo mat-icon { font-size: 16px; width: 16px; height: 16px; flex: none; }
+.tx__aviso mat-icon { color: var(--danger); }
+.tx__motivo { padding: 6px 10px; border-radius: 10px; background: var(--info-bg); color: var(--info-fg); border: 1px solid var(--info-border); }
+.tx__motivo--error { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+
+.tx__desbloquear { display: flex; align-items: center; gap: 6px; width: 100%; padding: 8px 10px; border-radius: 10px; border: 1px solid var(--warn-border); background: var(--warn-bg); color: var(--warn-fg); font-size: 12.5px; font-weight: 700; text-align: left; cursor: pointer; }
+.tx__desbloquear mat-icon { font-size: 18px; width: 18px; height: 18px; flex: none; }
+
+/* ── La conversación ── */
+.tx__marco { container: tx / inline-size; position: relative; flex: 1 1 auto; min-height: 0; display: flex; }
+.tx__lista {
+  list-style: none; margin: 0; padding: 6px 2px 10px; flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  display: flex; flex-direction: column; gap: 4px;
+  /* La columna de tiempo: una raya al centro que se desplaza con el contenido. */
+  background: linear-gradient(var(--border), var(--border)) center / 1px 100% no-repeat local;
+  scrollbar-width: thin;
+}
+.frase { --c: var(--rv-persona); display: grid; grid-template-columns: minmax(0, 1fr) 58px minmax(0, 1fr); align-items: start; }
+.frase[data-h='asesor'] { --c: var(--rv-asesor); }
+.frase--grupo { margin-top: 8px; }
+.frase__hora {
+  grid-column: 2; grid-row: 1; justify-self: center; margin-top: 7px;
+  font: 600 10.5px/1 var(--font-mono); font-variant-numeric: tabular-nums; letter-spacing: .02em;
+  color: var(--muted); background: var(--surface); padding: 3px 6px; border-radius: 999px; border: 1px solid var(--border);
+}
+.frase:not(.frase--grupo) .frase__hora { opacity: 0; }
+.frase:not(.frase--grupo):hover .frase__hora, .frase--destello .frase__hora { opacity: 1; }
+.frase__burbuja {
+  grid-row: 1; max-width: min(100%, 560px); padding: 7px 11px 8px; border-radius: 14px;
+  background: color-mix(in srgb, var(--c) 10%, var(--surface)); border: 1px solid color-mix(in srgb, var(--c) 26%, var(--border));
+  color: var(--text); transition: box-shadow .3s ease, background .3s ease;
+}
+.frase[data-h='persona'] .frase__burbuja { grid-column: 1; justify-self: end; border-top-right-radius: 4px; }
+.frase[data-h='asesor'] .frase__burbuja { grid-column: 3; justify-self: start; border-top-left-radius: 4px; }
+.frase:not(.frase--grupo)[data-h='persona'] .frase__burbuja { border-top-right-radius: 14px; border-bottom-right-radius: 4px; }
+.frase:not(.frase--grupo)[data-h='asesor'] .frase__burbuja { border-top-left-radius: 14px; border-bottom-left-radius: 4px; }
+.frase__quien { display: block; margin-bottom: 2px; font-size: 10.5px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--c); }
+.frase__burbuja p { margin: 0; font-size: 13.5px; line-height: 1.45; overflow-wrap: anywhere; }
+.frase--provisional .frase__burbuja { background: transparent; border-style: dashed; }
+.frase--provisional .frase__burbuja p { color: var(--muted); font-style: italic; }
+.frase__cursor { display: inline-block; width: 2px; height: 1em; margin-left: 3px; vertical-align: -2px; background: var(--c); animation: tx-cursor 1s steps(2, start) infinite; }
+@keyframes tx-cursor { to { visibility: hidden; } }
+.frase--destello .frase__burbuja { box-shadow: 0 0 0 3px color-mix(in srgb, var(--warning) 70%, transparent); background: color-mix(in srgb, var(--warning) 16%, var(--surface)); }
+
+.tx__vacio { margin: auto; display: flex; flex-direction: column; align-items: center; gap: 8px; max-width: 42ch; padding: 24px 12px; text-align: center; font-size: 13px; color: var(--muted); background: var(--surface); }
+.tx__vacio mat-icon { font-size: 34px; width: 34px; height: 34px; color: var(--text-faint); }
+
+.tx__nuevas {
+  position: absolute; left: 50%; bottom: 10px; transform: translateX(-50%);
+  display: inline-flex; align-items: center; gap: 4px; height: 32px; padding: 0 12px; border-radius: 999px;
+  border: 0; background: var(--navy); color: #fff; font-size: 12px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow-md);
+}
+.tx__nuevas mat-icon { font-size: 16px; width: 16px; height: 16px; }
+
+.tx__pie { display: flex; justify-content: flex-end; border-top: 1px dashed var(--border); padding-top: 8px; }
+.tx__auto { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.tx__auto input { width: 15px; height: 15px; accent-color: var(--brand-blue); }
+
+.solo-lector { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+/* Canales en un panel angosto: nombre y estado; el detalle queda en el título. */
+@container panel-tx (max-width: 560px) {
+  .canal { padding: 6px 8px; gap: 8px; }
+  .canal__quien small { display: none; }
+}
+
+/* Panel angosto: la hora pasa a la izquierda y las burbujas se apilan (persona a la izquierda, asesor a la derecha). */
+@container tx (max-width: 520px) {
+  .frase { grid-template-columns: 46px minmax(0, 1fr); }
+  .frase__hora { grid-column: 1; justify-self: start; }
+  .frase[data-h='persona'] .frase__burbuja { grid-column: 2; justify-self: start; margin-right: 18px; }
+  .frase[data-h='asesor'] .frase__burbuja { grid-column: 2; justify-self: end; margin-left: 18px; }
+  .tx__lista { background-position: 22px 0; }
+}
+
+@media (max-width: 600px) {
+  .tx { padding: 12px 12px 8px; }
+  .tx__canales { grid-template-columns: 1fr; }
+  .canal[data-h='asesor'] { order: 0; }
+}
+@media (pointer: coarse) {
+  .tx__btn { height: 44px; }
+  .tx__btn--icono { width: 44px; }
+  .tx__nuevas { height: 44px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tx__punto--on, .frase__cursor { animation: none; }
+}

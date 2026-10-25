@@ -1,0 +1,62 @@
+<h2 mat-dialog-title>Carga #{{ datos.lote.id }} — {{ datos.lote.archivo_nombre }}</h2>
+
+<mat-dialog-content style="min-width: min(980px, 92vw);">
+
+  <div class="dl-cabecera">
+    <span><strong>Usuario:</strong> {{ datos.lote.usuario_nombre }}</span>
+    <span><strong>Estado:</strong> {{ datos.lote.estado }}</span>
+    <span><strong>Filas:</strong> {{ datos.lote.total_filas }}</span>
+    <span><strong>Creados:</strong> {{ datos.lote.total_creadas }}</span>
+    <span><strong>Actualizados:</strong> {{ datos.lote.total_actualizadas }}</span>
+    <span><strong>Sin cambios:</strong> {{ datos.lote.total_sin_cambios }}</span>
+    <span><strong>Rechazados:</strong> {{ datos.lote.total_rechazadas }}</span>
+  </div>
+
+  @if (datos.lote.mensaje_error) {
+    <p class="dl-error">
+      {{ datos.lote.mensaje_error }}
+      @if (datos.lote.codigo_error) { <span class="dl-codigo">({{ datos.lote.codigo_error }})</span> }
+    </p>
+  }
+
+  @if (error()) {
+    <p class="dl-error">{{ error() }}</p>
+  }
+
+  <mat-button-toggle-group class="dl-filtros" [value]="estado()"
+                           (change)="alCambiarEstado($event.value)" hideSingleSelectionIndicator>
+    @for (e of estados; track e.valor) {
+      <mat-button-toggle [value]="e.valor">{{ e.etiqueta }}</mat-button-toggle>
+    }
+  </mat-button-toggle-group>
+
+  <app-tabla-estandar
+    id="contratacion-tarjetas-detalle-lote"
+    titulo="Filas de la carga"
+    modulo="Contratación"
+    entidad="fila"
+    vacio="No hay filas con ese estado"
+    [datos]="filas()"
+    [columnas]="columnas"
+    [cargando]="cargando()"
+    [totalServidor]="total()"
+    [paginaServidor]="pagina()"
+    [filasPorPagina]="tamano()"
+    [seleccionable]="false"
+    (paginaCambio)="alCambiarPagina($event)">
+  </app-tabla-estandar>
+
+</mat-dialog-content>
+
+<mat-dialog-actions>
+  <button mat-button (click)="descargar(false)">
+    <mat-icon>download</mat-icon> Descargar resultado
+  </button>
+  @if (datos.lote.total_rechazadas > 0) {
+    <button mat-button color="warn" (click)="descargar(true)">
+      <mat-icon>rule</mat-icon> Solo las que fallan
+    </button>
+  }
+  <span style="flex: 1 1 auto;"></span>
+  <button mat-raised-button color="primary" (click)="cerrar()">Cerrar</button>
+</mat-dialog-actions>

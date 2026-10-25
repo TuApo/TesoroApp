@@ -176,6 +176,70 @@ describe('DialogoExportMasivoComponent', () => {
   }));
 
   // ═══════════════════════════════════════════════════════════════════
+  // (b2) Plantilla antigua (2026-10-09): tercera tarjeta, mismo filtro
+  // ═══════════════════════════════════════════════════════════════════
+
+  it('ofrece una tercera tarjeta con el consolidado de la plantilla antigua y recomienda el actual', async () => {
+    fixture.detectChanges();
+    await fixture.whenStable();
+    const tarjetas = Array.from(
+      (fixture.nativeElement as HTMLElement).querySelectorAll<HTMLButtonElement>('.exm-tarjeta'),
+    );
+
+    expect(tarjetas.length).toBe(3);
+    expect(componente.tarjetas.map((t) => t.tipo)).toEqual([
+      'ZIP_SOPORTES',
+      'EXCEL_CONSOLIDADO',
+      'EXCEL_CONSOLIDADO_ANTIGUO',
+    ]);
+    const antigua = tarjetas[2].textContent ?? '';
+    expect(antigua).toContain('Excel consolidado (plantilla antigua)');
+    expect(antigua).toContain('El formato recomendado es el Excel consolidado actual');
+    // El consolidado actual sigue siendo su propia tarjeta.
+    expect(tarjetas[1].textContent).toContain('Excel consolidado (servidor)');
+
+    tarjetas[2].click();
+    fixture.detectChanges();
+    expect(componente.tipo()).toBe('EXCEL_CONSOLIDADO_ANTIGUO');
+    expect(tarjetas[2].getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('genera EXCEL_CONSOLIDADO_ANTIGUO con los mismos filtros y descarga con el nombre del servidor', fakeAsync(() => {
+    fixture.detectChanges();
+    const guardar = spyOn(componente, 'guardarArchivo');
+
+    componente.seleccionarTipo('EXCEL_CONSOLIDADO_ANTIGUO');
+    componente.generar();
+
+    const post = httpMock.expectOne(`${BASE}/exports`);
+    expect(post.request.body.tipo).toBe('EXCEL_CONSOLIDADO_ANTIGUO');
+    expect(post.request.body.filtros).toEqual(DATOS.filtros);
+    post.flush(
+      job({
+        tipo: 'EXCEL_CONSOLIDADO_ANTIGUO',
+        tipoEtiqueta: 'Excel consolidado (plantilla antigua)',
+      }),
+    );
+
+    tick(0);
+    httpMock.expectOne(`${BASE}/exports/job-1`).flush(
+      job({
+        tipo: 'EXCEL_CONSOLIDADO_ANTIGUO',
+        estado: 'COMPLETADO',
+        estadoEtiqueta: 'Completado',
+        nombreResultado: 'incapacidades_consolidado_plantilla_antigua_2026-10-09.xlsx',
+      }),
+    );
+    httpMock.expectOne(`${BASE}/exports/job-1/descargar`).flush(new Blob(['xlsx']));
+
+    expect(guardar).toHaveBeenCalledWith(
+      jasmine.any(Blob),
+      'incapacidades_consolidado_plantilla_antigua_2026-10-09.xlsx',
+    );
+    discardPeriodicTasks();
+  }));
+
+  // ═══════════════════════════════════════════════════════════════════
   // (c) COMPLETADO: descarga automatica UNA vez + boton "Descargar"
   // ═══════════════════════════════════════════════════════════════════
 
@@ -360,10 +424,15 @@ describe('DialogoExportMasivoComponent en modo Base actual', () => {
 });
 
 describe('nombrePorDefectoExport', () => {
-  it('da .zip a los ZIP (soportes y SEVENET) y .xlsx a los Excel (consolidado y base actual)', () => {
+  it('da .zip a los ZIP (soportes y SEVENET) y .xlsx a los Excel (consolidado, plantilla antigua y base actual)', () => {
     expect(nombrePorDefectoExport('ZIP_SOPORTES')).toMatch(/\.zip$/);
     expect(nombrePorDefectoExport('ZIP_SEVENET')).toMatch(/\.zip$/);
     expect(nombrePorDefectoExport('EXCEL_CONSOLIDADO')).toMatch(/\.xlsx$/);
     expect(nombrePorDefectoExport('EXCEL_BASE_ACTUAL')).toMatch(/\.xlsx$/);
+    expect(nombrePorDefectoExport('EXCEL_CONSOLIDADO_ANTIGUO')).toMatch(/\.xlsx$/);
+    // No se confunde con el consolidado actual.
+    expect(nombrePorDefectoExport('EXCEL_CONSOLIDADO_ANTIGUO')).not.toBe(
+      nombrePorDefectoExport('EXCEL_CONSOLIDADO'),
+    );
   });
 });

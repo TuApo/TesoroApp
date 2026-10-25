@@ -1,0 +1,202 @@
+<section class="pagina">
+  <nav class="migas">
+    <a routerLink="/dashboard/reuniones" class="btn fantasma chico"><mat-icon>arrow_back</mat-icon> Reuniones</a>
+  </nav>
+
+  <header class="cabecera">
+    <div class="titulos">
+      <h1>Asistente de reuniones</h1>
+      <p class="sub">Tu bot entra a Meet, Zoom, Teams y más: graba, transcribe en vivo y toma notas mientras sigues trabajando.</p>
+    </div>
+    <a routerLink="configuracion" class="btn"><mat-icon>tune</mat-icon> Configurar mi asistente</a>
+  </header>
+
+  <div class="acciones-grandes">
+    <button type="button" class="grande primario" (click)="abrir()">
+      <mat-icon>smart_toy</mat-icon>
+      <span><strong>Enviar bot a una reunión</strong><small>Pega el enlace de Meet, Zoom, Teams, Webex o Jitsi</small></span>
+    </button>
+    <button type="button" class="grande" [disabled]="accion() === 'captura'" (click)="capturar()">
+      <mat-icon>cast</mat-icon>
+      <span><strong>Capturar desde este dispositivo</strong><small>Para llamadas de WhatsApp o donde el bot no puede entrar</small></span>
+    </button>
+  </div>
+
+  @if (errorAccion()) { <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ errorAccion() }}</span></p> }
+
+  @if (abierto()) {
+    <div class="velo" (click)="abierto.set(false)"></div>
+    <form class="dialogo" role="dialog" aria-modal="true" aria-labelledby="alta-titulo"
+          (submit)="$event.preventDefault(); enviar()" (keydown.escape)="abierto.set(false)">
+      <div class="dlg-cab">
+        <h2 id="alta-titulo">Enviar bot a una reunión</h2>
+        <button type="button" class="icono" aria-label="Cerrar" (click)="abierto.set(false)"><mat-icon>close</mat-icon></button>
+      </div>
+
+      <label class="campo"><span>Enlace de la reunión</span>
+        <input type="url" inputmode="url" autocomplete="off" placeholder="https://meet.google.com/abc-defg-hij"
+               [value]="alta().url" (input)="campo('url', $any($event.target).value)" />
+      </label>
+      @if (alta().url.trim()) {
+        @if (plataformaDetectada(); as p) {
+          <p class="detectada"><mat-icon>{{ PLATAFORMAS[p].icono }}</mat-icon> {{ PLATAFORMAS[p].etiqueta }}</p>
+        } @else {
+          <p class="detectada mal"><mat-icon>link_off</mat-icon> No parece un enlace válido.</p>
+        }
+      }
+
+      @if (plataformaDetectada() === 'WHATSAPP' || alta().modo === 'CAPTURA') {
+        <p class="alerta info"><mat-icon>info</mat-icon><span class="alerta-texto">
+          El bot no puede unirse a llamadas de WhatsApp. Usa <strong>captura desde este dispositivo</strong>: abre la sala
+          en el PC donde está la llamada y comparte la ventana con el audio del sistema, o pon el celular en altavoz y usa el micrófono.
+        </span></p>
+      }
+
+      <fieldset class="modo">
+        <legend>¿Cómo?</legend>
+        <label><input type="radio" name="modo" [checked]="alta().modo === 'NAVEGADOR'" (change)="campo('modo', 'NAVEGADOR')" />
+          El bot entra a la reunión</label>
+        <label><input type="radio" name="modo" [checked]="alta().modo === 'CAPTURA'" (change)="campo('modo', 'CAPTURA')" />
+          Capturo desde este dispositivo</label>
+      </fieldset>
+
+      <label class="campo"><span>Título (opcional)</span>
+        <input type="text" maxlength="255" placeholder="Seguimiento con el cliente" [value]="alta().titulo"
+               (input)="campo('titulo', $any($event.target).value)" />
+      </label>
+
+      <fieldset class="modo">
+        <legend>¿Cuándo?</legend>
+        <label><input type="radio" name="cuando" [checked]="alta().cuando === 'ahora'" (change)="campo('cuando', 'ahora')" /> Ahora</label>
+        <label><input type="radio" name="cuando" [checked]="alta().cuando === 'programada'" (change)="campo('cuando', 'programada')" /> Programar</label>
+      </fieldset>
+      @if (alta().cuando === 'programada') {
+        <label class="campo"><span>Fecha y hora</span>
+          <input type="datetime-local" [min]="ahoraLocal()" [value]="alta().fecha" (input)="campo('fecha', $any($event.target).value)" />
+        </label>
+      }
+
+      @if (alta().modo === 'NAVEGADOR') {
+        <p class="nota">El bot entra como invitado con el nombre de tu configuración (dice que es un bot). El anfitrión tiene que admitirlo desde la sala de espera.</p>
+      }
+      @if (errorAlta()) { <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ errorAlta() }}</span></p> }
+
+      <div class="dlg-acciones">
+        <button type="button" class="btn fantasma" (click)="abierto.set(false)">Cancelar</button>
+        <button type="submit" class="btn primario" [disabled]="!puedeEnviar()">
+          <mat-icon>{{ alta().modo === 'CAPTURA' ? 'cast' : 'smart_toy' }}</mat-icon>
+          {{ enviando() ? 'Enviando…' : alta().cuando === 'programada' ? 'Programar' : (alta().modo === 'CAPTURA' ? 'Abrir la sala' : 'Enviar ahora') }}
+        </button>
+      </div>
+    </form>
+  }
+
+  @if (error()) {
+    <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ error() }}</span>
+      <button type="button" class="btn chico" (click)="cargar()">Reintentar</button></p>
+  } @else if (cargando()) {
+    <div class="esq" style="height: 120px"></div>
+  } @else {
+    <!-- ── En vivo ─────────────────────────────────────────────────────── -->
+    @if (enVivo().length) {
+      <section class="bloque">
+        <h2 class="rotulo">En vivo</h2>
+        <div class="tarjetas">
+          @for (s of enVivo(); track s.id) {
+            <a class="tarjeta viva" [routerLink]="[s.id]">
+              <div class="t-cab">
+                <mat-icon class="t-plat">{{ plataforma(s).icono }}</mat-icon>
+                <strong>{{ s.titulo || plataforma(s).etiqueta }}</strong>
+              </div>
+              <span class="tono" [attr.data-tono]="estadoInfo(s.estado).tono"><mat-icon>{{ estadoInfo(s.estado).icono }}</mat-icon>{{ estadoInfo(s.estado).etiqueta }}</span>
+              @if (s.estado_detalle) { <small>{{ s.estado_detalle }}</small> }
+              @if (s.participantes?.length) { <small><mat-icon>group</mat-icon> {{ s.participantes!.length }} participante(s)</small> }
+              <span class="t-ir">Abrir la sala <mat-icon>arrow_forward</mat-icon></span>
+            </a>
+          }
+        </div>
+      </section>
+    }
+
+    <!-- ── Por aprobar ─────────────────────────────────────────────────── -->
+    @if (porAprobar().length) {
+      <section class="bloque">
+        <h2 class="rotulo">Invitaciones por aprobar</h2>
+        <ul class="filas">
+          @for (s of porAprobar(); track s.id) {
+            <li>
+              <mat-icon class="t-plat">{{ plataforma(s).icono }}</mat-icon>
+              <div class="f-texto">
+                <strong>{{ s.titulo || s.invitacion?.asunto || 'Invitación' }}</strong>
+                <small>{{ fechaHora(s.programada_para) }} · de {{ s.invitacion?.remitente || '—' }}@if (s.invitacion?.buzon) { · a {{ s.invitacion?.buzon }} }</small>
+              </div>
+              <div class="f-acciones">
+                <button type="button" class="btn chico" [disabled]="!!accion()" (click)="hacer(s, 'rechazar')">No ir</button>
+                <button type="button" class="btn chico primario" [disabled]="!!accion()" (click)="hacer(s, 'aprobar')"><mat-icon>check</mat-icon> Que vaya</button>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- ── Programadas ─────────────────────────────────────────────────── -->
+    @if (programadas().length) {
+      <section class="bloque">
+        <h2 class="rotulo">Programadas</h2>
+        <ul class="filas">
+          @for (s of programadas(); track s.id) {
+            <li>
+              <mat-icon class="t-plat">{{ plataforma(s).icono }}</mat-icon>
+              <div class="f-texto">
+                <strong>{{ s.titulo || plataforma(s).etiqueta }}</strong>
+                <small>{{ fechaHora(s.programada_para) }} · {{ s.origen === 'INVITACION' ? 'por invitación' : 'manual' }}</small>
+              </div>
+              <div class="f-acciones">
+                <a class="btn chico fantasma" [routerLink]="[s.id]">Ver</a>
+                <button type="button" class="btn chico peligro" [disabled]="!!accion()" (click)="hacer(s, 'cancelar')">Cancelar</button>
+              </div>
+            </li>
+          }
+        </ul>
+      </section>
+    }
+
+    <!-- ── Historial ───────────────────────────────────────────────────── -->
+    <section class="bloque">
+      <h2 class="rotulo">Historial</h2>
+      @if (historial().length) {
+        <ul class="filas">
+          @for (s of historial(); track s.id) {
+            <li>
+              <mat-icon class="t-plat">{{ plataforma(s).icono }}</mat-icon>
+              <div class="f-texto">
+                <strong>{{ s.titulo || plataforma(s).etiqueta }}</strong>
+                <small>{{ fechaHora(s.unido_en || s.programada_para || s.creado_en) }}@if (s.duracion_ms) { · {{ duracionHumana(s.duracion_ms) }} }</small>
+              </div>
+              <span class="tono" [attr.data-tono]="estadoInfo(s.estado).tono">{{ estadoInfo(s.estado).etiqueta }}</span>
+              <div class="f-acciones">
+                <a class="btn chico fantasma" [routerLink]="[s.id]">Notas y chat</a>
+                @if (s.recording_id) {
+                  <a class="btn chico" [routerLink]="['/dashboard/reuniones', s.meeting_id]"><mat-icon>graphic_eq</mat-icon> Reunión completa</a>
+                }
+              </div>
+            </li>
+          }
+        </ul>
+      } @else if (!enVivo().length && !programadas().length && !porAprobar().length) {
+        <div class="vacio">
+          <mat-icon>smart_toy</mat-icon>
+          <h3>Tu asistente aún no ha ido a ninguna reunión</h3>
+          <p>Mándalo con un enlace, o configúralo para que acepte solo las invitaciones que lleguen a tus correos del CRM.</p>
+          <div class="acciones-vacio">
+            <button type="button" class="btn primario" (click)="abrir()"><mat-icon>smart_toy</mat-icon> Enviar bot</button>
+            <a routerLink="configuracion" class="btn"><mat-icon>tune</mat-icon> Configurar</a>
+          </div>
+        </div>
+      } @else {
+        <p class="tc">Aún no hay sesiones terminadas.</p>
+      }
+    </section>
+  }
+</section>

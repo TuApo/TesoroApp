@@ -13,7 +13,7 @@ export const routes: Routes = [
             },
             {
                 path: 'contratacion',
-                loadComponent: () => import('./domains/contratacion/pages/informe-temporal/informe-temporal.component').then(m => m.InformeTemporalComponent)
+                loadComponent: () => import('./domains/contratacion/pages/tablero-contratacion/tablero-contratacion.component').then(m => m.TableroContratacionComponent)
             }
         ]
     }

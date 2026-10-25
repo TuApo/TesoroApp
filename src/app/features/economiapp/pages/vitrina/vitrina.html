@@ -1,0 +1,167 @@
+@if (vitrina(); as v) {
+  <div class="vitrina-pagina" [style.--v-fondo]="v.tema.fondo" [style.--v-fondo2]="v.tema.fondo2"
+       [style.--v-acento]="v.tema.acento" [style.--v-tinta]="v.tema.acentoTinta">
+
+    <!-- ── Portada ──────────────────────────────────────────────────────── -->
+    <section class="portada" [attr.aria-label]="v.nombre">
+      <picture>
+        <source media="(max-width: 700px)" [attr.srcset]="v.hero.movilChico + ' 720w, ' + v.hero.movil + ' 1080w'" sizes="100vw" />
+        <img [src]="v.hero.escritorioChico" [attr.srcset]="srcsetEscritorio()"
+             sizes="(max-width: 1312px) 100vw, 1280px" alt="" fetchpriority="high" decoding="async" />
+      </picture>
+      <div class="por-velo"></div>
+      <div class="por-texto">
+        <a class="por-volver" routerLink="/economiapp"><mat-icon>arrow_back</mat-icon> Inicio</a>
+        <span class="por-etq"><mat-icon>auto_awesome</mat-icon> {{ v.etiqueta }}</span>
+        <h1>{{ v.eslogan }}</h1>
+        <p>{{ v.bajada }}</p>
+        <div class="por-acciones">
+          <button type="button" class="por-cta" (click)="ctaPrincipal()">{{ v.cta }} <mat-icon>arrow_forward</mat-icon></button>
+          <a class="por-matia" routerLink="/economiapp/asesor" [queryParams]="{ q: v.preguntaMatia }"><mat-icon>auto_awesome</mat-icon> Pregúntele a MatIA</a>
+        </div>
+        @if (!cargandoRaiz() && totalRaiz()) {
+          <div class="por-datos">
+            <span><b>{{ totalRaiz() }}</b> producto{{ totalRaiz() === 1 ? '' : 's' }}</span>
+            @if (desde(); as d) { <span>desde <b>{{ pesos(d) }}</b></span> }
+            <span><b>{{ visibles().length }}</b> categoría{{ visibles().length === 1 ? '' : 's' }}</span>
+          </div>
+        }
+      </div>
+    </section>
+
+    @if (v.aviso) {
+      <p class="aviso-legal" role="note"><mat-icon>info</mat-icon> {{ v.aviso }}</p>
+    }
+
+    @if (!raiz()) {
+      @if (store.categorias().length) {
+        <div class="estado-vacio">
+          <mat-icon>storefront</mat-icon>
+          <h2>{{ v.nombre }} no está en {{ store.tienda()?.nombre || 'esta tienda' }}</h2>
+          <p>Esta vitrina es de otra tienda. Cambie de tienda arriba o mire el resto del catálogo.</p>
+          <a class="eco-btn" routerLink="/economiapp/explorar">Ver el catálogo</a>
+        </div>
+      } @else {
+        <div class="riel pad"><div class="esqueleto"></div><div class="esqueleto"></div><div class="esqueleto"></div></div>
+      }
+    } @else {
+      <div class="cuerpo">
+        <!-- ── Mosaico de subcategorías ─────────────────────────────────── -->
+        <section class="seccion">
+          <div class="seccion-cabeza">
+            <div><h2>Explore {{ v.nombre.toLowerCase() }}</h2><p>Toque una categoría para ir directo.</p></div>
+            <button type="button" class="enlace" (click)="verTodo(raiz())">Ver todo</button>
+          </div>
+          <div class="mosaico">
+            @for (c of visibles(); track c.id) {
+              <button type="button" class="tesela" (click)="irA(c)" [style.--h]="tono(c.nombre)">
+                <span class="tesela-foto">
+                  @if (mosaico(c); as m) { <img [src]="m" alt="" loading="lazy" decoding="async" /> }
+                  @else if (c.imagen || fotoProducto(c); as doc) { <eco-imagen class="de-producto" [doc]="doc" [nombre]="c.nombre" [icono]="icono(c)" /> }
+                  @else { <mat-icon>{{ icono(c) }}</mat-icon> }
+                </span>
+                <span class="tesela-nombre">{{ c.nombre }}
+                  @if (seccion(c.id)?.cargada) { <small>{{ seccion(c.id)?.total }}</small> }</span>
+              </button>
+            }
+          </div>
+        </section>
+
+        <!-- ── Marcas ───────────────────────────────────────────────────── -->
+        @if (v.marcas && marcas().length) {
+          <section class="seccion">
+            <div class="seccion-cabeza"><h2>Marcas</h2></div>
+            <div class="marcas">
+              @for (m of marcas(); track m.valor) {
+                <button type="button" class="marca" (click)="verMarca(m.valor)"><b>{{ m.valor }}</b><small>{{ m.cantidad }}</small></button>
+              }
+            </div>
+          </section>
+        }
+
+        <!-- ── Ofertas y ahorro frente al comercio ──────────────────────── -->
+        @if (ofertas().length) {
+          <section class="seccion banda">
+            <div class="seccion-cabeza"><div><h2><mat-icon class="tit-icono">local_offer</mat-icon> En oferta</h2><p>El descuento ya está en el precio.</p></div></div>
+            <div class="riel">@for (a of ofertas(); track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" /> }</div>
+          </section>
+        }
+        @if (ahorro().length) {
+          <section class="seccion banda">
+            <div class="seccion-cabeza"><div><h2><mat-icon class="tit-icono">savings</mat-icon> Más barato que en el comercio</h2>
+              <p>Comparado con el precio de referencia en almacenes de cadena.</p></div></div>
+            <div class="riel">@for (a of ahorro(); track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" /> }</div>
+          </section>
+        }
+
+        <!-- ── Beneficios ───────────────────────────────────────────────── -->
+        <section class="beneficios" aria-label="Por qué comprar aquí">
+          @for (b of v.beneficios; track b.titulo) {
+            <div class="beneficio"><mat-icon>{{ b.icono }}</mat-icon><span><b>{{ b.titulo }}</b><small>{{ b.texto }}</small></span></div>
+          }
+        </section>
+
+        <!-- ── Productos por subcategoría ───────────────────────────────── -->
+        <div id="productos" class="secciones">
+          @if (error()) {
+            <div class="estado-vacio"><mat-icon>cloud_off</mat-icon><p>{{ error() }}</p></div>
+          }
+          @for (c of visibles(); track c.id) {
+            <section class="seccion sub" [id]="'sec-' + c.id">
+              <div class="seccion-cabeza">
+                <div class="sub-tit">
+                  <span class="sub-icono" [style.--h]="tono(c.nombre)">
+                    @if (mosaico(c); as m) { <img [src]="m" alt="" loading="lazy" decoding="async" /> } @else { <mat-icon>{{ icono(c) }}</mat-icon> }
+                  </span>
+                  <div><h2>{{ c.nombre }}</h2>@if (c.descripcion) { <p>{{ c.descripcion }}</p> }</div>
+                </div>
+                @if ((seccion(c.id)?.total ?? 0) > (seccion(c.id)?.articulos?.length ?? 0) || v.disposicion === 'rieles') {
+                  <button type="button" class="enlace ver" (click)="verTodo(c)">Ver todo@if (seccion(c.id)?.cargada) { ({{ seccion(c.id)?.total }}) }</button>
+                }
+              </div>
+              @if (seccion(c.id)?.cargando) {
+                <div class="riel">@for (i of [1,2,3,4]; track i) { <div class="esqueleto"></div> }</div>
+              } @else if (seccion(c.id)?.error) {
+                <p class="muted">No se pudo cargar. <button type="button" class="enlace" (click)="verTodo(c)">Abrir la categoría</button></p>
+              } @else if (v.disposicion === 'rejilla') {
+                <div class="rejilla">@for (a of seccion(c.id)?.articulos; track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" [insignia]="v.insignia ?? ''" /> }</div>
+              } @else {
+                <div class="riel">@for (a of seccion(c.id)?.articulos; track a.id) { <eco-producto [a]="a" [icono]="iconoDe(a)" [insignia]="v.insignia ?? ''" /> }</div>
+              }
+            </section>
+          }
+        </div>
+
+        <!-- ── MatIA ────────────────────────────────────────────────────── -->
+        <a class="matia" routerLink="/economiapp/asesor" [queryParams]="{ q: v.preguntaMatia }">
+          <span class="matia-icono"><mat-icon>auto_awesome</mat-icon></span>
+          <span class="matia-texto"><b>¿No sabe cuál elegir?</b><small>MatIA compara por usted y le arma la lista según su bono mercado: «{{ v.preguntaMatia }}»</small></span>
+          <mat-icon>chevron_right</mat-icon>
+        </a>
+
+        <!-- ── Otras vitrinas ───────────────────────────────────────────── -->
+        @if (otras().length) {
+          <section class="seccion">
+            <div class="seccion-cabeza"><h2>También le puede interesar</h2></div>
+            <div class="otras">
+              @for (o of otras(); track o.v.slug) {
+                <a class="otra" [routerLink]="['/economiapp/vitrina', o.v.slug]" [style.--o-fondo]="o.v.tema.fondo">
+                  <img [src]="o.v.carrusel.chico" alt="" loading="lazy" decoding="async" />
+                  <span><i>{{ o.v.nombre }}</i><b>{{ o.v.promo.titulo }}</b><small>{{ o.v.promo.texto }}</small></span>
+                </a>
+              }
+            </div>
+          </section>
+        }
+      </div>
+    }
+  </div>
+} @else {
+  <div class="pagina">
+    <div class="estado-vacio">
+      <mat-icon>travel_explore</mat-icon>
+      <h2>Esta vitrina no existe</h2>
+      <a class="eco-btn" routerLink="/economiapp/explorar">Ver el catálogo</a>
+    </div>
+  </div>
+}

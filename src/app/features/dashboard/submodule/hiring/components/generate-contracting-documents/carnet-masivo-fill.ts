@@ -24,6 +24,7 @@ import {
   ConfigImpresionCarnet,
   dibujarCaraReverso,
   normalizarImpresion,
+  normalizarPorHoja,
 } from './carnet-impresion';
 
 /**
@@ -43,6 +44,11 @@ export interface CarnetMasivoRow {
   CENTRO_COSTO: string;
   FAMILIAR_EMERGENCIA_NOMBRE: string;
   FAMILIAR_EMERGENCIA_TELEFONO: string;
+  /**
+   * Teléfono del gestor del centro de costo de la vacante. Si viene, gana sobre
+   * `opts.telefonoCoordinador` (el fijo de la temporal).
+   */
+  TELEFONO_COORDINADOR?: string | null;
   /** DataURL de la foto y del QR; si faltan, se omiten sin romper. */
   fotoDataUrl?: string | null;
   qrDataUrl?: string | null;
@@ -60,6 +66,11 @@ export interface CarnetMasivoOpts {
    * reparten las filas de arriba a abajo como en la generación masiva.
    */
   posicion?: number | null;
+  /**
+   * Carnets por hoja en el lote (1..9). Se ocupan las primeras celdas de la
+   * grilla en orden de lectura; sin valor, la hoja va llena (9).
+   */
+  porHoja?: number | null;
   /**
    * Cómo se voltea la hoja para el reverso. Sin valor se asume el volteo de
    * izquierda a derecha, que es lo que se hacía siempre.
@@ -265,7 +276,7 @@ function dibujarReverso(
   doc.text('CONTACTO COORDINADOR DE LA', cx + CARD_W / 2, cursorY, { align: 'center' });
   cursorY += 8;
   doc.setFont('helvetica', 'bold').setTextColor(BLUE_CORP);
-  doc.text(safeTxt(`TEMPORAL ${opts.telefonoCoordinador}`), cx + CARD_W / 2, cursorY, { align: 'center' });
+  doc.text(safeTxt(`TEMPORAL ${String(row.TELEFONO_COORDINADOR ?? '').trim() || opts.telefonoCoordinador}`), cx + CARD_W / 2, cursorY, { align: 'center' });
   cursorY += 14;
 
   doc.setFontSize(9).setTextColor(TEXT_MAIN);
@@ -330,7 +341,7 @@ function dibujarHoja(
 
 /**
  * Devuelve el PDF con los carnets de `rows`, dos páginas por hoja (frentes y
- * reversos). Con más de 9 filas se agregan hojas.
+ * reversos). Con más filas que `opts.porHoja` (9 si no viene) se agregan hojas.
  *
  * Con `opts.posicion` (1..9) se dibuja SOLO la primera fila, en esa celda, y
  * las otras ocho quedan en blanco para reaprovechar una hoja ya recortada.
@@ -349,9 +360,10 @@ export function buildCarnetsMasivoPdf(
     return doc.output('blob');
   }
 
-  const hojas = Math.max(1, Math.ceil(gente.length / SLOTS));
+  const cupo = normalizarPorHoja(opts.porHoja, SLOTS);
+  const hojas = Math.max(1, Math.ceil(gente.length / cupo));
   for (let h = 0; h < hojas; h++) {
-    const tanda = gente.slice(h * SLOTS, (h + 1) * SLOTS);
+    const tanda = gente.slice(h * cupo, (h + 1) * cupo);
     const slots: Array<CarnetMasivoRow | null> = Array(SLOTS).fill(null);
     tanda.forEach((r, i) => { slots[i] = r; });
     dibujarHoja(doc, slots, opts, h === 0);

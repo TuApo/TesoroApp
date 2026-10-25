@@ -1,6 +1,6 @@
 {
   "name": "tesoreria",
-  "version": "10.0.1",
+  "version": "12.2.4",
   "main": "app.js",
   "description": "Programa para control de prestamos a tesoreria",
   "author": "SebastianGuarnizoCampos",
@@ -23,6 +23,8 @@
       "electron-db.js",
       "electron-security.js",
       "endpoint-agent.js",
+      "!**/node_modules/**/android/**",
+      "!**/node_modules/**/ios/**",
       {
         "from": "csharp",
         "to": "csharp",
@@ -57,7 +59,9 @@
       "allowToChangeInstallationDirectory": false,
       "deleteAppDataOnUninstall": false,
       "runAfterFinish": true,
-      "differentialPackage": true
+      "differentialPackage": true,
+      "include": "installer/cerrar-app-en-ejecucion.nsh",
+      "artifactName": "Gestion-Tesoreria-Setup-${version}.${ext}"
     },
     "asar": true,
     "asarUnpack": [
@@ -65,10 +69,8 @@
     ],
     "publish": [
       {
-        "provider": "github",
-        "owner": "sebastian0912",
-        "repo": "ControlPrestamos",
-        "releaseType": "release"
+        "provider": "generic",
+        "url": "https://tesoro.tuapo.co/downloads/"
       }
     ]
   },
@@ -113,9 +115,20 @@
     "@angular/service-worker": "^21.2.23",
     "@angular/ssr": "^21.2.9",
     "@aparajita/capacitor-biometric-auth": "^9.1.2",
+    "@capacitor-mlkit/barcode-scanning": "7.5.0",
     "@capacitor/android": "^7.5.0",
+    "@capacitor/app": "7.1.2",
+    "@capacitor/camera": "7.0.5",
     "@capacitor/core": "^7.5.0",
+    "@capacitor/device": "7.0.5",
+    "@capacitor/filesystem": "7.1.9",
+    "@capacitor/geolocation": "7.1.8",
+    "@capacitor/haptics": "7.0.5",
     "@capacitor/ios": "^7.5.0",
+    "@capacitor/local-notifications": "7.0.7",
+    "@capacitor/network": "7.0.4",
+    "@capacitor/preferences": "7.0.4",
+    "@capacitor/share": "7.0.4",
     "@capgo/capacitor-document-scanner": "^7.2.5",
     "@codemirror/lang-cpp": "6.0.3",
     "@codemirror/lang-html": "6.4.12",

@@ -1,0 +1,71 @@
+<div class="pmd">
+  @if (capacidades(); as c) {
+    @if (!c.voz || !c.video || !c.youtube) {
+      <div class="pmd-aviso">
+        <mat-icon>hub</mat-icon>
+        <div>
+          <strong>Conecta más proveedores para sacarle más partido</strong>
+          <ul>@for (n of c.notas | keyvalue; track n.key) { <li>{{ n.value }}</li> }</ul>
+        </div>
+        <a class="pz-btn pz-btn--chico" routerLink="/dashboard/configuracion/interoperabilidad"><mat-icon>settings</mat-icon> Interoperabilidad</a>
+      </div>
+    }
+  }
+
+  <div class="pmd-grid">
+    <aside class="pz-tarjeta pmd-lecciones">
+      <div class="pmd-lecciones__cab">
+        <h3>Clases</h3>
+        <span class="pz-estado pz-estado--neutro">{{ listos() }} listos · {{ generando() }} generando</span>
+      </div>
+      @for (l of lecciones(); track l.clave) {
+        <button type="button" class="pmd-item" [class.activa]="actual()?.clave === l.clave" (click)="elegida.set(l.clave)">
+          <span class="pmd-item__t">{{ l.titulo }}</span>
+          <span class="pmd-item__n" [class.cero]="!cuantos(l.clave)">{{ cuantos(l.clave) }}</span>
+        </button>
+      } @empty {
+        <p class="pz-ayuda">Primero escribe las clases.</p>
+      }
+      <div class="pmd-lecciones__acc">
+        <button type="button" class="pz-btn pz-btn--primario" [disabled]="ocupado || !diseno.ia_disponible || !lecciones().length" (click)="proponer()">
+          <mat-icon>auto_awesome</mat-icon> {{ medios().length ? 'Proponer de nuevo' : 'Proponer medios con IA' }}
+        </button>
+        @if (pendientes().length) {
+          <button type="button" class="pz-btn pz-btn--lima" (click)="generarTodo()"><mat-icon>bolt</mat-icon> Generar {{ pendientes().length }} propuestos</button>
+        }
+      </div>
+    </aside>
+
+    <section class="pmd-medios">
+      @if (actual(); as l) {
+        <header class="pz-tarjeta pmd-cab">
+          <div>
+            <h2>{{ l.titulo }}</h2>
+            <p class="pz-ayuda">Complementa la clase: repaso, escucharla en el camino, verla en acción. Todo queda después del texto y antes del quiz.</p>
+          </div>
+          <div class="pmd-agregar">
+            <span>Agregar:</span>
+            @for (t of tiposNuevos; track t.tipo) {
+              <button type="button" class="pmd-tipo" (click)="agregar(t.tipo)" [title]="t.nombre"><mat-icon>{{ t.icono }}</mat-icon><span>{{ t.nombre }}</span></button>
+            }
+            <button type="button" class="pz-btn pz-btn--chico" [disabled]="ocupado || !diseno.ia_disponible" (click)="proponer(true)"><mat-icon>autorenew</mat-icon> Proponer para esta clase</button>
+          </div>
+        </header>
+        @for (m of deActual(); track m.id; let i = $index) {
+          <app-medio-tarjeta [medio]="m" [capacidades]="capacidades()" [abierta]="i === 0" (cambio)="actualizado($event)" (eliminado)="eliminado($event)" />
+        } @empty {
+          <div class="pz-tarjeta pz-vacio">
+            <mat-icon>perm_media</mat-icon>
+            @if (cargando()) { <p>Cargando…</p> } @else { <p>Sin medios todavía. Pídeselos a la IA o agrégalos a mano.</p> }
+          </div>
+        }
+      }
+    </section>
+  </div>
+
+  <div class="pz-tarjeta pmd-pie">
+    <button type="button" class="pz-btn" (click)="ir.emit('clases')"><mat-icon>arrow_back</mat-icon> Clases</button>
+    <span class="pmd-nota">Los medios listos entran al curso; los que estén generándose siguen y se agregan solos mientras el curso esté en borrador.</span>
+    <button type="button" class="pz-btn pz-btn--lima" (click)="ir.emit('crear')">Revisar y crear el curso <mat-icon>arrow_forward</mat-icon></button>
+  </div>
+</div>

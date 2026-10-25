@@ -1,0 +1,59 @@
+<section class="captura" [class.activa]="capturando()" aria-label="Captura desde este dispositivo">
+  <header class="cab">
+    <mat-icon aria-hidden="true">{{ capturando() ? 'radio_button_checked' : 'cast' }}</mat-icon>
+    <div class="cab-texto">
+      <h3>Captura desde este dispositivo</h3>
+      <p>Para llamadas a las que el bot no puede entrar (WhatsApp, teléfono, apps de escritorio).</p>
+    </div>
+  </header>
+
+  @if (!capturando()) {
+    <div class="fuentes" role="radiogroup" aria-label="Qué capturar">
+      <button type="button" class="fuente" role="radio" [attr.aria-checked]="fuente() === 'pantalla'"
+              [class.sel]="fuente() === 'pantalla'" [disabled]="!soportaPantalla()" (click)="fuente.set('pantalla')">
+        <mat-icon>screen_share</mat-icon>
+        <span><strong>Pantalla y audio del sistema</strong>
+          <small>En el PC: comparte la ventana de la llamada (p. ej. WhatsApp Desktop) y marca «Compartir audio del sistema/pestaña».</small></span>
+      </button>
+      <button type="button" class="fuente" role="radio" [attr.aria-checked]="fuente() === 'microfono'"
+              [class.sel]="fuente() === 'microfono'" (click)="fuente.set('microfono')">
+        <mat-icon>mic</mat-icon>
+        <span><strong>Solo micrófono</strong>
+          <small>En el celular: pon la llamada en altavoz y deja este equipo cerca.</small></span>
+      </button>
+    </div>
+    @if (fuente() === 'pantalla') {
+      <label class="check">
+        <input type="checkbox" [checked]="incluirMicro()" (change)="incluirMicro.set($any($event.target).checked)" />
+        Incluir mi micrófono (tu propia voz no sale por el audio del sistema)
+      </label>
+    }
+    <div class="acciones">
+      <button type="button" class="btn primario" [disabled]="!habilitada() || arrancando()" (click)="iniciar()">
+        <mat-icon>fiber_manual_record</mat-icon> {{ arrancando() ? 'Pidiendo permiso…' : 'Empezar a capturar' }}
+      </button>
+    </div>
+  } @else {
+    <div class="vivo">
+      <div class="medidor" role="meter" aria-label="Nivel de audio" aria-valuemin="0" aria-valuemax="100"
+           [attr.aria-valuenow]="nivelPct()">
+        <span [style.width.%]="nivel() * 100"></span>
+      </div>
+      <dl class="cifras">
+        <div><dt>Enviados</dt><dd>{{ enviados() }}</dd></div>
+        <div><dt>Pendientes</dt><dd [class.alto]="pendientes() > 2">{{ pendientes() }}</dd></div>
+        @if (tieneVideo()) { <div><dt>Pantallazos</dt><dd>{{ fotogramas() }}</dd></div> }
+      </dl>
+      <button type="button" class="btn peligro" (click)="detener()"><mat-icon>stop</mat-icon> Detener captura</button>
+    </div>
+  }
+
+  @if (pendientes() && !capturando()) {
+    <p class="alerta info"><mat-icon>cloud_upload</mat-icon>
+      <span class="alerta-texto">Terminando de enviar {{ pendientes() }} trozo(s) de audio. No cierres esta pestaña.</span></p>
+  }
+  @if (aviso()) { <p class="alerta aviso"><mat-icon>info</mat-icon><span class="alerta-texto">{{ aviso() }}</span></p> }
+  @if (ultimoError()) { <p class="alerta aviso"><mat-icon>sync_problem</mat-icon><span class="alerta-texto">{{ ultimoError() }}</span></p> }
+  @if (error()) { <p class="alerta"><mat-icon>error</mat-icon><span class="alerta-texto">{{ error() }}</span></p> }
+  <p class="legal">Avisa a las demás personas que la llamada se está grabando y transcribiendo.</p>
+</section>

@@ -37,6 +37,9 @@ export const routes: Routes = [
       { path: 'disabilities', loadChildren: () => import('./submodule/disabilities/disabilities.routes').then(m => m.routes) },
       { path: 'merchandise', loadChildren: () => import('./submodule/merchandise/merchandise.routes').then(m => m.routes) },
       { path: 'marketing', loadChildren: () => import('./submodule/marketing/marketing.routes').then(m => m.routes) },
+      // Aportes al cumpleaños de alguien (etiquetas del equipo y mensaje del jefe). Se entra con
+      // el enlace que comparte Marketing; no es un módulo del menú, así que cualquiera con sesión pasa.
+      { path: 'cumpleanos/aporte/:token', loadComponent: () => import('./components/celebracion/aporte-cumpleanos.component').then(m => m.AporteCumpleanosComponent) },
       { path: 'market', loadChildren: () => import('./submodule/market/market.routes').then(m => m.routes) },
       // Tienda: POS, inventario, catálogo, promociones, pedidos e indicadores.
       // La ruta coincide con db_admin.modulo (ms-auth-admin V92); si no coincidiera,
@@ -48,6 +51,9 @@ export const routes: Routes = [
       { path: 'turnos', loadChildren: () => import('./submodule/turnos/turnos.routes').then(m => m.routes) },
       // Monitoreo de equipos corporativos (inventario + estado + auditoría nocturna + soporte remoto).
       { path: 'monitoreo-equipos', loadChildren: () => import('./submodule/activos-monitoreo/activos-monitoreo.routes').then(m => m.routes) },
+      // Gestión de Equipos (ms-devicemgmt): capa móvil/MDM/anti-robo, licencia y flota.
+      // La ruta coincide con db_admin.modulo (deploy/menu-devicemgmt.sql: "Gestión de Equipos").
+      { path: 'dispositivos', loadChildren: () => import('./submodule/device-management/device-management.routes').then(m => m.routes) },
       // Comunicaciones: chat 1 a 1 y en grupo, llamadas transcritas, actas y compromisos.
       { path: 'comunicaciones', loadChildren: () => import('./submodule/comunicaciones/comunicaciones.routes').then(m => m.routes) },
       // Infraestructura: servidor, contenedores, clúster K3s, sitios, red y datos en vivo (ms-infra).
@@ -57,6 +63,12 @@ export const routes: Routes = [
       // La ruta coincide con db_admin.modulo (ms-auth-admin V140).
       { path: 'seguridad', loadChildren: () => import('./submodule/seguridad/seguridad.routes').then(m => m.routes) },
       { path: 'office-management', loadChildren: () => import('./submodule/office-management/office-management.routes').then(m => m.routes) },
+      // Inicio de Coordinadores: SOLO la raíz (pathMatch 'full'). Sus formularios
+      // (coordinadores/<grupo>/<slug>) siguen resolviéndose en el comodín de formularios
+      // dinámicos de abajo; con un match por prefijo esta rama los interceptaría.
+      // Trabajo de campo de los coordinadores (marcar con QR, mapa en vivo, agenda, radio…).
+      { path: 'campo', loadChildren: () => import('./submodule/campo/campo.routes').then(m => m.routes) },
+      { path: 'coordinadores', pathMatch: 'full', loadChildren: () => import('./submodule/coordinadores/coordinadores.routes').then(m => m.routes) },
       { path: 'reuniones', loadChildren: () => import('./submodule/reuniones/reuniones.routes').then(m => m.routes) },
       // Capacitaciones del colaborador (learning-ms). Vive aquí y no solo en Tu-Apo-Web:
       // el menú lo pinta esta app, y mandar a la persona a otro dominio la sacaba de su sesión.

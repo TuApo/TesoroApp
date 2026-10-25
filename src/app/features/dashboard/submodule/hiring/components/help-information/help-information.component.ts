@@ -19,13 +19,14 @@ import { UtilityServiceService } from '@/app/shared/services/utilityService/util
 import { VacantesService } from '../../service/vacantes/vacantes.service';
 import { GestionParametrizacionService } from '../../../users/services/gestion-parametrizacion/gestion-parametrizacion.service';
 import { FormEntrevistaComponent } from '../form-entrevista/form-entrevista.component';
-import { ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { DetalleCargoConteoItem, ProcesoUpdateByDocumentRequest, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { MatDialog } from '@angular/material/dialog';
 import { RemisionDialogComponent, RemisionDialogData } from './remision-dialog.component';
 import { TemporalRemision } from './remision-fill';
-import { procesoDelContrato } from '../../pages/recruitment-pipeline/contrato.rules';
+import { procesoContratoEnCurso } from '../../pages/recruitment-pipeline/contrato.rules';
 import { PipelineNavService } from '../../service/pipeline-nav/pipeline-nav.service';
+import { CodigoCentroVacanteService, ResolverCodigoCentro } from '../../service/vacantes/codigo-centro-vacante.service';
 import {
   VacanteAsignarDialogComponent,
   VacanteAsignarResultado,
@@ -78,6 +79,45 @@ interface PublicacionDTO {
   auxilio_transporte: string | null;
   conteo_estados?: any;
   activo?: boolean;
+  /** Reparto del total solicitado: [{detalle, cantidad}]. Array o texto JSON según el serializador. */
+  detallesCargo?: unknown;
+  detalles_cargo?: unknown;
+}
+
+/** Nombres de los detalles del cargo de una vacante, sin vacíos ni repetidos. */
+function detallesDeVacante(v: PublicacionDTO | null): string[] {
+  let raw: unknown = v?.detallesCargo ?? v?.detalles_cargo;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { return []; }
+  }
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  for (const d of raw) {
+    const s = String((d as any)?.detalle ?? '').trim();
+    if (s && !out.includes(s)) out.push(s);
+  }
+  return out;
+}
+
+/** Para comparar detalles del cargo: sin tildes, sin mayúsculas y con espacios colapsados. */
+function claveDetalle(v: unknown): string {
+  return normalizarBusqueda(v).replace(/\s+/g, ' ').trim();
+}
+
+/** Cantidad ofertada por detalle del cargo (clave normalizada → personas). */
+function cantidadesDeVacante(v: PublicacionDTO | null): Map<string, number> {
+  let raw: unknown = v?.detallesCargo ?? v?.detalles_cargo;
+  if (typeof raw === 'string') {
+    try { raw = JSON.parse(raw); } catch { return new Map(); }
+  }
+  const out = new Map<string, number>();
+  if (!Array.isArray(raw)) return out;
+  for (const d of raw) {
+    const k = claveDetalle((d as any)?.detalle);
+    const n = Number((d as any)?.cantidad);
+    if (k) out.set(k, (out.get(k) ?? 0) + (Number.isFinite(n) && n > 0 ? n : 0));
+  }
+  return out;
 }
 
 /** Una dirección que se le ofrece al operador en Remisión, y de dónde sale. */
@@ -169,6 +209,7 @@ export class HelpInformationComponent implements OnInit {
   private fb = inject(FormBuilder);
   private gp = inject(GestionParametrizacionService);
   private vacantesService = inject(VacantesService);
+  private codigosCentro = inject(CodigoCentroVacanteService);
   public utilService = inject(UtilityServiceService);
   private destroyRef = inject(DestroyRef);
   private readonly nav = inject(PipelineNavService);
@@ -318,6 +359,49 @@ export class HelpInformationComponent implements OnInit {
   // ========= Derivados (computed) =========
   private tipoCtrl = this.fb.control<string>('', { nonNullable: true });
   tipoSig = toSignal(this.tipoCtrl.valueChanges.pipe(startWith(this.tipoCtrl.value)));
+  /** Detalles del cargo que declara la vacante elegida (lista del selector). */
+  readonly detallesCargoVacante = computed(() => detallesDeVacante(this.vacanteSeleccionada()));
+
+  /**
+   * Sugerencias del autocompletado de "Cargo específico": los detalles de la vacante
+   * que coinciden con lo escrito (todas sus palabras, sin tildes). El campo acepta
+   * texto libre, así que lo guardado se ve aunque ya no esté en la lista.
+   */
+  sugerenciasDetalleCargo(): string[] {
+    const lista = this.detallesCargoVacante();
+    const actual = String(this.vacantesForm.get('detalleCargo')?.value ?? '');
+    const tokens = tokensDeConsulta(actual);
+    if (!tokens.length || lista.includes(actual.trim())) return lista;
+    return lista.filter((d) => coincidenTodas(normalizarBusqueda(d), tokens));
+  }
+
+  /**
+   * Personas de la vacante elegida con detalle del cargo (último proceso de cada una),
+   * para contar cuántas van en cada detalle. Solo informativo: no limita nada.
+   */
+  private readonly asignadosVacante = signal<DetalleCargoConteoItem[]>([]);
+  private readonly cantidadesDetalle = computed(() => cantidadesDeVacante(this.vacanteSeleccionada()));
+
+  /**
+   * Contador de un detalle del cargo: cuántas personas van (las demás de la vacante
+   * con ese detalle, más esta si lo tiene elegido) sobre la cantidad ofertada.
+   * Null si la vacante no declara ese detalle.
+   */
+  conteoDetalle(detalle: unknown): { va: number; de: number } | null {
+    const k = claveDetalle(detalle);
+    const de = this.cantidadesDetalle().get(k);
+    if (!k || de == null) return null;
+    const doc = String(this.candidatoSeleccionado()?.numero_documento ?? '').trim();
+    let va = 0;
+    for (const c of this.asignadosVacante()) {
+      if (String(c.numero_documento ?? '').trim() === doc) continue;
+      if (c.descartado) continue;
+      if (claveDetalle(c.vacante_detalle_cargo) === k) va++;
+    }
+    if (claveDetalle(this.vacantesForm.get('detalleCargo')?.value) === k) va++;
+    return { va, de };
+  }
+
   isAutorizacion = computed(() => this.tipoSig() === 'Autorización de ingreso');
   isPrueba = computed(() => this.tipoSig() === 'Prueba técnica');
 
@@ -327,16 +411,28 @@ export class HelpInformationComponent implements OnInit {
     return ofs.reduce((acc, o) => acc + this.toInt(o?.numeroDeGenteRequerida), 0);
   });
 
-  // ── Árbol de vacantes agrupadas (Empresa → Finca → Vacantes) ──
+  // ── Abreviatura (código de costo del centro) de cada vacante ──
+  /** Resuelve el código del centro (AR2INV, PRIPOM…); null mientras carga o si no hay uno seguro. */
+  private codigoCentro = toSignal(this.codigosCentro.resolver(), { initialValue: (() => null) as ResolverCodigoCentro });
+  abreviatura(v: any): string | null {
+    return this.codigoCentro()(v);
+  }
+
+  /** Hay texto en el buscador del desplegable. */
+  buscandoVacante = computed(() => tokensDeConsulta(this.searchVacanteSig()).length > 0);
+
+  // ── Árbol de vacantes agrupadas (Empresa → Vacantes, cada fila con su finca) ──
   vacantesAgrupadas = computed(() => {
     const list = this.vacantes();
-    const map = new Map<string, Map<string, PublicacionDTO[]>>();
+    const resolver = this.codigoCentro();
+    const map = new Map<string, PublicacionDTO[]>();
 
     const currentSelectedId = this.selectedVacanteId();
     // Mismo criterio que el selector de la ficha: cada palabra por separado y
-    // tienen que estar TODAS. Antes esto exigía que lo tecleado apareciera
-    // seguido dentro de UN campo, así que "jardines rosa cosecha" no encontraba
-    // nada aunque las tres palabras estuvieran en la vacante.
+    // tienen que estar TODAS. Con búsqueda escrita SOLO salen las que coinciden,
+    // también la ya elegida: antes se colaba siempre y parecía que el filtro
+    // traía vacantes que no tenían nada que ver. La elegida se sigue viendo en
+    // el campo (ver `seleccionFueraDeLista`).
     const tokens = tokensDeConsulta(this.searchVacanteSig());
 
     for (const v of list) {
@@ -348,58 +444,49 @@ export class HelpInformationComponent implements OnInit {
       if (this.falt(v) === 0 && !isSelected) continue;
 
       const emp = v.empresa_usuaria_solicita || 'Sin Empresa';
-      const finca = v.finca || 'Sin Finca';
-      const cargo = v.cargo || 'Sin Cargo';
 
       // 3) Búsqueda por varias palabras sobre TODOS los datos de la vacante:
-      //    empresa, finca, cargo, código, temporal y las oficinas que contratan.
-      if (tokens.length && !isSelected) {
+      //    empresa, finca, abreviatura, cargo, código, temporal y oficinas.
+      if (tokens.length) {
         const texto = textoBuscableVacante([
-          emp, finca, cargo, v.codigo_elite, v.temporal,
+          emp, v.finca, resolver(v), v.cargo, v.codigo_elite, v.temporal,
           this.oficinasResumen(v.oficinas_que_contratan),
-          // La fecha de creación también se busca (p. ej. "2026-09-12" o "09-12").
-          String(v.fecha_publicado ?? ''),
+          // Las fechas de creación e ingreso también se buscan (p. ej. "2026-09-12" o "09-12").
+          String(v.fecha_publicado ?? ''), String(v.fechadeIngreso ?? ''),
         ]);
         if (!coincidenTodas(texto, tokens)) continue;
       }
 
-      if (!map.has(emp)) {
-        map.set(emp, new Map());
-      }
-      const fincasMap = map.get(emp)!;
-
-      if (!fincasMap.has(finca)) {
-        fincasMap.set(finca, []);
-      }
-      fincasMap.get(finca)!.push(v);
+      if (!map.has(emp)) map.set(emp, []);
+      map.get(emp)!.push(v);
     }
 
-    const result = [];
+    const cmp = (a: string, b: string) => a.localeCompare(b, 'es', { sensitivity: 'base' });
+    const result: { empresa: string; vacantes: PublicacionDTO[] }[] = [];
     let totalItems = 0;
     const MAX_ITEMS = 60;
 
-    for (const [empresa, fincasMap] of map.entries()) {
+    for (const empresa of [...map.keys()].sort(cmp)) {
       if (totalItems >= MAX_ITEMS) break;
-      const fincas = [];
-      for (const [finca, vacs] of fincasMap.entries()) {
-        if (totalItems >= MAX_ITEMS) break;
-
-        let sortedVacs = vacs.sort((a, b) => (a.cargo || '').localeCompare(b.cargo || '', 'es', { sensitivity: 'base' }));
-        if (totalItems + sortedVacs.length > MAX_ITEMS) {
-          sortedVacs = sortedVacs.slice(0, MAX_ITEMS - totalItems);
-        }
-
-        fincas.push({
-          finca,
-          vacantes: sortedVacs
-        });
-        totalItems += sortedVacs.length;
-      }
-      fincas.sort((a, b) => a.finca.localeCompare(b.finca, 'es', { sensitivity: 'base' }));
-      if (fincas.length > 0) result.push({ empresa, fincas });
+      const vacs = map.get(empresa)!
+        .sort((a, b) => cmp(a.finca || '', b.finca || '') || cmp(a.cargo || '', b.cargo || ''))
+        .slice(0, MAX_ITEMS - totalItems);
+      totalItems += vacs.length;
+      result.push({ empresa, vacantes: vacs });
     }
+    return result;
+  });
 
-    return result.sort((a, b) => a.empresa.localeCompare(b.empresa, 'es', { sensitivity: 'base' }));
+  /**
+   * La vacante elegida no está entre las opciones visibles (la búsqueda no la
+   * incluye). Se pinta una opción oculta con su valor: sin ella el mat-select
+   * perdería la selección y el campo se quedaría en blanco mientras se busca.
+   */
+  seleccionFueraDeLista = computed(() => {
+    const id = this.selectedVacanteId();
+    if (id == null || id === this.SIN_VACANTE) return null;
+    const visible = this.vacantesAgrupadas().some((e) => e.vacantes.some((v) => Number(v.id) === id));
+    return visible ? null : id;
   });
 
   // ── Turno en cola de antecedentes ──
@@ -530,6 +617,10 @@ export class HelpInformationComponent implements OnInit {
     if (this.isAutorizacion() || this.isPrueba()) {
       casillas.push(val('empresaUsuaria'), val('cargo'));
     }
+    // Pedido #12: con detalles declarados en la vacante, el cargo específico falta.
+    if (this.detallesCargoVacante().length) {
+      casillas.push(val('detalleCargo'));
+    }
     if (this.isAutorizacion()) {
       casillas.push(val('fechaIngreso'), val('salario'));
     }
@@ -573,10 +664,40 @@ export class HelpInformationComponent implements OnInit {
       salario: [''],
       fechaPruebaEntrevista: [''],
       horaPruebaEntrevista: [''],
-      direccionEmpresa: ['']
+      direccionEmpresa: [''],
+      detalleCargo: ['']
     });
 
     this.autoRemision.vigilar(this.vacantesForm, this.destroyRef);
+
+    // Pedido #12: el cargo específico es obligatorio si la vacante declara detalles.
+    // Solo marca el campo (mat-error) y cuenta en el avance: el guardado automático
+    // sigue guardando a medias; lo que no deja es imprimir la remisión sin él.
+    effect(() => {
+      const obligatorio = this.detallesCargoVacante().length > 0;
+      const ctrl = this.vacantesForm.get('detalleCargo');
+      ctrl?.setValidators(obligatorio ? Validators.required : null);
+      ctrl?.updateValueAndValidity({ emitEvent: false });
+    });
+
+    // Contador por detalle del cargo: quiénes de la vacante van en cada uno. Se
+    // recarga también al cambiar de candidato, para contar al que se acaba de remitir.
+    let consultaConteo: string | null = null;
+    effect(() => {
+      const id = this.vacanteSeleccionada()?.id;
+      const n = id != null ? Number(id) : null;
+      const doc = String(this.candidatoSeleccionado()?.numero_documento ?? '').trim();
+      const clave = `${n}|${doc}`;
+      if (clave === consultaConteo) return;
+      consultaConteo = clave;
+      this.asignadosVacante.set([]);
+      if (n == null || !Number.isFinite(n)) return;
+      this.gc.getDetalleCargoConteo(n)
+        .pipe(catchError(() => of([] as DetalleCargoConteoItem[])), takeUntilDestroyed(this.destroyRef))
+        .subscribe((lista) => {
+          if (consultaConteo === clave) this.asignadosVacante.set(Array.isArray(lista) ? lista : []);
+        });
+    });
 
     // --- Effect: reaccionar a inputs (candidato)
     effect(() => {
@@ -645,7 +766,9 @@ export class HelpInformationComponent implements OnInit {
           area: currentVals.area || (v.area ?? ''),
           fechaPruebaEntrevista: currentVals.fechaPruebaEntrevista || toDate(v.fechadePruebatecnica),
           horaPruebaEntrevista: currentVals.horaPruebaEntrevista || toTime(v.horade_pruebatecnica),
-          direccionEmpresa: currentVals.direccionEmpresa || this.direccionPorDefecto(v)
+          direccionEmpresa: currentVals.direccionEmpresa || this.direccionPorDefecto(v),
+          // Con un único detalle no hay nada que elegir.
+          detalleCargo: currentVals.detalleCargo || this.detalleUnico(v)
         }, { emitEvent: true }); // emitEvent true para que los signals de visibilidad (como isAutorizacion) reaccionen
       }
     });
@@ -688,6 +811,8 @@ export class HelpInformationComponent implements OnInit {
 
   /** Última cédula pintada en esta pestaña (para limpiar solo al cambiar). */
   private cedulaVista: string | null = null;
+  /** Proceso vigente que pinta la pestaña (ver onInputsChanged). */
+  private procesoVista: string | null = null;
 
   // ===== Handlers =====
   private onInputsChanged(candidato: any | null) {
@@ -711,8 +836,18 @@ export class HelpInformationComponent implements OnInit {
     const ced = candidato?.numero_documento
       ? `${String(candidato?.tipo_doc || 'CC').trim().toUpperCase()}|${String(candidato.numero_documento)}#${this.consultaSeq()}`
       : null;
-    const cambioPersona = ced !== this.cedulaVista;
+    const cambioTitular = ced !== this.cedulaVista;
     this.cedulaVista = ced;
+    // Proceso NUEVO de la misma persona (p.ej. tras "Dar de baja", que abre entrevista y
+    // proceso en blanco): la remisión arranca vacía, como si nunca se hubiera contratado.
+    // La recarga tras la baja es interna (no sube consultaSeq) y sin esto la pestaña seguía
+    // con vacante, empresa, cargo y fechas del contrato anterior. Solo cuenta el paso de un
+    // proceso a OTRO: el primero nace al remitir y limpiar ahí pisaría lo recién guardado.
+    const procId = candidato?.entrevistas?.[0]?.proceso?.id;
+    const proc = procId == null ? null : String(procId);
+    const procesoNuevo = !cambioTitular && this.procesoVista != null && proc != null && proc !== this.procesoVista;
+    if (cambioTitular || proc != null) this.procesoVista = proc;
+    const cambioPersona = cambioTitular || procesoNuevo;
     if (cambioPersona) {
       this.autoRemision.cancelar();
       this.selectedVacanteId.set(null);
@@ -720,7 +855,7 @@ export class HelpInformationComponent implements OnInit {
       this.vacantesForm.reset({
         tipo: '', empresaUsuaria: '', cargo: '', area: '', fechaIngreso: '',
         salario: '', fechaPruebaEntrevista: '', horaPruebaEntrevista: '',
-        direccionEmpresa: '',
+        direccionEmpresa: '', detalleCargo: '',
       }, { emitEvent: false });
     }
 
@@ -786,6 +921,7 @@ export class HelpInformationComponent implements OnInit {
         fechaPruebaEntrevista: '',
         horaPruebaEntrevista: '',
         direccionEmpresa: '',
+        detalleCargo: '',
       },
       { emitEvent: true }
     );
@@ -824,8 +960,16 @@ export class HelpInformationComponent implements OnInit {
       horaPruebaEntrevista: toTime(v.horade_pruebatecnica),
       // Una dirección escrita a mano o guardada en el proceso no queda pisada
       // por la de la publicación; la que venía de la vacante anterior, sí.
-      direccionEmpresa: this.direccionAlElegirVacante(v, anterior)
+      direccionEmpresa: this.direccionAlElegirVacante(v, anterior),
+      // Otra vacante trae otros detalles: el elegido antes ya no aplica.
+      detalleCargo: this.detalleUnico(v)
     }, { emitEvent: true });
+  }
+
+  /** El detalle del cargo si la vacante declara uno solo; si no, vacío. */
+  private detalleUnico(v: PublicacionDTO): string {
+    const d = detallesDeVacante(v);
+    return d.length === 1 ? d[0] : '';
   }
 
   private patchProcesoSeleccionToForms(p: any, cambioPersona = true): void {
@@ -859,6 +1003,9 @@ export class HelpInformationComponent implements OnInit {
       // manda sobre la de la vacante, que es solo el punto de partida.
       if (p?.vacante_direccion != null && String(p.vacante_direccion).trim() !== '') {
         patch['direccionEmpresa'] = String(p.vacante_direccion);
+      }
+      if (p?.vacante_detalle_cargo != null && String(p.vacante_detalle_cargo).trim() !== '') {
+        patch['detalleCargo'] = String(p.vacante_detalle_cargo);
       }
       // Los demás (empresa, cargo, área, hora) no se guardan en el proceso: los
       // completa el effect de la vacante SOLO donde estén vacíos.
@@ -1016,6 +1163,9 @@ export class HelpInformationComponent implements OnInit {
       // se perdía sin aviso. Se manda siempre —también vacía— para que borrarla
       // a propósito también quede guardado.
       vacante_direccion: (this.vacantesForm.get('direccionEmpresa')?.value ?? '').toString().trim(),
+      // Detalle del cargo elegido (solo informativo). Se manda siempre para que
+      // quitarlo también quede guardado.
+      vacante_detalle_cargo: (this.vacantesForm.get('detalleCargo')?.value ?? '').toString().trim().slice(0, 255) || null,
       vacante_salario,
       ...(tipo === 'Prueba técnica' ? { prueba_tecnica: true } : {}),
       ...(tipo === 'Autorización de ingreso' ? { autorizado: true } : {}),
@@ -1113,6 +1263,7 @@ export class HelpInformationComponent implements OnInit {
       vacante_tipo: null,
       vacante_salario: null,
       vacante_fecha_prueba: null,
+      vacante_detalle_cargo: null,
       prueba_tecnica: false,
       autorizado: false,
     };
@@ -1443,6 +1594,11 @@ export class HelpInformationComponent implements OnInit {
     const hace = dias === null ? '' : dias === 0 ? ' · hoy' : dias === 1 ? ' · hace 1 día' : ` · hace ${dias} días`;
     return `Creada ${f}${hace}`;
   }
+  /** "Ingreso aaaa-mm-dd" de la vacante: la fecha de ingreso que llevará la remisión. */
+  fechaIngresoVacante(v: any): string {
+    const f = this.formatShortDate(v?.fechadeIngreso);
+    return f === '—' ? 'Sin fecha de ingreso' : `Ingreso ${f}`;
+  }
   formatShortDate(d: any): string {
     if (!d) return '—';
 
@@ -1497,12 +1653,32 @@ export class HelpInformationComponent implements OnInit {
     const exp = cand?.experiencia_resumen ?? {};
     const anios = exp?.anios_experiencia;
 
+    // Pedido #12: si la vacante declara detalles del cargo, no se imprime sin él.
+    const cargoEspecifico = String(f.detalleCargo ?? '').trim();
+    const cargoEspecificoObligatorio = this.detallesCargoVacante().length > 0;
+    if (cargoEspecificoObligatorio && !cargoEspecifico) {
+      this.vacantesForm.get('detalleCargo')?.markAsTouched();
+      Swal.fire({
+        icon: 'info',
+        title: 'Falta el cargo específico',
+        text: 'La vacante tiene detalles del cargo: elige o escribe el cargo específico antes de generar la remisión.',
+        toast: true,
+        position: 'top-end',
+        timer: 5000,
+        timerProgressBar: true,
+        showConfirmButton: false,
+      });
+      return;
+    }
+
     const t = this.temporalDeVacante(v);
     const data: RemisionDialogData = {
       temporal: t.temporal,
       fecha: this.hoyDDMMAAAA(),
       empresaUsuaria: f.empresaUsuaria || v.empresa_usuaria_solicita || '',
       cargo: f.cargo || v.cargo || '',
+      cargoEspecifico,
+      cargoEspecificoObligatorio,
       experienciaSector: exp?.tiene_experiencia === true ? 'SI'
         : exp?.tiene_experiencia === false ? 'NO' : '',
       tiempoExperiencia: anios != null ? anios + ' año(s)' : (exp?.area_experiencia || ''),
@@ -1564,10 +1740,11 @@ export class HelpInformationComponent implements OnInit {
   /**
    * El número del recuadro del formato es el código de contrato. Se busca en el
    * proceso que TIENE el contrato, no en la primera entrevista: si la persona
-   * volvió y se le abrió un turno nuevo, el contrato vive en la anterior.
+   * volvió y se le abrió un turno nuevo, el contrato vive en la anterior. Tras una baja es
+   * el del contrato nuevo: el código del contrato retirado no se vuelve a imprimir.
    */
   private codigoContratoDe(cand: any): string {
-    const proc = procesoDelContrato(cand);
+    const proc = procesoContratoEnCurso(cand);
     return String(proc?.contrato?.codigo_contrato ?? proc?.contrato_codigo ?? '').trim();
   }
 

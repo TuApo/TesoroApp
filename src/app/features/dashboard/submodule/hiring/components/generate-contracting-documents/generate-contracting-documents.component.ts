@@ -27,14 +27,15 @@ import 'jspdf-autotable';
 import autoTable, { RowInput } from 'jspdf-autotable';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { VacantesService } from '../../service/vacantes/vacantes.service';
+import { CodigoCentroVacanteService } from '../../service/vacantes/codigo-centro-vacante.service';
 import { UtilityServiceService } from '../../../../../../shared/services/utilityService/utility-service.service';
-import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
-import { REFERENCIAS_A, REFERENCIAS_F } from '@/app/shared/model/const';
+import { SedeScopeService } from '../../../../../../shared/services/sede-scope/sede-scope.service';
+import { RegistroProcesoContratacion, TestigoContrato, TestigosContrato } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
 import { fillMinervaPdf } from './minerva-fill';
 import { fillFichaSocialPdf } from './ficha-social-fill';
 import { fillFichaTecnicaPdf } from './ficha-tecnica-fill';
 import { buildContratoAdministrativoPdf } from './contrato-administrativo-fill';
-import { anioCreacionContrato, salarioContratoCO, salarioMinimoDelAnio, SalarioMinimoVigencia, SMMLV_VIGENTE } from './salario.util';
+import { anioCreacionContrato, salarioAcordado, salarioContratoCO, salarioDelContrato, salarioMinimoDelAnio, SalarioMinimoVigencia, SMMLV_VIGENTE } from './salario.util';
 import { SalarioMinimoService } from '../../service/salario-minimo/salario-minimo.service';
 import {
   buildCartaDescuentoFlorPdf,
@@ -53,6 +54,8 @@ import {
 import {
   DOCUMENTOS_PAQUETE,
   SOLO_PLANTILLA_HTML,
+  SOLO_PLANTILLA_HTML_ALIANZA,
+  SUSTITUIDOS_EN_APOYO,
   TYPE_ID_POR_TITULO,
   esSoloSubir,
 } from '../../shared/paquete-documental.data';
@@ -73,6 +76,7 @@ import {
   ARL_ALIANZA, TELEFONO_COORDINADOR_ALIANZA, buildCarnetsMasivoPdf,
 } from './carnet-masivo-fill';
 import QRCode from 'qrcode';
+import { contratoEnCurso, filtroOtroContrato } from '../../pages/recruitment-pipeline/contrato.rules';
 import { PermissionsService } from '@/app/core/services/permissions.service';
 
 type UploadedInfo = {
@@ -81,6 +85,9 @@ type UploadedInfo = {
   previewUrl?: string; // URL creada con URL.createObjectURL
   typeId?: number;     // override de typeMap[key]: una misma entry de UI puede mapear a varios tipos del backend (p.ej. Ficha Técnica básica=34 vs TA completa=111)
 };
+
+/** Testigo listo para pintar en un contrato jsPDF (firma en data URL o null). */
+type TestigoPdf = { nombre: string; documento: string; firma: string | null };
 
 @Component({
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -139,8 +146,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   user: any = {};
   sede: any = '';
   cedulaPersonalAdministrativo: any = '';
-  referenciasA = REFERENCIAS_A;
-  referenciasF = REFERENCIAS_F;
   empresa: string = '';
 
   firma: any = '';
@@ -203,21 +208,25 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * Campo "Salario Mensual Ordinario" de la caratula de los contratos, ya
    * convertido a letras: "$ 2.500.000 DOS MILLONES QUINIENTOS MIL PESOS M/C".
    *
-   * Decision de negocio (2026-09-16): todas las empresas pagan el minimo, y el
-   * documento imprime el del AÑO EN QUE SE CREO EL CONTRATO (Parametrizacion de
-   * vacantes › Salario minimo): un contrato de 2025 reimpreso hoy sigue diciendo
-   * el minimo de 2025. Solo si no hay configuracion para ese año sale el salario
-   * de la vacante y, sin este, el minimo vigente.
+   * Pedido de negocio (2026-10-14): imprime el salario ACORDADO de la vacante a la
+   * que se remitio (`proceso.vacante_salario`, puesto al remitir; si no, el de la
+   * vacante) y, sin acordado, el minimo del AÑO EN QUE SE CREO EL CONTRATO
+   * (Parametrizacion de vacantes › Salario minimo). El rotulo "S.M.M.L.V" solo va
+   * si el valor ES el minimo de ese año. Mismo criterio que ms-templates
+   * (SalarioContrato.java) para los contratos de APOYO.
    */
   get salarioContratoDoc(): string {
     const minimo = this.salarioMinimoContrato;
-    if (minimo != null) return salarioContratoCO(minimo, 'M/C', minimo);
-    const crudo =
-      this.vacante?.salario ??
-      this._entrevistaSel?.proceso?.vacante_salario ??
-      this.entrevistaDoc?.proceso?.vacante_salario ??
-      null;
-    return salarioContratoCO(crudo) || salarioContratoCO(SMMLV_VIGENTE);
+    return salarioContratoCO(salarioDelContrato(this.salarioAcordadoContrato, minimo), 'M/C', minimo ?? SMMLV_VIGENTE);
+  }
+
+  /** Salario acordado para esta persona; `null` = ni el proceso ni la vacante traen uno. */
+  get salarioAcordadoContrato(): number | null {
+    return salarioAcordado(
+      this._entrevistaSel?.proceso?.vacante_salario,
+      this.entrevistaDoc?.proceso?.vacante_salario,
+      this.vacante?.salario,
+    );
   }
 
   /** Años configurados de salario minimo; se cargan con el candidato en `ngOnInit`. */
@@ -310,11 +319,27 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     return this.batchCedulas?.filter?.((x: any) => x?.status === 'Done' && !x?.guardado)?.length || 0;
   }
 
+  /**
+   * Entrevistas entre las que se elige la de los documentos. Con un contrato anterior, solo
+   * la del proceso en curso: si no, tras la baja (y antes de remitir la vacante nueva) se
+   * elegía la entrevista del contrato anterior, que es la que tiene publicación, y los
+   * documentos salían con su vacante, empresa y código.
+   */
+  private static entrevistasDelContratoEnCurso(candidato: any): any[] {
+    const todas: any[] = Array.isArray(candidato?.entrevistas) ? [...candidato.entrevistas] : [];
+    const curso = contratoEnCurso(candidato);
+    if (!curso) return todas;
+    const delCurso = todas.filter(e => String(e?.proceso?.id ?? '') === curso.procesoId);
+    return delCurso.length ? delCurso : todas;
+  }
+
   private platformId = inject(PLATFORM_ID);
   private route = inject(ActivatedRoute);
   private utilService = inject(UtilityServiceService);
+  private sedeScope = inject(SedeScopeService);
   private registroProcesoContratacion = inject(RegistroProcesoContratacion);
   private vacantesService = inject(VacantesService);
+  private centrosVacanteService = inject(CodigoCentroVacanteService);
   private contratacionService = inject(HiringService);
   private gestionDocumentalService = inject(GestionDocumentalService);
   private sanitizer = inject(DomSanitizer);
@@ -326,36 +351,9 @@ export class GenerateContractingDocumentsComponent implements OnInit {
   // La lista del paquete vive en `shared/paquete-documental.data`; aquí solo se
   // envuelve en la forma que espera la plantilla.
   // Sin los que solo existen como plantilla HTML: aquí no hay con qué generarlos (van por Documentos).
-  documentos = DOCUMENTOS_PAQUETE.filter((titulo) => !SOLO_PLANTILLA_HTML.has(titulo)).map((titulo) => ({ titulo }));
+  documentos = DOCUMENTOS_PAQUETE.filter((titulo) => !SOLO_PLANTILLA_HTML.has(titulo) && !SOLO_PLANTILLA_HTML_ALIANZA.has(titulo)).map((titulo) => ({ titulo }));
 
   nombreCompleto = '';
-
-  private randIndex(max: number): number {
-    if (!Number.isFinite(max) || max <= 0) return 0;
-
-    const c = globalThis.crypto as Crypto | undefined;
-
-    // ¡IMPORTANTE! No "descolgar" el método. Úsalo ligado a `crypto` o con bind.
-    if (c?.getRandomValues) {
-      const getRV = c.getRandomValues.bind(c);   // evita "Illegal invocation"
-      const buf = new Uint32Array(1);
-      getRV(buf);
-      return Number(buf[0] % max);
-    }
-
-    // Fallback no criptográfico (suficiente para UI)
-    return Math.floor(Math.random() * max);
-  }
-
-  // ─────────────────────────────────────────────────────────────
-  // Devuelve una referencia aleatoria según el tipo:
-  //  'A' => this.referenciasA,  'F' => this.referenciasF
-  // ─────────────────────────────────────────────────────────────
-  getReferencia(tipo: 'A' | 'F'): string {
-    const pool = tipo === 'A' ? this.referenciasA : this.referenciasF;
-    if (!pool?.length) return '';
-    return pool[this.randIndex(pool.length)];
-  }
 
   uploadedFiles: { [key: string]: UploadedInfo } = {};
 
@@ -383,8 +381,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     { titulo: 'Sisbén', typeId: 8, origen: 'Preguntas de selección' },
     { titulo: 'AFP / Fondo de pensión', typeId: 11, origen: 'Robots' },
     { titulo: 'Semanas cotizadas', typeId: 33, origen: 'Preguntas de selección' },
-    { titulo: 'Exámenes médicos', typeId: 32, origen: 'Pipeline de contratación' },
-    { titulo: 'Carnet', typeId: 102, origen: 'Pipeline de contratación' },
+    { titulo: 'Exámenes médicos', typeId: 32, origen: 'Proceso de contratación' },
+    { titulo: 'Carnet', typeId: 102, origen: 'Proceso de contratación' },
   ];
 
   /** Solo las que de verdad están cargadas — no tiene sentido listar vacíos. */
@@ -453,7 +451,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const docsBackend$ = this.cedula
         // Compartido con el pipeline vía caché por cédula: si este diálogo se
         // abre justo después de consultar a la persona, no repite la petición.
-        ? this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula).pipe(take(1), catchError(() => of([])))
+        ? this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula, { tipoDoc: this.candidato?.tipo_doc }).pipe(take(1), catchError(() => of([])))
         : of([]);
 
       // Salario minimo por año: nunca falla (sin configuracion = lista vacia).
@@ -516,8 +514,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
                   ? String(this.cedula ?? '').trim()
                   : `x${String(this.cedula ?? '').trim()}`
               ).toLowerCase();
+              // Y solo los del contrato EN CURSO: con un contrato anterior, lo que se generó o
+              // subió para aquel no cuenta como "ya cargado" ni se previsualiza aquí.
+              const esDeOtroContrato = filtroOtroContrato(contratoEnCurso(datoCandidato), docsBackend);
               const docsDelTitular = (docsBackend || []).filter((d: any) =>
-                d?.owner_id == null || String(d.owner_id).trim().toLowerCase() === ownerEsperado);
+                (d?.owner_id == null || String(d.owner_id).trim().toLowerCase() === ownerEsperado)
+                && !esDeOtroContrato(d));
 
               docsDelTitular.forEach((doc: any) => {
                 const titles = idToTitles.get(tipoDe(doc));
@@ -550,7 +552,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             //   2) Prefiere la primera con `proceso.publicacion` (necesaria para filtrar por empresa/finca).
             //   3) Si ninguna tiene publicación, cae a la primera con contrato_codigo.
             //   4) Último recurso: la más reciente.
-            const entrevistas: any[] = Array.isArray(datoCandidato?.entrevistas) ? [...datoCandidato.entrevistas] : [];
+            const entrevistas: any[] = GenerateContractingDocumentsComponent.entrevistasDelContratoEnCurso(datoCandidato);
             entrevistas.sort((a, b) => (Number(b?.id) || 0) - (Number(a?.id) || 0));
             const entrevistaConPub = entrevistas.find(e => e?.proceso?.publicacion);
             const entrevistaConContrato = entrevistas.find(
@@ -571,6 +573,13 @@ export class GenerateContractingDocumentsComponent implements OnInit {
             // (fecha de contrato, empresa usuaria, descripción de obra…) salgan
             // de la misma, y no del primer elemento crudo del array.
             this.entrevistaDoc = entrevistaVálida ?? null;
+
+            // Desde una sede transversal (ADMINISTRATIVOS, VIRTUAL) los documentos no
+            // llevan esa sede: llevan la oficina de la entrevista del candidato, que es
+            // la oficina a la que pertenece el contrato (y de ella sale el municipio).
+            if (this.sedeScope.trabajaDesdeTransversal() && String(entrevistaVálida?.oficina ?? '').trim()) {
+              this.sede = String(entrevistaVálida.oficina).trim();
+            }
 
             this.codigoContratacion =
               entrevistaVálida?.proceso?.contrato_codigo ??
@@ -845,7 +854,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
    * reglas; para comparar se sigue usando `this.sede`.
    */
   get oficinaUsuarioImpresa(): string {
-    return String(this.user?.sede?.nombre ?? '').replace(/_/g, ' ').trim();
+    return String(this.sede ?? '').replace(/_/g, ' ').trim();
   }
 
   /** El botón del paquete solo se ofrece a la oficina de Soacha. */
@@ -990,7 +999,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       let docsServidor: any[] = [];
       try {
         docsServidor = (await firstValueFrom(
-          this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula).pipe(take(1), catchError(() => of([])))
+          this.gestionDocumentalService.getDocumentosDeCandidato(this.cedula, { tipoDoc: this.candidato?.tipo_doc }).pipe(take(1), catchError(() => of([])))
         )) ?? [];
       } catch { docsServidor = []; }
 
@@ -1010,8 +1019,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           ? String(this.cedula ?? '').trim()
           : `x${String(this.cedula ?? '').trim()}`
       ).toLowerCase();
+      // Ni un PDF del contrato anterior: el paquete es el del contrato en curso.
+      const esDeOtroContrato = filtroOtroContrato(contratoEnCurso(this.candidato), docsServidor);
       const docsPropios = (docsServidor || []).filter((x: any) =>
-        x?.owner_id == null || String(x.owner_id).trim().toLowerCase() === ownerPaquete);
+        (x?.owner_id == null || String(x.owner_id).trim().toLowerCase() === ownerPaquete)
+        && !esDeOtroContrato(x));
       const urlDeTipo = (typeId: number | number[]): string | null => {
         const ids = Array.isArray(typeId) ? typeId : [typeId];
         for (const id of ids) {
@@ -1208,6 +1220,11 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       const codigo = String(consecutivo).trim();
       // La foto se endereza igual que en la ficha y la hoja de vida.
       const fotoDataUrl = await this.fotoAlDerechoDataUrl(this.foto);
+      // "Contacto Coordinador de la Temporal" = teléfono del gestor del centro de
+      // costo de la vacante. Si no se resuelve, cada formato cae a su fijo.
+      const telefonoGestor = await firstValueFrom(this.centrosVacanteService.resolverTelefonoGestor())
+        .then(r => r(this.vacante))
+        .catch(() => null);
 
       const blob = formatoApoyo
         // ── Apoyo: CR80 horizontal con código de barras ──
@@ -1222,6 +1239,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           afp: porNombre('AFP'),
           emergenciaNombre: this.limpio(emerg.nombre),
           emergenciaTelefono: this.limpio(emerg.telefono),
+          telefonoCoordinador: telefonoGestor,
           logoDataUrl: await aDataUrl('logos/Logo_AL.png'),
           fotoDataUrl,
         }, posicion, impresion)
@@ -1239,6 +1257,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           CENTRO_COSTO: this.limpio(centroDeCostosImpreso(contrato)),
           FAMILIAR_EMERGENCIA_NOMBRE: this.limpio(emerg.nombre),
           FAMILIAR_EMERGENCIA_TELEFONO: this.limpio(emerg.telefono),
+          TELEFONO_COORDINADOR: telefonoGestor,
           fotoDataUrl,
           // El QR lleva el mismo payload que arma Home (`CEDULA|CODIGO`), para
           // que un mismo lector sirva con los dos.
@@ -1338,12 +1357,17 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     }
 
     const ctx = { temporal: tmp, empresaUsuaria: emp, finca: fin };
-    // Temporal en ON: SOLO la parametrización. Sin filas (o error) no se muestra nada y
-    // la cabecera explica por qué; no hay caída silenciosa a un perfil regex.
-    const visibles = sinFiltro
-      ? [...this.documentos]
-      : r?.modo === 'ON'
-        ? this.documentos.filter(d => DocumentosParametrizadosService.visibleEnParametrizacion(d.titulo, r))
+    // Temporal en ON: SOLO la parametrización, también para el administrador (solo se genera y se
+    // sube lo chuleado para la requisición; el servidor lo valida igual). Sin filas (o error) no se
+    // muestra nada y la cabecera explica por qué; no hay caída silenciosa a un perfil regex.
+    // En Apoyo, los títulos que sustituyen sus plantillas HTML (las "Inducción …" y el "Auxilio
+    // Alimentación" de Tu Alianza) comparten tipo con ellas: no se ofrecen aquí.
+    const esApoyo = /APOYO/i.test(String(tmp ?? ''));
+    const visibles = r?.modo === 'ON'
+      ? this.documentos.filter(d => !(esApoyo && SUSTITUIDOS_EN_APOYO.has(d.titulo))
+          && DocumentosParametrizadosService.visibleEnParametrizacion(d.titulo, r))
+      : sinFiltro
+        ? [...this.documentos]
         : this.documentos.filter(d => isDocumentoVisible(d.titulo, ctx));
 
     this._docsVisiblesKey = key;
@@ -1657,7 +1681,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     >(FichaDiligenciarDialogComponent, {
       maxWidth: '100vw', maxHeight: '100vh', width: '100vw', height: '100vh',
       panelClass: 'pdf-editor-fullscreen-dialog', disableClose: true, autoFocus: false,
-      data: { titulo: 'Ficha Técnica', bytes, nombreArchivo: nombre },
+      data: { titulo: 'Ficha Técnica', bytes, nombreArchivo: nombre, claveBorrador: `ficha-tecnica:${this.cedula}` },
     }).afterClosed());
     if (!r?.file) return;
 
@@ -1675,7 +1699,10 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     try {
       await firstValueFrom(this.gestionDocumentalService.guardarDocumento(
         info.fileName, this.cedula, typeId, info.file, this.codigoContratacion,
-        String(this.candidato?.tipo_doc || '').trim() || undefined));
+        String(this.candidato?.tipo_doc || '').trim() || undefined,
+        // El proceso de la MISMA entrevista de la que sale el código: el documento
+        // queda en el expediente de este contrato y no en el de otro vínculo.
+        this.entrevistaDoc?.proceso?.id ?? null));
       await this.cerrarLoadingSwal();
       await Swal.fire({ icon: 'success', title: 'Guardada', text: `${titulo} quedó en el expediente.`, timer: 2200, showConfirmButton: false });
     } catch (err: any) {
@@ -1765,7 +1792,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           // Sin el tipo, el backend asume CC y los documentos de un CE/PPT
           // quedarían en el expediente del titular CC con el mismo número.
           .guardarDocumento(fileName, this.cedula, typeId, file, this.codigoContratacion,
-            String(this.candidato?.tipo_doc || '').trim() || undefined)
+            String(this.candidato?.tipo_doc || '').trim() || undefined,
+            this.entrevistaDoc?.proceso?.id ?? null)
           .pipe(take(1))
           .subscribe({
             next: () => resolveSubida({ key }),
@@ -9474,7 +9502,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
   // Generar contrato de trabajo
-  generarContratoTrabajo(plantilla?: 'APOYO' | 'ALIANZA') {
+  async generarContratoTrabajo(plantilla?: 'APOYO' | 'ALIANZA') {
     // Determinar la ruta del logo y el NIT
     let logoPath = '';
     let nit = '';
@@ -9905,23 +9933,20 @@ export class GenerateContractingDocumentsComponent implements OnInit {
 
 
     doc.line(40, y + 40, 200, y + 40);
-    const firmaAndrea = 'firma/FirmaAndreaS.png';
-    doc.addImage(firmaAndrea, 'PNG', 82, y + 22, 18, 18);
+    // Testigos: 1 = quien selecciono (APLICA), 2 = quien contrato (pedido 2026-10-14).
+    const { t1, t2 } = await this.testigosDelContrato();
     doc.setFont('helvetica', 'bold');
     doc.text('Testigo 1 Nombre y No de CC', 41, y + 43);
-    doc.text('Andrea Sotelo', 80, y + 43);
-    doc.text('C.C. 1.019.034.641', 80, y + 46);
-
-    // Testigo 2
-    doc.text('Testigo 2 Nombre y No de CC', 110, y + 43);
-    doc.text(this.nombreCompletoLogin, 150, y + 43);
-    doc.text('C.C.' + this.user.numero_de_documento, 150, y + 46);
-
-    if (this.firmaPersonalAdministrativo !== '') {
-      // Asegúrate de que this.firmaPersonalAdministrativo solo sea el base64 sin el 'data:image/png;base64,'
-      const firmaPersonalAdministrativoConPrefijo = this.firmaPersonalAdministrativo;
-      doc.addImage(firmaPersonalAdministrativoConPrefijo, 'PNG', 150, 230, 48, 15);
+    if (t1?.firma) { try { doc.addImage(t1.firma, 'PNG', 82, y + 22, 18, 18); } catch { /* sin firma */ } }
+    if (t1) {
+      this.textoAjustado(doc, t1.nombre, 80, y + 43, 28);
+      if (t1.documento) doc.text('C.C. ' + this.numeroDocConPuntos(t1.documento), 80, y + 46);
     }
+
+    doc.text('Testigo 2 Nombre y No de CC', 110, y + 43);
+    this.textoAjustado(doc, t2.nombre, 150, y + 43, 50);
+    if (t2.documento) doc.text('C.C.' + t2.documento, 150, y + 46);
+    if (t2.firma) { try { doc.addImage(t2.firma, 'PNG', 150, 230, 48, 15); } catch { /* sin firma */ } }
 
     // Convertir a Blob y guardar en uploadedFiles
     const pdfBlob = doc.output('blob');
@@ -9930,6 +9955,93 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     this.uploadedFiles['Contrato'] = { file: pdfFile, fileName };
 
     this.verPDF({ titulo: 'Contrato' });
+  }
+
+  /**
+   * Testigos del contrato (pedido 2026-10-14): testigo 1 = quien puso al candidato en APLICA
+   * (selección), testigo 2 = quien dio "Contratar". ms-hr los sella con la firma de la cuenta de
+   * cada uno. Sin testigo 2 sellado (el contrato se genera ANTES de contratar) es quien genera;
+   * sin testigo 1 sellado (procesos anteriores al cambio) queda en blanco para firmar a mano.
+   */
+  private async testigosDelContrato(): Promise<{ t1: TestigoPdf | null; t2: TestigoPdf }> {
+    const procesoId = this.entrevistaDoc?.proceso?.id ?? null;
+    let sellados: TestigosContrato | null = null;
+    if (procesoId != null) {
+      try {
+        sellados = await firstValueFrom(this.registroProcesoContratacion.getTestigosProceso(procesoId));
+      } catch {
+        sellados = null;
+      }
+    }
+    const t1 = sellados?.seleccion ? await this.testigoSellado(sellados.seleccion) : null;
+    const t2: TestigoPdf = sellados?.contratacion
+      ? await this.testigoSellado(sellados.contratacion)
+      : {
+        nombre: (this.nombreCompletoLogin || '').toUpperCase(),
+        documento: String(this.user?.numero_de_documento ?? ''),
+        firma: await this.imagenComoDataUrl(this.firmaPersonalAdministrativo),
+      };
+    return { t1, t2 };
+  }
+
+  /** Testigo sellado: su firma de cuenta o, si no tenía, la biométrica por su documento. */
+  private async testigoSellado(t: TestigoContrato): Promise<TestigoPdf> {
+    let firma = t.firma?.startsWith('data:image/') ? t.firma : null;
+    if (!firma && t.documento) {
+      try {
+        const c: any = await firstValueFrom(this.registroProcesoContratacion.getCandidatoPorDocumento(t.documento, true));
+        firma = await this.imagenComoDataUrl(c?.biometria?.firma?.file_url ?? c?.biometria?.firma?.file ?? null);
+      } catch {
+        firma = null;
+      }
+    }
+    return { nombre: (t.nombre ?? '').toUpperCase(), documento: t.documento ?? '', firma };
+  }
+
+  /** jsPDF necesita la imagen en data URL: las de biometría llegan como URL. */
+  private async imagenComoDataUrl(src?: string | null): Promise<string | null> {
+    if (!src) return null;
+    if (src.startsWith('data:')) return src;
+    try {
+      const r = await fetch(src);
+      if (!r.ok) return null;
+      const b = await r.blob();
+      return await new Promise<string>((resolve) => {
+        const fr = new FileReader();
+        fr.onload = () => resolve(String(fr.result));
+        fr.readAsDataURL(b);
+      });
+    } catch {
+      return null;
+    }
+  }
+
+  /** Escribe el texto achicando la letra hasta que quepa en `maxAncho` (mm); luego la restaura. */
+  private textoAjustado(doc: jsPDF, texto: string, x: number, y: number, maxAncho: number): void {
+    if (!texto) return;
+    const original = doc.getFontSize();
+    let tam = original;
+    while (tam > 4 && doc.getTextWidth(texto) > maxAncho) doc.setFontSize(--tam);
+    doc.text(texto, x, y);
+    doc.setFontSize(original);
+  }
+
+  /** Fila de testigos de los contratos de Tu Alianza (testigo 1 al centro, testigo 2 a la derecha). */
+  private async pintarTestigosTuAlianza(doc: jsPDF, y: number): Promise<void> {
+    const { t1, t2 } = await this.testigosDelContrato();
+    doc.text('Firma y C.C. Testigo 1', 43, y);
+    doc.line(75, y, 130, y);
+    if (t1?.firma) { try { doc.addImage(t1.firma, 'PNG', 85, y - 16, 30, 14); } catch { /* sin firma */ } }
+    if (t1) {
+      this.textoAjustado(doc, t1.nombre, 76, y + 4, 56);
+      if (t1.documento) doc.text(t1.documento, 76, y + 7);
+    }
+
+    doc.text('Firma y CC Testigo 2', 135, y);
+    doc.line(165, y, 203, y);
+    if (t2.firma) { try { doc.addImage(t2.firma, 'PNG', 165, y - 16, 35, 14); } catch { /* sin firma */ } }
+    this.textoAjustado(doc, t2.nombre, 165, y + 4, 40);
+    if (t2.documento) doc.text(t2.documento, 165, y + 7);
   }
 
   async abrirModalLote() {
@@ -10041,7 +10153,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         // Misma regla de selección de entrevista que la carga individual: la
         // que tiene publicación, si no la que tiene código de contrato, si no
         // la más reciente. De acá salen obra/empresa/fecha del contrato.
-        const entrevistasItem: any[] = Array.isArray(datoCandidato?.entrevistas) ? datoCandidato.entrevistas : [];
+        const entrevistasItem: any[] = GenerateContractingDocumentsComponent.entrevistasDelContratoEnCurso(datoCandidato);
         this.entrevistaDoc =
           entrevistasItem.find((e: any) => e?.proceso?.publicacion != null)
           ?? entrevistasItem.find((e: any) => e?.proceso?.contrato_codigo || e?.proceso?.contrato?.codigo_contrato)
@@ -10060,6 +10172,7 @@ export class GenerateContractingDocumentsComponent implements OnInit {
           // el estado del candidato original y leer this.* archivaba todos
           // los contratos con el código del candidato equivocado.
           item.codigoContrato = this.codigoContratacion || '';
+          item.procesoId = this.entrevistaDoc?.proceso?.id ?? null;
           item.tipoDoc = String(datoCandidato?.tipo_doc || '').trim() || undefined;
           item.status = 'Done';
         } else {
@@ -10109,7 +10222,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         await firstValueFrom(this.gestionDocumentalService.guardarDocumento(
           // Código y tipo POR ÍTEM (capturados al generar): this.codigoContratacion
           // ya volvió a ser el del candidato original al terminar el lote.
-          item.file.name, item.cedula, typeId, item.file, item.codigoContrato, item.tipoDoc
+          item.file.name, item.cedula, typeId, item.file, item.codigoContrato, item.tipoDoc,
+          item.procesoId ?? null
         ));
         item.guardado = true;
         success++;
@@ -10635,41 +10749,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Heidy J. Torres S.', 8, y + 4);
     doc.text('C.C. 52,440,635', 10, y + 8);
 
-    // Testigo 1 (Centro)
-    doc.text('Firma y C.C. Testigo 1', 43, y);
-    doc.line(75, y, 130, y);
-    try {
-      doc.addImage('firma/Angela.png', 'PNG', 85, y - 16, 30, 14);
-    } catch (e) { }
-    doc.text('Angie Gutiérrez C.C.1.073.174.200', 76, y + 4);
-
-    // Testigo 2 (Derecha)
-    doc.text('Firma y CC Testigo 2', 135, y);
-    doc.line(165, y, 203, y);
-
-    if (this.firmaPersonalAdministrativo && this.firmaPersonalAdministrativo !== '') {
-      try {
-        const rAdmin = await fetch(this.firmaPersonalAdministrativo);
-        if (rAdmin.ok) {
-          const bAdmin = await rAdmin.blob();
-          const base64Admin = await new Promise<string>((resolve) => {
-            const fr = new FileReader();
-            fr.onload = () => resolve(String(fr.result));
-            fr.readAsDataURL(bAdmin);
-          });
-          doc.addImage(base64Admin, 'PNG', 165, y - 16, 35, 14);
-        } else {
-          doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14);
-        }
-      } catch (e) {
-        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch (ex) { }
-      }
-    }
-
-    const user = this.utilService.getUser();
-    // nombre y cc del que esta iniciado sesion
-    doc.text(user.datos_basicos.nombres + ' ' + user.datos_basicos.apellidos, 165, y + 4);
-    doc.text(user.numero_de_documento, 165, y + 7);
+    // Testigos: 1 = quien selecciono (APLICA), 2 = quien contrato (pedido 2026-10-14).
+    await this.pintarTestigosTuAlianza(doc, y);
 
     // Convertir a Blob y guardar en uploadedFiles
     const pdfBlob = doc.output('blob');
@@ -11148,41 +11229,8 @@ export class GenerateContractingDocumentsComponent implements OnInit {
     doc.text('Heidy J. Torres S.', 8, y + 4);
     doc.text('C.C. 52,440,635', 10, y + 8);
 
-    // Testigo 1 (Centro)
-    doc.text('Firma y C.C. Testigo 1', 43, y);
-    doc.line(75, y, 130, y);
-    try {
-      doc.addImage('firma/Angela.png', 'PNG', 85, y - 16, 30, 14);
-    } catch (e) { }
-    doc.text('Angie Gutiérrez C.C.1.073.174.200', 76, y + 4);
-
-    // Testigo 2 (Derecha)
-    doc.text('Firma y CC Testigo 2', 135, y);
-    doc.line(165, y, 203, y);
-
-    if (this.firmaPersonalAdministrativo && this.firmaPersonalAdministrativo !== '') {
-      try {
-        const rAdmin = await fetch(this.firmaPersonalAdministrativo);
-        if (rAdmin.ok) {
-          const bAdmin = await rAdmin.blob();
-          const base64Admin = await new Promise<string>((resolve) => {
-            const fr = new FileReader();
-            fr.onload = () => resolve(String(fr.result));
-            fr.readAsDataURL(bAdmin);
-          });
-          doc.addImage(base64Admin, 'PNG', 165, y - 16, 35, 14);
-        } else {
-          doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14);
-        }
-      } catch (e) {
-        try { doc.addImage(this.firmaPersonalAdministrativo, 'PNG', 165, y - 16, 35, 14); } catch (ex) { }
-      }
-    }
-
-    const usuarioSesion = this.utilService.getUser();
-    // nombre y cc del que está en sesión (testigo 2)
-    doc.text(usuarioSesion.datos_basicos.nombres + ' ' + usuarioSesion.datos_basicos.apellidos, 165, y + 4);
-    doc.text(usuarioSesion.numero_de_documento, 165, y + 7);
+    // Testigos: 1 = quien selecciono (APLICA), 2 = quien contrato (pedido 2026-10-14).
+    await this.pintarTestigosTuAlianza(doc, y);
 
     // Convertir a Blob y guardar en uploadedFiles
     const pdfBlob = doc.output('blob');
@@ -11532,8 +11580,6 @@ export class GenerateContractingDocumentsComponent implements OnInit {
         // que ficha y contrato nunca salgan con datos distintos.
         centroCosto: this.safe(this.centroCostoDoc),
         cargo: this.safe(this.cargoDoc),
-        referenciasA: this.referenciasA,
-        referenciasF: this.referenciasF,
         salarioMinimo: this.salarioMinimoContrato,
       };
       fillFichaTecnicaPdf(form, customFont, cand, vac, ctx);
@@ -12199,25 +12245,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 || refsF_modelo[0]?.nombre || ''), customFont);
       this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 || refsF_modelo[1]?.nombre || ''), customFont);
 
-      // aleatorios descripciones (robusto y sin repetidos en el par)
-      const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
-
-      const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
-        const unique = Array.from(new Set((arr ?? []).map(normalize).filter(v => v.length > 0)));
-        if (unique.length === 0) return ['', ''];
-        if (unique.length === 1) return [unique[0], ''];
-        const i = Math.floor(Math.random() * unique.length);
-        const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
-        return [unique[i], unique[j]];
-      };
-
-      const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
-      this.setText(form, 'descripcion-personal1', personal1, customFont);
-      this.setText(form, 'descripcion-personal2', personal2, customFont);
-
-      const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
-      this.setText(form, 'descripcion-familiar1', familiar1, customFont);
-      this.setText(form, 'descripcion-familiar2', familiar2, customFont);
+      // Resultado REAL de cada referencia (req. 15-16, 2026-10-22): antes salía un texto al
+      // azar de REFERENCIAS_A/F. Sin resultado, en blanco para llenarlo a mano.
+      this.setText(form, 'descripcion-personal1', this.safe(refsP_modelo[0]?.referenciacion || ''), customFont);
+      this.setText(form, 'descripcion-personal2', this.safe(refsP_modelo[1]?.referenciacion || ''), customFont);
+      this.setText(form, 'descripcion-familiar1', this.safe(refsF_modelo[0]?.referenciacion || ''), customFont);
+      this.setText(form, 'descripcion-familiar2', this.safe(refsF_modelo[1]?.referenciacion || ''), customFont);
       // Parentesco con fallback al modelo nuevo. Una sola escritura por campo
       // (antes había duplicados que se pisaban entre sí).
       this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 || datoContratacion.parentesco_familiar_1 || refsF_modelo[0]?.parentesco || '').toUpperCase(), customFont);
@@ -12766,33 +12799,12 @@ export class GenerateContractingDocumentsComponent implements OnInit {
       this.setText(form, 'nombre-referencia-familiar1', this.safe(datoContratacion.nombre_referencia_familiar1 || refsF_modelo[0]?.nombre || ''), customFont);
       this.setText(form, 'nombre-referencia-familiar2', this.safe(datoContratacion.nombre_referencia_familiar2 || refsF_modelo[1]?.nombre || ''), customFont);
 
-      // aleatorios descripciones (robusto y sin repetidos en el par)
-      const normalize = (s: unknown) => String(s ?? '').trim().replace(/\s+/g, ' ');
-
-      const pickTwoDistinct = (arr: readonly string[]): [string, string] => {
-        // 1) Normaliza, limpia vacíos y elimina duplicados reales
-        const unique = Array.from(
-          new Set((arr ?? []).map(normalize).filter(v => v.length > 0))
-        );
-
-        // 2) Casos límite
-        if (unique.length === 0) return ['', ''];
-        if (unique.length === 1) return [unique[0], '']; // ✅ NUNCA repite
-
-        // 3) Selección aleatoria sin while infinito
-        const i = Math.floor(Math.random() * unique.length);
-        const j = (i + 1 + Math.floor(Math.random() * (unique.length - 1))) % unique.length;
-
-        return [unique[i], unique[j]];
-      };
-
-      const [personal1, personal2] = pickTwoDistinct(this.referenciasA);
-      this.setText(form, 'descripcion-personal1', personal1, customFont);
-      this.setText(form, 'descripcion-personal2', personal2, customFont);
-
-      const [familiar1, familiar2] = pickTwoDistinct(this.referenciasF);
-      this.setText(form, 'descripcion-familiar1', familiar1, customFont);
-      this.setText(form, 'descripcion-familiar2', familiar2, customFont);
+      // Resultado REAL de cada referencia (req. 15-16, 2026-10-22): antes salía un texto al
+      // azar de REFERENCIAS_A/F. Sin resultado, en blanco para llenarlo a mano.
+      this.setText(form, 'descripcion-personal1', this.safe(refsP_modelo[0]?.referenciacion || ''), customFont);
+      this.setText(form, 'descripcion-personal2', this.safe(refsP_modelo[1]?.referenciacion || ''), customFont);
+      this.setText(form, 'descripcion-familiar1', this.safe(refsF_modelo[0]?.referenciacion || ''), customFont);
+      this.setText(form, 'descripcion-familiar2', this.safe(refsF_modelo[1]?.referenciacion || ''), customFont);
       this.setText(form, 'parentesco_familiar_1', this.safe(datoContratacion.parentesco_referencia_familiar1 || datoContratacion.parentesco_familiar_1 || refsF_modelo[0]?.parentesco || '').toUpperCase(), customFont);
       this.setText(form, 'parentesco_familiar_2', this.safe(datoContratacion.parentesco_referencia_familiar2 || datoContratacion.parentesco_familiar_2 || refsF_modelo[1]?.parentesco || '').toUpperCase(), customFont);
       // descripcion-laboral1 en este tengo que dejar la info de 

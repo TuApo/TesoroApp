@@ -1,0 +1,85 @@
+@if (error()) {
+  <div class="dz-error-total">
+    <mat-icon>error_outline</mat-icon>
+    <p>{{ error() }}</p>
+    <button type="button" class="dz-btn" (click)="volver()">Volver a mis diseños</button>
+  </div>
+} @else if (diseno(); as d) {
+  <section class="dz">
+    <header class="dz-cab">
+      <button type="button" class="dz-atras" (click)="volver()" title="Mis diseños" aria-label="Volver a mis diseños">
+        <mat-icon>arrow_back</mat-icon>
+      </button>
+      <div class="dz-cab__titulo">
+        @if (editandoTitulo()) {
+          <input class="dz-titulo-input" [(ngModel)]="tituloEditado" (keydown.enter)="guardarTitulo()"
+                 (blur)="guardarTitulo()" maxlength="300" aria-label="Nombre del curso" />
+        } @else {
+          <h1 (click)="empezarEdicionTitulo()" title="Cambiar el nombre">{{ d.titulo }} <mat-icon>edit</mat-icon></h1>
+        }
+        <div class="dz-cab__meta">
+          <button type="button" class="dz-chip" [class.corp]="d.contexto === 'CORPORATIVO'" (click)="cambiarContexto()"
+                  [disabled]="d.estado === 'APLICADO'" title="Cambiar el contexto">
+            <mat-icon>{{ d.contexto === 'CORPORATIVO' ? 'business_center' : 'school' }}</mat-icon>
+            {{ d.contexto === 'CORPORATIVO' ? 'Corporativo' : 'Educativo' }}
+          </button>
+          @if (!d.ia_disponible) {
+            <span class="dz-chip dz-chip--aviso"><mat-icon>cloud_off</mat-icon> IA no configurada</span>
+          }
+        </div>
+      </div>
+    </header>
+
+    <nav class="dz-pasos" aria-label="Pasos del diseño">
+      @for (p of pasos; track p.id; let i = $index) {
+        <button type="button" class="dz-paso"
+                [class.activo]="paso() === p.id" [class.hecho]="i < alcanzable()" [disabled]="i > alcanzable()"
+                (click)="ir(p.id)" [attr.aria-current]="paso() === p.id ? 'step' : null">
+          <span class="dz-paso__n">
+            @if (i < alcanzable() && paso() !== p.id) { <mat-icon>check</mat-icon> } @else { {{ i + 1 }} }
+          </span>
+          <span class="dz-paso__t">{{ p.titulo }}</span>
+        </button>
+        @if (i < pasos.length - 1) { <span class="dz-paso__linea" [class.hecha]="i < alcanzable()"></span> }
+      }
+    </nav>
+
+    @if (trabajo(); as t) {
+      @if (trabajoActivo()) {
+        <div class="dz-trabajo" role="status" aria-live="polite">
+          <span class="dz-trabajo__giro" aria-hidden="true"></span>
+          <div class="dz-trabajo__texto">
+            <strong>{{ t.mensaje || 'Trabajando…' }}</strong>
+            @if (porcentaje() !== null) {
+              <span class="dz-trabajo__barra"><i [style.width.%]="porcentaje()"></i></span>
+            } @else {
+              <span class="dz-trabajo__barra dz-trabajo__barra--indef"><i></i></span>
+            }
+          </div>
+          <button type="button" class="dz-btn dz-btn--suave" (click)="cancelarTrabajo()" title="Soltar el trabajo si quedó trabado">
+            Cancelar
+          </button>
+        </div>
+      } @else if (t.estado === 'ERROR') {
+        <div class="dz-trabajo dz-trabajo--error" role="alert">
+          <mat-icon>error_outline</mat-icon>
+          <div class="dz-trabajo__texto"><strong>{{ t.mensaje || 'El último paso falló' }}</strong>
+            <em>Puedes volver a intentarlo desde el paso correspondiente.</em></div>
+        </div>
+      }
+    }
+
+    <div class="dz-cuerpo">
+      @switch (paso()) {
+        @case ('material') { <app-paso-material [diseno]="d" [ocupado]="trabajoActivo()" (cambio)="aplicar($event)" (ir)="ir($event)" /> }
+        @case ('entrevista') { <app-paso-entrevista [diseno]="d" [ocupado]="trabajoActivo()" (cambio)="aplicar($event)" (ir)="ir($event)" /> }
+        @case ('estructura') { <app-paso-estructura [diseno]="d" [ocupado]="trabajoActivo()" (cambio)="aplicar($event)" (ir)="ir($event)" /> }
+        @case ('clases') { <app-paso-clases [diseno]="d" [ocupado]="trabajoActivo()" (cambio)="aplicar($event)" (ir)="ir($event)" /> }
+        @case ('medios') { <app-paso-medios [diseno]="d" [ocupado]="trabajoActivo()" (cambio)="aplicar($event)" (ir)="ir($event)" /> }
+        @case ('crear') { <app-paso-crear [diseno]="d" [ocupado]="trabajoActivo()" (cambio)="aplicar($event)" (ir)="ir($event)" /> }
+      }
+    </div>
+  </section>
+} @else {
+  <p class="dz-cargando">Cargando el diseño…</p>
+}

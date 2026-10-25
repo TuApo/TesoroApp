@@ -1,7 +1,7 @@
 import {
   ChangeDetectionStrategy, Component, DestroyRef, ElementRef, computed, effect, inject, input, model, output, signal, untracked, viewChild,
 } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { MatButtonModule } from '@angular/material/button';
@@ -19,7 +19,11 @@ import {
   ArchivoChat, ContextoChatIa, ConversacionChat, EstadoChatIa, MensajeChat, ModuloChatIa, RUTA_BANDEJA_IA, etiquetaFormato, iconoArchivo, tamanoLegible,
 } from './chat-ia.modelos';
 import { ChatIaService } from './chat-ia.service';
-import { ChatIaRobot } from './chat-ia-robot';
+import { LectorPantallaService } from '../../../core/services/operador/lector-pantalla.service';
+import { AvatarAgente } from '../avatar-agente/avatar-agente';
+import { AvatarAgenteService } from '../avatar-agente/avatar-agente.service';
+import { Personaje, Tramo } from '../avatar-agente/avatar-agente.modelos';
+import { partirTramos, sinMarcas } from '../avatar-agente/tramos';
 import { GrabadoraVoz, ReproductorVoz, textoParaVoz } from './chat-ia-voz';
 import { archivosPegados, nombreAlSubir, reducirImagen, traeArchivos } from './chat-ia-archivos';
 
@@ -51,8 +55,8 @@ const MAX_ADJUNTOS = 8;
   selector: 'app-chat-ia',
   changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [
-    FormsModule, DatePipe, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatProgressSpinnerModule, MatTooltipModule,
-    MarkdownMessageComponent, ChatIaRobot,
+    FormsModule, DatePipe, NgTemplateOutlet, RouterLink, MatButtonModule, MatIconModule, MatMenuModule, MatProgressSpinnerModule, MatTooltipModule,
+    MarkdownMessageComponent, AvatarAgente,
   ],
   templateUrl: './chat-ia.html',
   styleUrl: './chat-ia.css',
@@ -70,6 +74,8 @@ export class ChatIa {
   private dialog = inject(MatDialog);
   private router = inject(Router);
   private destroyRef = inject(DestroyRef);
+  private lectorPantalla = inject(LectorPantallaService);
+  private avatares = inject(AvatarAgenteService);
 
   /** Contexto del módulo. En la bandeja puede venir vacío (se usa el de la conversación). */
   readonly contexto = input<ContextoChatIa | null>(null);
@@ -121,6 +127,39 @@ export class ChatIa {
   });
   readonly nombreModulo = computed(() => this.conversacion()?.moduloNombre ?? this.contexto()?.moduloNombre ?? this.modulo()?.nombre ?? 'Tu Apo IA');
   readonly nombreTienda = computed(() => this.conversacion()?.tiendaNombre ?? this.contexto()?.tiendaNombre ?? null);
+  /**
+   * Avatar Agent: quién atiende este chat (el director del módulo; el presidente si el módulo no
+   * tiene). Cada respuesta trae además quién la dio, por si el módulo cambió de director.
+   */
+  readonly personaje = computed<Personaje>(() =>
+    this.avatares.deModulo(this.conversacion()?.modulo ?? this.contexto()?.modulo ?? this.modulo()?.clave));
+  /** Las respuestas partidas por personaje (cuando dos áreas resuelven juntas). */
+  readonly tramos = computed(() => {
+    const out = new Map<number, (Tramo & { p: Personaje })[]>();
+    const principal = this.personaje().clave;
+    for (const m of this.mensajes()) {
+      if (m.rol !== 'assistant' || m.estado !== 'LISTO') continue;
+      const quien = m.personaje ?? principal;
+      out.set(m.id, partirTramos(m.contenido, quien).map(t => ({ ...t, p: this.avatares.personaje(t.clave) })));
+    }
+    return out;
+  });
+  /** Dónde cambia quien responde (traspaso): id del mensaje → quien tenía la palabra antes. */
+  readonly traspasos = computed(() => {
+    const out = new Map<number, Personaje>();
+    let antes: string | null = null;
+    for (const m of this.mensajes()) {
+      if (m.rol !== 'assistant' || !m.personaje) continue;
+      if (antes && antes !== m.personaje) out.set(m.id, this.avatares.personaje(antes));
+      antes = m.personaje;
+    }
+    return out;
+  });
+  /** Quién dio (o está dando) una respuesta. */
+  quien(m: MensajeChat): Personaje {
+    return m.personaje ? this.avatares.personaje(m.personaje) : this.personaje();
+  }
+
   readonly primerNombre = computed(() => (this.usuario.nombreCompleto || '').split(' ')[0]?.toLowerCase().replace(/^\p{L}/u, c => c.toUpperCase()) ?? '');
 
   readonly icono = iconoArchivo;
@@ -134,6 +173,7 @@ export class ChatIa {
   private destruido = false;
 
   constructor() {
+    this.avatares.cargar();
     this.api.estado().subscribe({
       next: e => { this.estado.set(e); if (!e.disponible) this.sinServicio.set('La IA no está disponible en este momento.'); },
       error: e => this.sinServicio.set(mensajeDeError(e, 'No se pudo conectar con la IA.')),
@@ -254,7 +294,8 @@ export class ChatIa {
           tiendaNombre: ctx?.tiendaNombre ?? conv?.tiendaNombre ?? null,
           ruta: ctx?.ruta ?? conv?.ruta ?? this.router.url,
           parametros: limpiarParametros(ctx?.parametros),
-          pantalla: ctx?.pantalla ?? null,
+          // Si el módulo no describe su pantalla, se manda la lectura genérica de lo que se ve.
+          pantalla: ctx?.pantalla ?? this.lectorPantalla.instantanea(),
         },
       }));
       this.vaciarEntrada();
@@ -475,7 +516,7 @@ export class ChatIa {
 
   async copiar(m: MensajeChat): Promise<void> {
     try {
-      await navigator.clipboard.writeText(m.contenido);
+      await navigator.clipboard.writeText(sinMarcas(m.contenido));
       this.copiado.set(m.id);
       setTimeout(() => this.copiado.set(null), 1500);
     } catch { this.aviso.set('No se pudo copiar.'); }

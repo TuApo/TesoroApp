@@ -1,3 +1,5 @@
+import type { Observable } from 'rxjs';
+
 /**
  * Contrato de la tabla estándar de la plataforma (`<app-tabla-estandar>`).
  *
@@ -40,6 +42,14 @@ export interface ColumnaTabla<T = any> {
   valor: (fila: T) => ValorCelda;
   /** Texto visible cuando difiere del valor (moneda, fecha con formato…). */
   formato?: (fila: T) => string;
+  /**
+   * Foto de la fila (id de ms-documents o URL): se pinta una miniatura reconocible al lado
+   * del texto y al tocarla se ve grande. `imagenes` añade más fotos a la galería.
+   */
+  imagen?: (fila: T) => string | null | undefined;
+  imagenes?: (fila: T) => Array<string | null | undefined> | null | undefined;
+  /** Lado de la miniatura en px (por defecto 52). */
+  tamanoImagen?: number;
   /** Pinta la celda como chip de estado. */
   badge?: (fila: T) => BadgeCelda | null | undefined;
   /** Texto exacto que va a Excel cuando difiere de lo visible (precio sin $). */
@@ -70,6 +80,16 @@ export interface ColumnaTabla<T = any> {
 }
 
 export type Vista = 'tabla' | 'tarjetas';
+
+/**
+ * Sugerencia bajo el buscador (ver input `sugerencias`): la pantalla la trae del
+ * backend según lo escrito y la tabla la muestra para elegirla con clic o Enter.
+ */
+export interface SugerenciaBusqueda {
+  id: string;
+  texto: string;
+  detalle?: string;
+}
 
 export type DireccionOrden = 'asc' | 'desc';
 
@@ -123,4 +143,95 @@ export function textoDeValor(valor: ValorCelda): string {
     return isNaN(valor.getTime()) ? '' : valor.toLocaleDateString('es-CO');
   }
   return String(valor);
+}
+
+// ── Acciones masivas ─────────────────────────────────────────────────────────
+
+/** Color del botón de una acción masiva. `aviso` = ámbar, `peligro` = rojo. */
+export type TonoAccion = 'primario' | 'aviso' | 'peligro' | 'neutro';
+
+/** Un texto fijo o uno que depende de las filas sobre las que se va a actuar. */
+export type TextoMasivo<T = any> = string | ((filas: T[]) => string);
+
+/**
+ * Paso de confirmación de una acción masiva. La tabla lo pinta igual en todas
+ * las pantallas: título, explicación, el carrusel de lo que se va a tocar
+ * (nombre e id de cada registro, con la opción de sacar alguno) y, si se
+ * piden, una lista de opciones y un campo de texto.
+ */
+export interface ConfirmacionMasiva<T = any> {
+  /** Por defecto «<etiqueta> <n> registro(s)». */
+  titulo?: TextoMasivo<T>;
+  /** Qué va a pasar y qué no (no se borra, se puede deshacer…). */
+  texto?: TextoMasivo<T>;
+  icono?: 'warning' | 'question' | 'info';
+  /** Etiqueta del campo de texto (motivo, comentario). Sin ella no se pide. */
+  nota?: string;
+  notaObligatoria?: boolean;
+  /** Una lista para elegir (el estado al que pasar…). Llega en `contexto.opcion`. */
+  opciones?: {
+    etiqueta: string;
+    valores: (filas: T[]) => { valor: string; texto: string }[];
+  };
+  /** Texto del botón que confirma. Por defecto «<etiqueta> <n>». */
+  boton?: string;
+}
+
+/** Lo que recibe `ejecutar` además de la fila. */
+export interface ContextoLote<C = unknown> {
+  /** Lo que escribió el operador en la nota ('' si no se pidió). */
+  nota: string;
+  /** El valor elegido en `opciones` (null si no se pidieron). */
+  opcion: string | null;
+  /** Lo que devolvió `preparar`, si la acción lo declaró. */
+  datos: C | undefined;
+}
+
+export interface ResultadoAccionMasiva<T = any> {
+  hechos: T[];
+  fallidos: T[];
+  /** El operador paró antes de terminar. */
+  cancelado: boolean;
+}
+
+/**
+ * ACCIÓN SOBRE LO MARCADO — el estándar de la plataforma.
+ *
+ * La pantalla no monta botones, confirmaciones ni bucles: declara qué se
+ * puede hacer con las filas marcadas y la tabla se encarga del resto igual en
+ * todas partes — el botón con el conteo, el paso de confirmación con el
+ * carrusel de registros, la ejecución uno a uno con avance y parada, y el
+ * cierre con lo que salió y lo que no.
+ *
+ * Se ejecuta registro a registro a propósito: casi ningún endpoint acepta una
+ * lista, un fallo no arrastra a los demás, y al final se dice exactamente
+ * con cuáles no se pudo.
+ */
+export interface AccionMasiva<T = any, C = unknown> {
+  /** Estable dentro de la tabla. */
+  id: string;
+  /** Verbo del botón: «Desactivar», «Reactivar», «Cerrado». */
+  etiqueta: string;
+  /** Material Symbols. */
+  icono?: string;
+  tono?: TonoAccion;
+  /** Rótulo pintado antes de la primera acción del grupo («Pasar a:»). */
+  grupo?: string;
+  /** Sobre cuáles de las marcadas actúa. El botón solo sale si hay alguna. */
+  aplicaA?: (fila: T) => boolean;
+  /**
+   * Recoge o valida antes de confirmar (comprobar que todo sea del mismo
+   * tipo, abrir un selector propio…). Devolver `undefined` cancela.
+   */
+  preparar?: (filas: T[]) => Promise<C | undefined> | C | undefined;
+  /** `false` salta la confirmación (solo si `preparar` ya la hizo). */
+  confirmar?: ConfirmacionMasiva<T> | false;
+  /** La acción sobre UNA fila. */
+  ejecutar: (fila: T, contexto: ContextoLote<C>) => Promise<unknown> | Observable<unknown>;
+  /** Cómo se nombra una fila al informar fallos. Por defecto, nombre e id de su ficha. */
+  etiquetaFila?: (fila: T) => string;
+  /** Participio para el cierre: «desactivada(s)». Por defecto «procesada(s)». */
+  verbo?: string;
+  /** Al terminar (recargar la pantalla, por ejemplo). */
+  alTerminar?: (resultado: ResultadoAccionMasiva<T>) => void;
 }

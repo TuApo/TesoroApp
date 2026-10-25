@@ -1,4 +1,5 @@
 <div class="tarjetas-container">
+
   <div class="card-header-premium">
     <div class="header-content">
       <div class="header-icon-container">
@@ -6,87 +7,12 @@
       </div>
       <div class="header-text">
         <h1 class="titulo" style="margin: 0 !important;">Tarjetas</h1>
-        <p class="subtitulo" style="margin: 0 !important;">Gestión y carga masiva de tarjetas.</p>
+        <p class="subtitulo" style="margin: 0 !important;">
+          Consulta, administración, exportación y carga masiva de tarjetas.
+        </p>
       </div>
     </div>
-    <span class="grow"></span>
-    <button mat-raised-button class="btn-managerial" style="z-index: 1;" (click)="onCreate()">
-      <mat-icon>add</mat-icon> Crear Tarjeta
-    </button>
   </div>
 
-  <!-- Section A: Bulk Upload -->
-  <mat-card class="upload-section">
-    <mat-card-header>
-      <mat-card-title class="titulo" style="color: #192030 !important;">Carga Masiva</mat-card-title>
-    </mat-card-header>
-    <mat-card-content>
-      <div class="upload-controls">
-        <input type="file" #fileInput (change)="onFileSelected($event)" accept=".xls,.xlsx"
-          style="display: none;">
-          <div class="drop-zone" (click)="fileInput.click()" (drop)="onFileSelected($event)"
-            (dragover)="$event.preventDefault()">
-            <mat-icon class="upload-icon">cloud_upload</mat-icon>
-            @if (!selectedFile) {
-              <p>Arrastra un archivo aquí o haz clic para seleccionar (.xls, .xlsx)</p>
-            }
-            @if (selectedFile) {
-              <p class="selected-file-name">{{ selectedFile.name }}</p>
-            }
-          </div>
-          <button mat-raised-button color="accent" [disabled]="!selectedFile || isUploading" (click)="onImport()">
-            Importar
-          </button>
-        </div>
-
-        @if (isUploading) {
-          <mat-progress-bar mode="indeterminate" class="mt-2"></mat-progress-bar>
-        }
-
-        <!-- Results Summary -->
-        @if (importResult) {
-          <div class="import-summary mt-3">
-            <mat-chip-listbox>
-              <mat-chip-option color="primary" selected>Creadas: {{ importResult.created }}</mat-chip-option>
-              <mat-chip-option color="accent" selected>Actualizadas: {{ importResult.updated }}</mat-chip-option>
-              @if (importResult.skipped > 0) {
-                <mat-chip-option color="warn" selected>Omitidas/Errores: {{
-                importResult.skipped }}</mat-chip-option>
-              }
-            </mat-chip-listbox>
-            @if (importResult.errors && importResult.errors.length > 0) {
-              <div class="error-list mt-2">
-                <h3>Errores Detallados:</h3>
-                <app-tabla-estandar
-                  id="contratacion-tarjetas-errores-importacion"
-                  titulo="Errores de importación de tarjetas"
-                  modulo="Contratación"
-                  [datos]="importResult.errors"
-                  [columnas]="columnasErrores"
-                  [filasPorPagina]="25">
-                </app-tabla-estandar>
-              </div>
-            }
-          </div>
-        }
-      </mat-card-content>
-    </mat-card>
-
-    <!-- Section B: List -->
-    <app-standard-filter-table [data]="data" [columnDefinitions]="columns" [isLoading]="isLoading"
-      tableTitle="Listado de Tarjetas" [defaultPageSize]="10">
-
-      <!-- Custom Templates -->
-      <ng-template columnCellTemplate="actions" let-row>
-        <div class="actions-cell">
-          <button mat-icon-button color="primary" (click)="onEdit(row)" matTooltip="Editar">
-            <mat-icon>edit</mat-icon>
-          </button>
-          <button mat-icon-button color="warn" (click)="onDelete(row)" matTooltip="Eliminar">
-            <mat-icon>delete</mat-icon>
-          </button>
-        </div>
-      </ng-template>
-
-    </app-standard-filter-table>
-  </div>
+  <app-tarjetas-panel></app-tarjetas-panel>
+</div>

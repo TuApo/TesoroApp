@@ -15,6 +15,7 @@
              placeholder="Nombre o cédula — mínimo 3 letras"
              autocomplete="off" />
       @if (buscando()) { <mat-icon class="girando">progress_activity</mat-icon> }
+      <app-escaner-codigo titulo="Leer el código de la cédula" (leido)="cedulaLeida($event)" />
     </div>
     <span class="pista">
       Busca entre las personas <strong>contratadas</strong> y muestra si ya tienen
@@ -56,7 +57,8 @@
   <article class="ficha">
     <div class="ficha-cabecera">
       @if (elegida()!.foto_url) {
-        <img [src]="elegida()!.foto_url" alt="Foto de contratación" class="foto" />
+        <app-imagen-ampliable class="foto-ampliable" [doc]="elegida()!.foto_url" [tamano]="88"
+                              [nombre]="'Foto de contratación · ' + (elegida()!.nombre || elegida()!.cedula)" />
       } @else {
         <div class="foto sin-foto"><mat-icon>no_photography</mat-icon></div>
       }
@@ -99,77 +101,144 @@
     }
 
     <div class="cifras">
-      <div><span>Cupo disponible</span>
-        <strong>{{ elegida()!.saldo_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
-      <div><span>Ya debe</span>
-        <strong>{{ elegida()!.deuda | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
       <div><span>Tope de mercado</span>
-        <strong>{{ elegida()!.cupo_mercado_limite | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+        <strong>{{ elegida()!.cupo_mercado_limite | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+        <small>{{ origenTope(elegida()!) }}@if (elegida()!.tope_ajustado && elegida()!.tope_tesoreria != null) { · tesorería {{ elegida()!.tope_tesoreria | currency:'COP':'symbol-narrow':'1.0-0' }} }</small></div>
+      <div><span>Ya autorizado sin usar</span>
+        <strong>{{ (elegida()!.monto_comprometido ?? elegida()!.monto_autorizado) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+      <div><span>Debe</span>
+        <strong>{{ (elegida()!.saldo_pendiente ?? elegida()!.deuda) | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
+      <div class="cifra-maximo"><span>Máximo que puede sacar hoy</span>
+        <strong>{{ elegida()!.cupo_mercado_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong></div>
     </div>
+
+    <!-- ── Tope ajustado ─────────────────────────────────────────────── -->
+    @if (elegida()!.tope_ajustado; as t) {
+      <p class="nota tope-nota">
+        <mat-icon>tune</mat-icon>
+        Tope ajustado a {{ t.tope | currency:'COP':'symbol-narrow':'1.0-0' }} por {{ t.ajustado_por }}@if (t.ajustado_por_cedula) { (C.C. {{ t.ajustado_por_cedula }}) }
+        el {{ t.creado_en | date:'d MMM y' }}@if (t.vigente_hasta) { · hasta {{ t.vigente_hasta | date:'d MMM y' }} }: «{{ t.motivo }}»
+      </p>
+    }
+    @if (elegida()!.puede_ajustar_tope && elegida()!.en_tesoreria) {
+      @if (!ajustandoTope()) {
+        <button type="button" class="boton secundario" (click)="abrirAjusteTope()">
+          <mat-icon>tune</mat-icon> {{ elegida()!.tope_ajustado ? 'Cambiar tope' : 'Ajustar tope' }}
+        </button>
+      } @else {
+        <div class="formulario-mercado">
+          <p class="nota">
+            El tope nuevo manda sobre el de tesorería para esta persona. Lo que pase del cupo de
+            tesorería se autoriza como <strong>excepción</strong> (solo ADMIN o GERENCIA) y queda registrado.
+          </p>
+          <div class="tienda-barra">
+            <div class="campo"><label>Tope nuevo</label>
+              <input type="number" inputmode="numeric" [(ngModel)]="ajuste.tope" min="0" step="10000" /></div>
+            <div class="campo"><label>Vigente hasta (opcional)</label>
+              <input type="date" [(ngModel)]="ajuste.vigente_hasta" /></div>
+          </div>
+          <div class="campo"><label>Motivo</label>
+            <input [(ngModel)]="ajuste.motivo" maxlength="255" placeholder="Por qué se ajusta (queda en la historia)" /></div>
+          <div class="tienda-barra">
+            <button type="button" class="boton" (click)="guardarTope()"
+                    [disabled]="guardandoTope() || ajuste.tope == null || !ajuste.motivo.trim()">Guardar tope</button>
+            @if (elegida()!.tope_ajustado) {
+              <button type="button" class="boton secundario" (click)="guardarTope(true)" [disabled]="guardandoTope()">Quitar ajuste</button>
+            }
+            <button type="button" class="boton secundario" (click)="ajustandoTope.set(false)">Cancelar</button>
+          </div>
+        </div>
+      }
+    }
 
     <!-- ── Autorizaciones de mercado ─────────────────────────────────── -->
     @if (elegida()!.tiene_autorizacion_mercado) {
       <div class="bloque-mercado con">
         <h4><mat-icon>verified</mat-icon> Ya tiene autorización de mercado</h4>
         <ul class="autorizaciones">
-          @for (a of elegida()!.autorizaciones; track $any(a)['codigo_autorizacion']) {
-            <li>
-              <span class="mono">{{ $any(a)['codigo_autorizacion'] }}</span>
-              <span>{{ $any(a)['autorizacion_monto'] | currency:'COP':'symbol-narrow':'1.0-0' }}</span>
-              <span class="cuotas">{{ $any(a)['autorizacion_cuotas'] }} cuotas</span>
-              <span class="fecha">{{ $any(a)['autorizado_en'] | date:'shortDate' }}</span>
+          @for (a of elegida()!.autorizaciones; track campo(a, 'codigo_autorizacion')) {
+            <li class="autorizacion">
+              <app-imagen-ampliable [doc]="campo(a, 'foto_doc_id')" [tamano]="64" icono="no_photography"
+                                    [nombre]="'Foto al autorizar · ' + (elegida()!.nombre || elegida()!.cedula)" />
+              <div class="aut-datos">
+                <div class="aut-fila">
+                  <span class="mono">{{ campo(a, 'codigo_autorizacion') }}</span>
+                  <strong>{{ campo(a, 'autorizacion_monto') | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>
+                  <span class="cuotas">{{ campo(a, 'autorizacion_cuotas') }} cuota(s)</span>
+                  <span class="fecha">{{ campo(a, 'autorizado_en') | date:'d MMM y, h:mm a' }}</span>
+                  @if (campo(a, 'por_excepcion')) { <span class="insignia aviso">excepción de tope</span> }
+                </div>
+                <div class="aut-quien">
+                  Autorizó: <strong>{{ campo(a, 'autorizador_nombre') || campo(a, 'autorizado_por') || 'sin registro' }}</strong>
+                  @if (campo(a, 'autorizador_cedula')) { · C.C. <span class="mono">{{ campo(a, 'autorizador_cedula') }}</span> }
+                  @if (!campo(a, 'desde_tienda')) { <span class="nota sin-margen"> · hecha fuera de la tienda: sin foto</span> }
+                  @if (campo(a, 'vence_en')) { <span class="nota sin-margen"> · vence {{ campo(a, 'vence_en') | date:'d MMM' }}</span> }
+                </div>
+              </div>
             </li>
           }
         </ul>
       </div>
-    } @else {
-      <div class="bloque-mercado sin">
+    }
+
+    <div class="bloque-mercado" [class.sin]="!elegida()!.tiene_autorizacion_mercado">
+      @if (!elegida()!.tiene_autorizacion_mercado) {
         <h4><mat-icon>info</mat-icon> No tiene autorización de mercado</h4>
-        @if (elegida()!.puede_solicitar_mercado) {
-          <p>
-            Se le puede autorizar hasta
-            <strong>{{ elegida()!.cupo_mercado_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>.
-          </p>
-          @if (puedeAutorizar) {
-            @if (!pidiendoMercado()) {
-              <button type="button" class="boton" (click)="pidiendoMercado.set(true)">
-                <mat-icon>add_card</mat-icon> Solicitar autorización
-              </button>
-            } @else {
-              <div class="formulario-mercado">
-                <p class="nota">
-                  Compare a la persona con su foto antes de autorizar: esto compromete sus
-                  quincenas.
-                </p>
-                <label class="verificacion">
-                  <input type="checkbox" [checked]="identidadConfirmada()"
-                         (change)="identidadConfirmada.set(!identidadConfirmada())" />
-                  Confirmo que quien está enfrente es esta persona
-                </label>
-                <div class="tienda-barra">
-                  <div class="campo"><label>Monto</label>
-                    <input type="number" [(ngModel)]="solicitud.monto" min="0"
-                           [max]="elegida()!.cupo_mercado_disponible" /></div>
-                  <div class="campo"><label>Cuotas</label>
-                    <input type="number" [(ngModel)]="solicitud.cuotas" min="1" max="4" /></div>
-                  <button type="button" class="boton" (click)="solicitarMercado()"
-                          [disabled]="!identidadConfirmada() || solicitud.monto <= 0">
-                    Autorizar
-                  </button>
-                  <button type="button" class="boton secundario"
-                          (click)="pidiendoMercado.set(false)">Cancelar</button>
-                </div>
-              </div>
-            }
+      }
+      @if (elegida()!.puede_solicitar_mercado) {
+        <p>
+          Se le puede autorizar hasta
+          <strong>{{ elegida()!.cupo_mercado_disponible | currency:'COP':'symbol-narrow':'1.0-0' }}</strong>.
+        </p>
+        @if (puedeAutorizar) {
+          @if (!pidiendoMercado()) {
+            <button type="button" class="boton" (click)="pidiendoMercado.set(true)">
+              <mat-icon>add_card</mat-icon>
+              {{ elegida()!.tiene_autorizacion_mercado ? 'Autorizar más' : 'Solicitar autorización' }}
+            </button>
           } @else {
-            <p class="nota">
-              Su rol no puede autorizar mercado. Pídalo a quien administra la tienda.
-            </p>
+            <div class="formulario-mercado">
+              <p class="nota">
+                Compare a la persona con su foto de contratación y tómele una foto: queda como
+                soporte junto con su cédula de quien autoriza. Esto compromete sus quincenas.
+              </p>
+              <app-tomar-foto etiqueta="Tomar foto de la persona" icono="photo_camera_front" camara="user"
+                              tipoDueno="STORE_AUTORIZACION" [obligatoria]="true" [tamano]="80"
+                              (cambio)="fotoAutorizacion.set($event[0] ?? null)" />
+              <label class="verificacion">
+                <input type="checkbox" [checked]="identidadConfirmada()"
+                       (change)="identidadConfirmada.set(!identidadConfirmada())" />
+                Confirmo que quien está enfrente es esta persona
+              </label>
+              <div class="tienda-barra">
+                <div class="campo"><label>Monto</label>
+                  <input type="number" inputmode="numeric" [(ngModel)]="solicitud.monto" min="0"
+                         [max]="elegida()!.cupo_mercado_disponible" /></div>
+                <div class="campo"><label>Cuotas</label>
+                  <input type="number" inputmode="numeric" [(ngModel)]="solicitud.cuotas" min="1" max="4" /></div>
+              </div>
+              <div class="campo"><label>Observación (opcional)</label>
+                <input [(ngModel)]="solicitud.observacion" maxlength="200" /></div>
+              <div class="tienda-barra">
+                <button type="button" class="boton" (click)="solicitarMercado()"
+                        [disabled]="!identidadConfirmada() || !fotoAutorizacion() || solicitud.monto <= 0
+                                    || solicitud.monto > elegida()!.cupo_mercado_disponible">
+                  Autorizar {{ solicitud.monto | currency:'COP':'symbol-narrow':'1.0-0' }}
+                </button>
+                <button type="button" class="boton secundario"
+                        (click)="pidiendoMercado.set(false)">Cancelar</button>
+              </div>
+              @if (!fotoAutorizacion()) { <p class="nota sin-margen">Falta la foto de la persona.</p> }
+            </div>
           }
         } @else {
-          <p class="motivo"><mat-icon>block</mat-icon> {{ elegida()!.motivo_no_puede }}</p>
+          <p class="nota">
+            Su rol no puede autorizar mercado. Pídalo a quien administra la tienda.
+          </p>
         }
-      </div>
-    }
+      } @else if (!elegida()!.tiene_autorizacion_mercado) {
+        <p class="motivo"><mat-icon>block</mat-icon> {{ elegida()!.motivo_no_puede }}</p>
+      }
+    </div>
   </article>
 }

@@ -10,7 +10,7 @@
  * que decide el logo y el código del formato; igual se puede cambiar a mano.
  */
 import { CommonModule } from '@angular/common';
-import { ChangeDetectionStrategy, Component, Inject, signal } from '@angular/core';
+import { ChangeDetectionStrategy, Component, Inject, computed, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { MAT_DIALOG_DATA, MatDialogModule, MatDialogRef } from '@angular/material/dialog';
 import { MatButtonModule } from '@angular/material/button';
@@ -37,7 +37,10 @@ const LOGOS: Record<TemporalRemision, string> = {
   alianza: 'logos/Logo_TA.png',
 };
 
-export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qrDataUrl'>>;
+export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qrDataUrl'>> & {
+  /** La vacante declara detalles del cargo: el cargo específico no puede ir vacío (pedido #12). */
+  cargoEspecificoObligatorio?: boolean;
+};
 
 @Component({
   selector: 'app-remision-dialog',
@@ -86,6 +89,15 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
           <mat-form-field appearance="outline">
             <mat-label>Cargo</mat-label>
             <input matInput [ngModel]="d().cargo" (ngModelChange)="set('cargo', $event)">
+          </mat-form-field>
+          <mat-form-field appearance="outline">
+            <mat-label>Cargo específico{{ cargoEspecificoObligatorio ? ' *' : '' }}</mat-label>
+            <input matInput [ngModel]="d().cargoEspecifico" (ngModelChange)="set('cargoEspecifico', $event)">
+            @if (faltaCargoEspecifico()) {
+              <mat-hint class="rm-falta">Obligatorio: la vacante tiene detalles del cargo.</mat-hint>
+            } @else {
+              <mat-hint>Se imprime junto al cargo.</mat-hint>
+            }
           </mat-form-field>
 
           <mat-form-field appearance="outline">
@@ -148,7 +160,7 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
       <mat-dialog-actions class="rm-actions">
         <button mat-button (click)="cerrar()">Cancelar</button>
         <span class="rm-spacer"></span>
-        <button mat-flat-button class="rm-generar" [disabled]="generando()" (click)="generar()">
+        <button mat-flat-button class="rm-generar" [disabled]="generando() || faltaCargoEspecifico()" (click)="generar()">
           <mat-icon>picture_as_pdf</mat-icon>
           {{ generando() ? 'Generando…' : 'Generar remisión' }}
         </button>
@@ -200,6 +212,7 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
     /* min-width:0 — un grid item por defecto no baja de su contenido mínimo, y
        los mat-form-field con texto largo desbordaban la columna. */
     .rm-grid > * { min-width: 0; }
+    .rm-falta { color: light-dark(#b45309, #f5bc99); font-weight: 600; }
     .rm-ancho { grid-column: span 2; }
     .rm-ancho2 { grid-column: span 2; }
     .rm-completo { grid-column: 1 / -1; }
@@ -232,20 +245,27 @@ export type RemisionDialogData = Partial<Omit<DatosRemision, 'logoDataUrl' | 'qr
 export class RemisionDialogComponent {
   readonly d = signal<DatosRemision>({
     temporal: 'apoyo',
-    fecha: '', empresaUsuaria: '', cargo: '', experienciaSector: '', tiempoExperiencia: '',
+    fecha: '', empresaUsuaria: '', cargo: '', cargoEspecifico: '', experienciaSector: '', tiempoExperiencia: '',
     nombreCandidato: '', cedula: '', area: '', dia: '', hora: '', preguntarPor: '',
     direccionEmpresa: '', gestionHumana: '', consecutivo: '',
   });
 
   readonly urlQR = signal(URL_REGISTRO_DEFAULT);
   readonly generando = signal(false);
+  /** Ver `RemisionDialogData.cargoEspecificoObligatorio`. */
+  readonly cargoEspecificoObligatorio: boolean;
+  readonly faltaCargoEspecifico = computed(
+    () => this.cargoEspecificoObligatorio && !String(this.d().cargoEspecifico ?? '').trim(),
+  );
 
   constructor(
     private readonly ref: MatDialogRef<RemisionDialogComponent, boolean>,
     private readonly ventanas: ElectronWindowService,
     @Inject(MAT_DIALOG_DATA) data: RemisionDialogData,
   ) {
-    this.d.set({ ...this.d(), ...(data ?? {}) } as DatosRemision);
+    const { cargoEspecificoObligatorio, ...datos } = (data ?? {}) as RemisionDialogData;
+    this.cargoEspecificoObligatorio = !!cargoEspecificoObligatorio;
+    this.d.set({ ...this.d(), ...datos } as DatosRemision);
   }
 
   set<K extends keyof DatosRemision>(campo: K, valor: DatosRemision[K]): void {

@@ -3,7 +3,7 @@
     <div class="cm-head-icon"><mat-icon>badge</mat-icon></div>
     <div class="cm-head-text">
       <h2>Generación masiva de carnets</h2>
-      <p>Se imprimen 9 por hoja. Solo se genera quien tenga TODOS los datos completos.</p>
+      <p>Tú eliges cuántos van por hoja (hasta 9). La vista previa muestra a todos los marcados; solo se genera quien tenga TODOS los datos completos.</p>
     </div>
     <button mat-icon-button (click)="cerrar()" matTooltip="Cerrar"><mat-icon>close</mat-icon></button>
   </header>
@@ -48,6 +48,9 @@
       <div class="cm-resumen">
         <span><b>{{ total() }}</b> revisados</span>
         <span class="cm-ok"><b>{{ seleccionadas().length }}</b> a generar</span>
+        @if (soloVistaPrevia() > 0) {
+          <span class="cm-warn"><b>{{ soloVistaPrevia() }}</b> solo en vista previa</span>
+        }
         <span class="cm-warn"><b>{{ bloqueadas() }}</b> con datos incompletos</span>
         @if (regenerando() > 0) {
           <span class="cm-regen"><b>{{ regenerando() }}</b> se van a regenerar</span>
@@ -79,11 +82,11 @@
         <ng-template tablaCelda="sel" let-f>
           <mat-checkbox
             [checked]="estaMarcada(f)"
-            [disabled]="!puedeGenerar(f) || generando()"
+            [disabled]="generando()"
             (change)="marcar(f, $event.checked)"
             [matTooltip]="puedeGenerar(f)
               ? (f.yaGenerado ? 'Ya tiene carnet: márcalo para regenerarlo' : 'Se generará')
-              : 'No se puede generar: faltan datos'">
+              : 'Faltan datos: sale en la vista previa, pero no se genera'">
           </mat-checkbox>
         </ng-template>
 
@@ -120,6 +123,39 @@
       <!-- El volteo NO se puede adivinar (depende de la impresora) y encima se
            llama distinto en cada formato, porque Apoyo imprime en hoja
            horizontal y Tu Alianza en vertical. Por eso se elige acá. -->
+      <!-- Carnets por hoja: 1..9 sobre la misma grilla de 3x3. El carnet nunca
+           cambia de tamaño, solo cuántas celdas se ocupan, así que no hay
+           cantidad que se desborde. Se elige ANTES de previsualizar/generar
+           porque el PDF ya sale armado con esta distribución. -->
+      <section class="cm-por-hoja">
+        <div class="cm-por-hoja-texto">
+          <h3><mat-icon>grid_view</mat-icon> Carnets por hoja</h3>
+          <p>Se llenan en orden: de izquierda a derecha y de arriba a abajo.</p>
+          <div class="cm-por-hoja-opciones" role="radiogroup" aria-label="Carnets por hoja">
+            @for (n of opcionesPorHoja; track n) {
+              <button type="button" class="cm-por-hoja-op" role="radio"
+                [attr.aria-checked]="porHoja() === n"
+                [class.activa]="porHoja() === n"
+                [disabled]="generando()"
+                (click)="elegirPorHoja(n)">{{ n }}</button>
+            }
+          </div>
+          @if (aPrevisualizar().length > 0) {
+            <p class="cm-por-hoja-cuenta">
+              Vista previa: <b>{{ aPrevisualizar().length }}</b> carnet(s) → <b>{{ hojasPrevia() }}</b> hoja(s)
+              @if (soloVistaPrevia() > 0) {
+                · se generan <b>{{ seleccionadas().length }}</b> en <b>{{ hojas() }}</b> hoja(s)
+              }
+            </p>
+          }
+        </div>
+        <div class="cm-mini-hoja" aria-hidden="true">
+          @for (c of celdasMiniHoja; track c) {
+            <span class="cm-mini-celda" [class.llena]="c < porHoja()"></span>
+          }
+        </div>
+      </section>
+
       <app-carnet-impresion class="cm-impresion" [formato]="formatoImpresion()"></app-carnet-impresion>
     } @else if (!cargando()) {
       <!-- Sin esto el diálogo abre con un textarea gigante y medio cuerpo en
@@ -144,7 +180,7 @@
     <span class="cm-spacer"></span>
     <button mat-button (click)="cerrar()">Cancelar</button>
     <button mat-stroked-button (click)="previsualizar()"
-      [disabled]="generando() || cargando() || seleccionadas().length === 0">
+      [disabled]="generando() || cargando() || aPrevisualizar().length === 0">
       <mat-icon>visibility</mat-icon> Previsualizar
     </button>
     <button mat-flat-button color="primary" (click)="generar()"

@@ -1,0 +1,192 @@
+<header class="exp-head">
+  <div class="exp-head-text">
+    <h2 mat-dialog-title class="exp-title">
+      <mat-icon class="exp-title-icon">folder_shared</mat-icon>
+      Expediente del contrato
+    </h2>
+    @if (titulo()) {
+      <p class="exp-sub">{{ titulo() }}</p>
+    }
+  </div>
+  <button mat-icon-button type="button" (click)="recargar()" [disabled]="cargando()"
+    matTooltip="Volver a consultar" aria-label="Volver a consultar">
+    <mat-icon>refresh</mat-icon>
+  </button>
+  <button mat-icon-button type="button" (click)="cerrar()" aria-label="Cerrar">
+    <mat-icon>close</mat-icon>
+  </button>
+</header>
+
+@if (cargando()) {
+  <mat-progress-bar mode="indeterminate" class="exp-progress" />
+}
+
+<mat-dialog-content class="exp-content">
+  @if (error(); as msg) {
+    <div class="exp-alert exp-alert--danger" role="alert">
+      <mat-icon>error_outline</mat-icon>
+      <span>{{ msg }}</span>
+    </div>
+  }
+
+  @if (expediente(); as e) {
+    <!-- Contratos de la persona -->
+    <section class="exp-section" aria-label="Contratos de la persona">
+      <div class="exp-section-head">
+        <h3>Contrato</h3>
+        @if (procesosOcultos() > 0) {
+          <button mat-button type="button" class="exp-link" (click)="verTodosLosProcesos.set(!verTodosLosProcesos())">
+            {{ verTodosLosProcesos() ? 'Solo contratos' : 'Ver también ' + procesosOcultos() + ' proceso(s) sin contrato' }}
+          </button>
+        }
+      </div>
+      @if (contratosVisibles().length) {
+        <div class="exp-contratos" role="listbox" aria-label="Elegir contrato">
+          @for (c of contratosVisibles(); track c.proceso_id) {
+            <button type="button" class="exp-contrato" role="option"
+              [class.is-active]="c.seleccionado" [attr.aria-selected]="c.seleccionado"
+              [disabled]="cargando()" (click)="elegir(c)">
+              <span class="exp-contrato-codigo">{{ etiquetaContrato(c) }}</span>
+              <span class="exp-contrato-meta">
+                Proceso {{ c.proceso_id }}
+                @if (c.temporal) { · {{ c.temporal }} }
+                @if (c.oficina) { · {{ c.oficina }} }
+                @if (c.tiene_contrato) {
+                  · {{ c.contrato_activo === false ? 'Retirado' : 'Activo' }}
+                }
+              </span>
+            </button>
+          }
+        </div>
+      } @else {
+        <p class="exp-muted">La cédula no tiene procesos de contratación registrados.</p>
+      }
+    </section>
+
+    <!-- Resumen -->
+    <section class="exp-kpis" aria-label="Resumen del expediente">
+      <div class="exp-kpi exp-kpi--ok">
+        <span class="exp-kpi-num">{{ e.resumen.ok }}</span>
+        <span class="exp-kpi-label">Entregados</span>
+      </div>
+      <div class="exp-kpi exp-kpi--warn">
+        <span class="exp-kpi-num">{{ e.resumen.sin_asignar }}</span>
+        <span class="exp-kpi-label">Sin asignar</span>
+      </div>
+      <div class="exp-kpi exp-kpi--danger">
+        <span class="exp-kpi-num">{{ e.resumen.faltantes }}</span>
+        <span class="exp-kpi-label">Faltan</span>
+      </div>
+      <div class="exp-kpi">
+        <span class="exp-kpi-num">{{ e.resumen.exigidos }}</span>
+        <span class="exp-kpi-label">Exigidos</span>
+      </div>
+    </section>
+
+    @for (aviso of e.avisos; track $index) {
+      <div class="exp-alert exp-alert--warn">
+        <mat-icon>info</mat-icon>
+        <span>{{ aviso }}</span>
+      </div>
+    }
+
+    <!-- Exigidos -->
+    <section class="exp-section">
+      <app-tabla-estandar
+        id="contratacion-expediente-exigidos"
+        titulo="Documentos exigidos"
+        modulo="Contratación"
+        vacio="No hay documentos exigidos para este contrato."
+        [datos]="e.exigidos"
+        [columnas]="columnasExigidos"
+        [filasPorPagina]="25"
+        [pegable]="false">
+        <ng-template tablaAcciones let-fila>
+          <button mat-icon-button type="button" [disabled]="!fila.file_url"
+            (click)="ver(fila.file_url, $event)"
+            [matTooltip]="fila.file_url ? 'Ver documento' : 'Sin documento'" aria-label="Ver documento">
+            <mat-icon>visibility</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
+    </section>
+
+    <!-- Documentos del contrato -->
+    <section class="exp-section">
+      <app-tabla-estandar
+        id="contratacion-expediente-contrato"
+        titulo="Documentos de este contrato"
+        modulo="Contratación"
+        vacio="Todavía no hay documentos atados a este contrato."
+        [datos]="e.documentos_contrato"
+        [columnas]="columnasDocumentos"
+        [filasPorPagina]="25"
+        [pegable]="false">
+        <ng-template tablaAcciones let-fila>
+          <button mat-icon-button type="button" [disabled]="!fila.file_url"
+            (click)="ver(fila.file_url, $event)" matTooltip="Ver documento" aria-label="Ver documento">
+            <mat-icon>visibility</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
+    </section>
+
+    <!-- Documentos de la persona -->
+    <section class="exp-section">
+      <app-tabla-estandar
+        id="contratacion-expediente-persona"
+        titulo="Documentos de la persona (valen para todos sus contratos)"
+        modulo="Contratación"
+        vacio="No hay documentos de la persona."
+        [datos]="e.documentos_persona"
+        [columnas]="columnasDocumentos"
+        [filasPorPagina]="25"
+        [pegable]="false">
+        <ng-template tablaAcciones let-fila>
+          <button mat-icon-button type="button" [disabled]="!fila.file_url"
+            (click)="ver(fila.file_url, $event)" matTooltip="Ver documento" aria-label="Ver documento">
+            <mat-icon>visibility</mat-icon>
+          </button>
+        </ng-template>
+      </app-tabla-estandar>
+    </section>
+
+    <!-- Sin asignar -->
+    @if (e.sin_asignar.length) {
+      <section class="exp-section">
+        <button mat-button type="button" class="exp-toggle" (click)="verSinAsignar.set(!verSinAsignar())"
+          [attr.aria-expanded]="verSinAsignar()">
+          <mat-icon>{{ verSinAsignar() ? 'expand_less' : 'expand_more' }}</mat-icon>
+          {{ e.sin_asignar.length }} documento(s) antiguos sin contrato asignado
+        </button>
+        @if (verSinAsignar()) {
+          <p class="exp-muted">
+            Se subieron sin número de contrato y la persona tiene varios contratos, así que no se sabe
+            a cuál pertenecen. No cuentan como entregados para ninguno.
+          </p>
+          <app-tabla-estandar
+            id="contratacion-expediente-sin-asignar"
+            titulo="Sin contrato asignado"
+            modulo="Contratación"
+            [datos]="e.sin_asignar"
+            [columnas]="columnasDocumentos"
+            [filasPorPagina]="25"
+            [pegable]="false">
+            <ng-template tablaAcciones let-fila>
+              <button mat-icon-button type="button" [disabled]="!fila.file_url"
+                (click)="ver(fila.file_url, $event)" matTooltip="Ver documento" aria-label="Ver documento">
+                <mat-icon>visibility</mat-icon>
+              </button>
+            </ng-template>
+          </app-tabla-estandar>
+        }
+      </section>
+    }
+  } @else if (!cargando() && !error()) {
+    <p class="exp-muted">Sin datos.</p>
+  }
+</mat-dialog-content>
+
+<mat-dialog-actions align="end">
+  <button mat-button type="button" (click)="cerrar()">Cerrar</button>
+</mat-dialog-actions>

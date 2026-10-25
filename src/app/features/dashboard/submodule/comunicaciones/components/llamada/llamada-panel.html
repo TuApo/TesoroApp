@@ -1,0 +1,136 @@
+@if (ll.enLlamada()) {
+  @if (ll.minimizada()) {
+    <div class="pildora" role="status">
+      <span class="pulso"></span>
+      <button type="button" class="pil-txt" (click)="ll.minimizada.set(false)">
+        <strong>{{ titulo() }}</strong><small>{{ estadoTexto() }}</small>
+      </button>
+      @if (ll.grabando()) { <span class="rec" matTooltip="Se está transcribiendo"><i></i>REC</span> }
+      <button type="button" class="c momento-c" (click)="guardarMomento()" aria-label="Guardar este momento"><mat-icon>bookmark_add</mat-icon></button>
+      @if (ll.chatSinLeer()) {
+        <button type="button" class="c chat-pil" (click)="abrirChat()" [attr.aria-label]="ll.chatSinLeer() + ' mensajes nuevos en el chat de la llamada'">
+          <mat-icon>chat</mat-icon><b class="badge">{{ ll.chatSinLeer() }}</b></button>
+      }
+      <button type="button" class="c" [class.off]="!ll.mic()" (click)="ll.alternarMic()" [attr.aria-label]="ll.mic() ? 'Silenciar' : 'Activar micrófono'">
+        <mat-icon>{{ ll.mic() ? 'mic' : 'mic_off' }}</mat-icon></button>
+      <button type="button" class="c colgar" (click)="ll.colgar()" aria-label="Colgar"><mat-icon>call_end</mat-icon></button>
+      <button type="button" class="c" (click)="ll.minimizada.set(false)" aria-label="Abrir"><mat-icon>open_in_full</mat-icon></button>
+    </div>
+  } @else {
+    <section class="panel" [class.video]="hayVideo()" [class.grande]="grande()" [class.con-lateral]="!!lateral()" aria-label="Llamada en curso">
+      <div class="principal">
+        <header>
+          <div class="tit"><strong>{{ titulo() }}</strong><small>{{ estadoTexto() }}</small></div>
+          @if (ll.grabando()) {
+            <span class="rec" matTooltip="Tu voz se graba y se transcribe para dejar el acta de la llamada"><i></i>Transcribiendo</span>
+          } @else if (ll.actual()?.transcribir) {
+            <span class="rec tenue" matTooltip="La transcripción empieza cuando alguien contesta"><mat-icon>subtitles</mat-icon></span>
+          }
+          <button type="button" class="h" (click)="grande.set(!grande())" [matTooltip]="grande() ? 'Reducir' : 'Agrandar'">
+            <mat-icon>{{ grande() ? 'close_fullscreen' : 'open_in_full' }}</mat-icon></button>
+          <button type="button" class="h" (click)="ll.minimizada.set(true)" matTooltip="Minimizar"><mat-icon>picture_in_picture_alt</mat-icon></button>
+        </header>
+
+        <div class="mosaico" [attr.data-n]="ll.remotos().length + esperando().length">
+          @for (r of ll.remotos(); track r.usuarioId) {
+            <div class="tile" [class.sin-video]="!r.cam">
+              <video [comSrcObject]="r.stream" [version]="r.version" [salida]="disp.altavoz()" autoplay playsinline></video>
+              @if (!r.cam) {
+                <div class="foto"><app-com-avatar [usuarioId]="r.usuarioId" [nombre]="r.nombre" [tieneFoto]="fotoDe(r.usuarioId)" [tam]="grande() ? 96 : (lateral() ? 48 : 64)" /></div>
+              }
+              <span class="nombre">@if (!r.mic) { <mat-icon>mic_off</mat-icon> }{{ r.nombre }}
+                @if (r.estado === 'conectando') { · conectando… } @if (r.estado === 'fallo') { · sin conexión }</span>
+            </div>
+          }
+          @for (p of esperando(); track p.usuario_id) {
+            <div class="tile sin-video espera">
+              <div class="foto"><app-com-avatar [usuarioId]="p.usuario_id" [nombre]="p.nombre" [tieneFoto]="fotoDe(p.usuario_id)" [tam]="grande() ? 96 : (lateral() ? 48 : 64)" /></div>
+              <span class="nombre">{{ p.nombre }} · sonando…</span>
+            </div>
+          }
+          @if (!ll.remotos().length && !esperando().length) {
+            <div class="tile sin-video espera"><span class="nombre">Esperando a los demás…</span></div>
+          }
+          <div class="yo" [class.oculto]="!ll.pistaVideoPropia()">
+            <video [comSrcObject]="ll.local()" autoplay playsinline muted></video>
+            <span>Tú</span>
+          </div>
+        </div>
+
+        @if (ll.aviso()) { <div class="aviso"><mat-icon>warning</mat-icon>{{ ll.aviso() }}<button type="button" (click)="ll.aviso.set(null)" aria-label="Cerrar aviso"><mat-icon>close</mat-icon></button></div> }
+        @if (ll.momentoReciente(); as m) {
+          <form class="reciente" (submit)="$event.preventDefault(); nombrarReciente(nom.value)">
+            <mat-icon>bookmark</mat-icon>
+            <span class="r-t">Momento guardado · {{ t(m.momento_ms) }}</span>
+            <input #nom type="text" maxlength="200" placeholder="¿Qué pasó? (opcional)" aria-label="Nombre del momento" />
+            <button type="submit">Listo</button>
+          </form>
+        }
+        @if (ll.vistaPrevia(); as v) {
+          @if (lateral() !== 'chat') {
+            <button type="button" class="asoma" (click)="abrirChat()">
+              <mat-icon>chat</mat-icon><span><strong>{{ v.autor_nombre }}:</strong> {{ v.texto || 'Compartió un archivo' }}</span></button>
+          }
+        }
+
+        <footer>
+          <button type="button" class="c" [class.off]="!ll.mic()" (click)="ll.alternarMic()" [matTooltip]="ll.mic() ? 'Silenciar' : 'Activar micrófono'">
+            <mat-icon>{{ ll.mic() ? 'mic' : 'mic_off' }}</mat-icon></button>
+          <button type="button" class="c" [class.off]="!ll.cam()" (click)="ll.alternarCamara()" [matTooltip]="ll.cam() ? 'Apagar cámara' : 'Encender cámara'">
+            <mat-icon>{{ ll.cam() ? 'videocam' : 'videocam_off' }}</mat-icon></button>
+          <button type="button" class="c" [class.on]="ll.pantalla()" (click)="ll.alternarPantalla()" matTooltip="Compartir pantalla">
+            <mat-icon>{{ ll.pantalla() ? 'stop_screen_share' : 'screen_share' }}</mat-icon></button>
+          <button type="button" class="c colgar" (click)="ll.colgar()" matTooltip="Colgar"><mat-icon>call_end</mat-icon></button>
+          <span class="sep"></span>
+          <button type="button" class="c momento-c" (click)="guardarMomento()" [disabled]="guardandoMomento()"
+                  matTooltip="Guardar este momento: clip con lo dicho, lo mostrado y la pantalla" aria-label="Guardar este momento">
+            <mat-icon>bookmark_add</mat-icon>@if (ll.momentos().length) { <b class="badge ambar">{{ ll.momentos().length }}</b> }</button>
+          <button type="button" class="c" [class.on]="lateral() === 'vivo'" (click)="alternar('vivo')" matTooltip="En vivo: lo dicho, escrito y los momentos"
+                  aria-label="En vivo"><mat-icon>subtitles</mat-icon></button>
+          <button type="button" class="c" [class.on]="lateral() === 'chat'" (click)="alternar('chat')" matTooltip="Chat de la llamada"
+                  [attr.aria-label]="ll.chatSinLeer() ? 'Chat de la llamada, ' + ll.chatSinLeer() + ' sin leer' : 'Chat de la llamada'">
+            <mat-icon>chat</mat-icon>@if (ll.chatSinLeer()) { <b class="badge">{{ ll.chatSinLeer() }}</b> }</button>
+          <button type="button" class="c" [class.on]="lateral() === 'ia'" (click)="alternar('ia')" matTooltip="Asistente IA: pregunta, redacta, busca"
+                  aria-label="Asistente IA"><mat-icon>auto_awesome</mat-icon></button>
+          <button type="button" class="c" [class.on]="lateral() === 'personas'" (click)="alternar('personas')" matTooltip="Personas: sumar a alguien"
+                  [attr.aria-label]="'Personas en la llamada: ' + enLaLlamada()">
+            <mat-icon>group_add</mat-icon><b class="badge gris">{{ enLaLlamada() }}</b></button>
+          <button type="button" class="c" [class.on]="lateral() === 'audio'" (click)="alternar('audio')" matTooltip="Micrófono, salida de audio y cámara"
+                  aria-label="Audio y video"><mat-icon>headset_mic</mat-icon></button>
+        </footer>
+      </div>
+
+      @if (lateral(); as tab) {
+        <aside class="lateral">
+          <div class="lat-cab">
+            <div class="tabs" role="tablist" aria-label="Panel de la llamada">
+              <button type="button" role="tab" [class.on]="tab === 'vivo'" [attr.aria-selected]="tab === 'vivo'" (click)="lateral.set('vivo')">
+                <mat-icon>subtitles</mat-icon>En vivo</button>
+              <button type="button" role="tab" [class.on]="tab === 'chat'" [attr.aria-selected]="tab === 'chat'" (click)="abrirChat()">
+                <mat-icon>chat</mat-icon>Chat @if (ll.chatSinLeer()) { <b class="badge">{{ ll.chatSinLeer() }}</b> }</button>
+              <button type="button" role="tab" [class.on]="tab === 'ia'" [attr.aria-selected]="tab === 'ia'" (click)="lateral.set('ia')">
+                <mat-icon>auto_awesome</mat-icon>IA</button>
+              <button type="button" role="tab" [class.on]="tab === 'personas'" [attr.aria-selected]="tab === 'personas'" (click)="lateral.set('personas')">
+                <mat-icon>group</mat-icon>Personas</button>
+              <button type="button" role="tab" [class.on]="tab === 'audio'" [attr.aria-selected]="tab === 'audio'" (click)="lateral.set('audio')">
+                <mat-icon>headset_mic</mat-icon>Audio</button>
+            </div>
+            <button type="button" class="h" (click)="lateral.set(null)" aria-label="Cerrar el panel"><mat-icon>close</mat-icon></button>
+          </div>
+          <div class="lat-cuerpo" [class.chat]="tab === 'chat' || tab === 'vivo' || tab === 'ia'">
+            @switch (tab) {
+              @case ('personas') { <app-com-llamada-personas [puedeTerminar]="soyQuienLlamo() && enLaLlamada() > 2" (terminar)="ll.terminarParaTodos()" /> }
+              @case ('chat') { <app-com-llamada-chat /> }
+              @case ('vivo') { <app-com-llamada-envivo /> }
+              @case ('ia') {
+                <app-com-asistente-panel [llamadaId]="ll.actual()?.id ?? null" [oscuro]="true" [momentos]="ll.momentos()"
+                  textoUsar="Enviar al chat de la llamada" (usar)="usarEnChat($event)" (verMomento)="verMomento()" (salio)="ll.minimizada.set(true)" />
+              }
+              @case ('audio') { <app-com-llamada-dispositivos [oscuro]="true" /> }
+            }
+          </div>
+        </aside>
+      }
+    </section>
+  }
+}

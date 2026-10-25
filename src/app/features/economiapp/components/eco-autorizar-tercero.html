@@ -1,0 +1,108 @@
+<div class="asistente">
+  <ol class="pasos-mini">
+    <li [class.hecho]="paso() !== 'consentimiento'">1. Su autorización</li>
+    <li [class.hecho]="['tercero','enviando','listo'].includes(paso())">2. Verificar que es usted</li>
+    <li [class.hecho]="paso() === 'listo'">3. Quién reclama</li>
+  </ol>
+
+  @switch (paso()) {
+    @case ('consentimiento') {
+      <div class="texto-legal" tabindex="0">{{ TEXTO_TITULAR }}</div>
+      <label class="check">
+        <input type="checkbox" [checked]="aceptaBiometria()" (change)="aceptaBiometria.set($any($event.target).checked)" />
+        <span>Leí y autorizo el tratamiento de mi dato biométrico para verificar mi identidad.</span>
+      </label>
+      <p class="muted nota">¿No quiere usar reconocimiento facial? No pasa nada: vaya a la tienda con su cédula y allí registran a la persona que va a reclamar.</p>
+      <div class="acciones">
+        <button type="button" class="eco-btn secundario" (click)="cancelar.emit()">Cancelar</button>
+        <button type="button" class="eco-btn" [disabled]="!aceptaBiometria()" (click)="paso.set('selfie')">
+          <mat-icon>face</mat-icon> Continuar
+        </button>
+      </div>
+    }
+
+    @case ('selfie') {
+      <p class="muted">Vamos a comparar su cara con la foto de su contratación. Busque buena luz y quítese gafas oscuras o gorra.</p>
+      <eco-captura-rostro [frontal]="true" [conVivacidad]="true" (capturado)="conSelfie($event)" />
+      <button type="button" class="enlace" (click)="cancelar.emit()">Cancelar</button>
+    }
+
+    @case ('verificando') {
+      <div class="esperando"><mat-icon>hourglass_top</mat-icon><p>Comparando con su foto de contratación…</p></div>
+    }
+
+    @case ('resultado') {
+      <div class="resultado mal">
+        <mat-icon>error</mat-icon>
+        <div>
+          @if (error()) {
+            <b>{{ error() }}</b>
+          } @else if (verificacion()?.resultado === 'DUDOSA') {
+            <b>No estamos seguros de que sea usted.</b><small>Repita la foto de frente, con más luz y sin accesorios.</small>
+          } @else if (verificacion()?.resultado?.startsWith('SIN_ROSTRO')) {
+            <b>No se ve bien una cara en la foto.</b><small>Acérquese y mire de frente a la cámara.</small>
+          } @else if (verificacion()?.resultado === 'VARIOS_ROSTROS_MUESTRA') {
+            <b>Aparece más de una persona.</b><small>En la foto debe estar solo usted.</small>
+          } @else {
+            <b>La foto no coincide con la de su contratación.</b><small>Si es un error, intente otra vez o hágalo en persona en la tienda con su cédula.</small>
+          }
+        </div>
+      </div>
+      <div class="acciones">
+        <button type="button" class="eco-btn secundario" (click)="cancelar.emit()">Cerrar</button>
+        <button type="button" class="eco-btn" (click)="reintentar()"><mat-icon>refresh</mat-icon> Intentar de nuevo</button>
+      </div>
+    }
+
+    @case ('tercero') {
+      <div class="resultado bien"><mat-icon>verified</mat-icon><div><b>Verificamos que es usted.</b><small>Ahora los datos de quien va a reclamar.</small></div></div>
+      @if (error()) { <p class="aviso danger"><mat-icon>error</mat-icon><span>{{ error() }}</span></p> }
+      <div class="campos">
+        <label class="campo"><span>Nombre completo *</span><input type="text" [ngModel]="nombre()" (ngModelChange)="nombre.set($event)" autocomplete="off" /></label>
+        <label class="campo"><span>Cédula *</span><input type="text" inputmode="numeric" [ngModel]="cedula()" (ngModelChange)="cedula.set($event)" /></label>
+        <label class="campo"><span>Celular</span><input type="tel" [ngModel]="telefono()" (ngModelChange)="telefono.set($event)" /></label>
+        <label class="campo"><span>Parentesco</span><input type="text" placeholder="Esposa, hijo, vecino…" [ngModel]="parentesco()" (ngModelChange)="parentesco.set($event)" /></label>
+      </div>
+
+      <div class="fotos">
+        <div class="foto">
+          <span class="foto-titulo">Cara de la persona *</span>
+          @if (tomandoRostro()) {
+            <eco-captura-rostro [frontal]="false" [conVivacidad]="false" [permitirArchivo]="true" (capturado)="rostroTercero($event)" />
+          } @else if (vistas().rostro) {
+            <img [src]="vistas().rostro" alt="Cara de la persona" />
+            <button type="button" class="enlace" (click)="tomandoRostro.set(true)">Repetir</button>
+          } @else {
+            <button type="button" class="eco-btn secundario" (click)="tomandoRostro.set(true)"><mat-icon>photo_camera</mat-icon> Tomar foto</button>
+          }
+        </div>
+        @for (f of [{ k: 'cedula_frente', t: 'Cédula por delante *' }, { k: 'cedula_reverso', t: 'Cédula por detrás *' }]; track f.k) {
+          <label class="foto subir">
+            <span class="foto-titulo">{{ f.t }}</span>
+            <input type="file" accept="image/*" capture="environment" (change)="archivo($any(f.k), $event)" hidden />
+            @if ($any(vistas())[f.k]) { <img [src]="$any(vistas())[f.k]" [alt]="f.t" /> <span class="enlace">Cambiar</span> }
+            @else { <span class="eco-btn secundario"><mat-icon>badge</mat-icon> Foto del documento</span> }
+          </label>
+        }
+      </div>
+
+      <div class="texto-legal corto" tabindex="0">{{ TEXTO_AUTORIZA_TERCERO }}</div>
+      <label class="check">
+        <input type="checkbox" [checked]="aceptaDeclaracion()" (change)="aceptaDeclaracion.set($any($event.target).checked)" />
+        <span>Declaro que los datos y fotos son de esta persona, que tengo su permiso, y acepto el descuento de lo que reclame en mi nombre.</span>
+      </label>
+      <div class="acciones">
+        <button type="button" class="eco-btn secundario" (click)="cancelar.emit()">Cancelar</button>
+        <button type="button" class="eco-btn" [disabled]="!completo()" (click)="enviar()"><mat-icon>how_to_reg</mat-icon> Autorizar</button>
+      </div>
+    }
+
+    @case ('enviando') {
+      <div class="esperando"><mat-icon>cloud_upload</mat-icon><p>Guardando y sellando la autorización…</p></div>
+    }
+
+    @case ('listo') {
+      <div class="resultado bien"><mat-icon>check_circle</mat-icon><div><b>Listo.</b><small>En la tienda verificarán a {{ nombre() }} con su cara y su cédula.</small></div></div>
+    }
+  }
+</div>

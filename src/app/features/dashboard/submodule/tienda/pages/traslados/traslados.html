@@ -1,0 +1,87 @@
+<div class="tienda-pagina">
+  <div class="tienda-encabezado">
+    <div>
+      <h1 class="tienda-titulo"><mat-icon>swap_horiz</mat-icon> Traslados</h1>
+      <p class="tienda-subtitulo">Mercancía entre la bodega y las tiendas. Quien envía la despacha con fotos; quien recibe cuenta lo que llegó y la diferencia queda registrada.</p>
+    </div>
+    <app-selector-tienda />
+  </div>
+  @if (error()) { <div class="tienda-error"><mat-icon>error</mat-icon> {{ error() }}</div> }
+  @if (aviso()) { <div class="aviso-ok"><mat-icon>check_circle</mat-icon> {{ aviso() }}</div> }
+
+  <div class="barra-acc">
+    <div class="segmentos">
+      <button type="button" [class.activo]="modo() === 'pendientes'" (click)="modo.set('pendientes')">Por recibir</button>
+      <button type="button" [class.activo]="modo() === 'salientes'" (click)="modo.set('salientes')">Enviados</button>
+      <button type="button" [class.activo]="modo() === 'entrantes'" (click)="modo.set('entrantes')">Recibidos</button>
+    </div>
+    <button type="button" class="boton" (click)="creando.set(!creando())"><mat-icon>add</mat-icon> Nuevo traslado</button>
+  </div>
+
+  @if (creando()) {
+    <section class="tienda-tarjeta nuevo">
+      <h3>Enviar desde {{ ctx.tienda()?.nombre }}</h3>
+      <label class="col">Hacia
+        <select class="campo-texto" [ngModel]="destino()" (ngModelChange)="destino.set($event)">
+          <option value="">Elija la tienda o bodega…</option>
+          @for (t of ctx.tiendas(); track t.id) { @if (t.id !== ctx.tiendaId()) { <option [value]="t.id">{{ t.nombre }}</option> } }
+        </select></label>
+      <div class="buscar">
+        <span class="con-escaner"><input class="campo-texto" placeholder="Buscar producto para agregar" [ngModel]="busqueda()" (ngModelChange)="buscar($event)" /><app-escaner-codigo modo="continuo" etiqueta="Escanear" titulo="Agregar productos al traslado" [procesar]="procesarTraslado" /></span>
+        @if (resultados().length) { <ul class="res">@for (r of resultados(); track $index) { <li><button type="button" (click)="agregar(r)">{{ r.nombre }} <small>{{ r.sku }}</small></button></li> }</ul> }
+      </div>
+      <ul class="items">
+        @for (i of items(); track $index; let k = $index) {
+          <li><span>{{ i.nombre }}</span><input class="campo-texto cant" type="number" min="0" [ngModel]="i.cantidad" (ngModelChange)="cantidad(k, $event)" />
+            <button type="button" class="icono" (click)="quitar(k)" aria-label="Quitar"><mat-icon>close</mat-icon></button></li>
+        } @empty { <li class="vacio">Agregue productos con el buscador.</li> }
+      </ul>
+      <label class="col">Observación<input class="campo-texto" [ngModel]="observacion()" (ngModelChange)="observacion.set($event)" placeholder="Ej. reposición semanal" /></label>
+      <div class="pie"><button type="button" class="boton secundario" (click)="crear(false)" [disabled]="!destino() || !items().length">Guardar borrador</button>
+        <button type="button" class="boton" (click)="crear(true)" [disabled]="!destino() || !items().length"><mat-icon>local_shipping</mat-icon> Crear y enviar</button></div>
+    </section>
+  }
+
+  <div class="rejilla" [class.con-detalle]="sel()">
+    <ul class="lista">
+      @for (t of lista(); track t.id) {
+        <li [class.activa]="sel()?.traslado?.id === t.id" (click)="abrir(t.id)">
+          <div class="fila"><b>{{ t.numero }}</b><span class="est" [attr.data-e]="t.estado">{{ ESTADOS[t.estado] || t.estado }}</span></div>
+          <small>{{ nombreTienda(t.origen_tienda_id) }} → {{ nombreTienda(t.destino_tienda_id) }} · {{ t.creado_en | date:'short' }}</small>
+        </li>
+      } @empty { <li class="vacio">{{ modo() === 'pendientes' ? 'Nada por recibir.' : 'Sin traslados.' }}</li> }
+    </ul>
+
+    @if (sel(); as d) {
+      <section class="tienda-tarjeta detalle">
+        <div class="d-cab">
+          <button type="button" class="atras-movil" (click)="sel.set(null)"><mat-icon>arrow_back</mat-icon></button>
+          <div><h2>{{ d.traslado.numero }} <span class="est" [attr.data-e]="d.traslado.estado">{{ ESTADOS[d.traslado.estado] }}</span></h2>
+            <small>{{ nombreTienda(d.traslado.origen_tienda_id) }} → {{ nombreTienda(d.traslado.destino_tienda_id) }}@if (d.traslado.observacion) { · {{ d.traslado.observacion }} }</small></div>
+        </div>
+        <table>
+          <tr><th>Producto</th><th class="n">Enviado</th><th class="n">Recibido</th></tr>
+          @for (l of d.lineas; track l.id) {
+            <tr [class.dif]="l.cantidad_recibida != null && +l.cantidad_recibida !== +l.cantidad_enviada">
+              <td>{{ nombre(l) }}</td><td class="n">{{ +l.cantidad_enviada }}</td>
+              <td class="n">
+                @if (soyDestino() && (d.traslado.estado === 'ENVIADO' || d.traslado.estado === 'EN_TRANSITO')) {
+                  <input class="campo-texto cant" type="number" min="0" [ngModel]="recibidas()[l.id]" (ngModelChange)="ponerRecibida(l.id, $event)" />
+                } @else { {{ l.cantidad_recibida ?? '—' }} }
+              </td></tr>
+          }
+        </table>
+        <div class="fotos-bloque"><b>Fotos de lo que sale</b><app-fotos-evidencia entidadTipo="TRASLADO_ENVIO" [entidadId]="d.traslado.id" [soloVer]="!soyOrigen()" /></div>
+        @if (d.traslado.estado !== 'BORRADOR') {
+          <div class="fotos-bloque"><b>Fotos de lo que llegó</b><app-fotos-evidencia entidadTipo="TRASLADO_RECIBO" [entidadId]="d.traslado.id" [soloVer]="!soyDestino()" /></div>
+        }
+        <div class="pie">
+          @if (d.traslado.estado === 'BORRADOR' || (d.traslado.estado === 'ENVIADO' && soyOrigen())) { <button type="button" class="boton peligro-suave" (click)="anular()">Anular</button> }
+          <span class="esp"></span>
+          @if (d.traslado.estado === 'BORRADOR' && soyOrigen()) { <button type="button" class="boton" (click)="enviar()"><mat-icon>local_shipping</mat-icon> Enviar</button> }
+          @if (soyDestino() && (d.traslado.estado === 'ENVIADO' || d.traslado.estado === 'EN_TRANSITO')) { <button type="button" class="boton" (click)="recibir()"><mat-icon>inventory</mat-icon> Recibir</button> }
+        </div>
+      </section>
+    }
+  </div>
+</div>

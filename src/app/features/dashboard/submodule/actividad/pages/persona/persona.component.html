@@ -1,0 +1,223 @@
+<div class="ap">
+  <a class="pe-volver" routerLink="/dashboard/actividad/personas"><mat-icon>arrow_back</mat-icon>Personas</a>
+
+  @if (error()) {
+    <div class="pe-error"><mat-icon>block</mat-icon>{{ error() }}</div>
+  }
+  @if (cargando() && !f()) {
+    <div class="ap-centro"><mat-spinner diameter="40" /></div>
+  }
+
+  @if (f(); as f) {
+    <header class="tarjeta pe-cab">
+      <span class="pe-ini">{{ f.persona.nombre.slice(0, 1) }}</span>
+      <div class="pe-tit">
+        <h1>{{ f.persona.nombre }}</h1>
+        <p class="muted">{{ f.persona.rol }} · {{ f.persona.sedes.join(', ') || f.persona.sede }} · {{ f.persona.correo }}
+          @if (f.persona.documento) { · CC {{ f.persona.documento }} }
+          @if (!f.persona.activo) { · <b class="mal">usuario inactivo</b> }</p>
+      </div>
+      <div class="pe-acc">
+        <button mat-flat-button class="ap-btn" (click)="informe()"><mat-icon>auto_awesome</mat-icon>Informe IA</button>
+        <button mat-stroked-button class="ap-btn" (click)="exportar()"><mat-icon>download</mat-icon>CSV</button>
+        @if (esSupervisorBandeja && f.comunicaciones.cuentas > 0) {
+          <button mat-stroked-button class="ap-btn" (click)="verBandeja()" matTooltip="Solo lectura; queda registrado"><mat-icon>forum</mat-icon>Bandeja</button>
+        }
+      </div>
+    </header>
+
+    <div class="ap-periodo pe-periodo" role="group" aria-label="Periodo">
+      @for (p of periodos; track p.clave) {
+        <button type="button" [class.on]="periodo() === p.clave" (click)="elegirPeriodo(p.clave)">{{ p.etiqueta }}</button>
+      }
+      <input type="date" [ngModel]="desde()" (ngModelChange)="desde.set($event)" (change)="cambiarFechas()" aria-label="Desde" />
+      <input type="date" [ngModel]="hasta()" (ngModelChange)="hasta.set($event)" (change)="cambiarFechas()" aria-label="Hasta" />
+      @if (cargando()) { <mat-spinner diameter="22" /> }
+    </div>
+
+    @let k = f.kpi;
+    <section class="pe-kpis">
+      <div class="pe-kpi"><mat-icon>event_available</mat-icon><strong>{{ k.dias_activos }}</strong><span>Días activos</span></div>
+      <div class="pe-kpi" matTooltip="Estimado por sesiones (un corte de más de 30 min abre otra)"><mat-icon>schedule</mat-icon><strong>{{ duracion(k.minutos_activos) }}</strong><span>Tiempo activo · {{ k.sesiones }} sesiones</span></div>
+      <div class="pe-kpi"><mat-icon>bolt</mat-icon><strong>{{ k.peticiones }}</strong><span>Acciones · {{ k.consultas }} consultas</span></div>
+      <div class="pe-kpi" data-tono="aviso"><mat-icon>edit_note</mat-icon><strong>{{ k.creaciones + k.ediciones + k.borrados }}</strong>
+        <span>Cambios · {{ k.creaciones }} crea · {{ k.ediciones }} edita · {{ k.borrados }} borra</span></div>
+      <div class="pe-kpi" [attr.data-tono]="k.errores > 0 ? 'peligro' : null"><mat-icon>error</mat-icon><strong>{{ k.errores }}</strong><span>Errores · {{ k.denegados }} sin permiso</span></div>
+      <div class="pe-kpi" [attr.data-tono]="k.ingresos_fallidos > 0 ? 'peligro' : 'info'"><mat-icon>login</mat-icon><strong>{{ k.ingresos }}</strong>
+        <span>Ingresos{{ k.ingresos_fallidos ? ' · ' + k.ingresos_fallidos + ' fallidos' : '' }}</span></div>
+      <div class="pe-kpi"><mat-icon>web</mat-icon><strong>{{ k.pantallas }}</strong><span>Pantallas abiertas</span></div>
+      <div class="pe-kpi" [attr.data-tono]="k.fuera_de_horario > 0 ? 'aviso' : null" matTooltip="Sesiones que empezaron antes de las 6, después de las 20 o en domingo">
+        <mat-icon>nightlight</mat-icon><strong>{{ k.fuera_de_horario }}</strong><span>Sesiones fuera de horario</span></div>
+      <div class="pe-kpi"><mat-icon>history</mat-icon><strong class="pe-chico">{{ hace(k.ultima) }}</strong><span>Última acción · {{ k.ips }} IP</span></div>
+    </section>
+
+    <section class="pe-graficas">
+      <div class="tarjeta"><h3><mat-icon>bar_chart</mat-icon>Actividad por día</h3><div echarts [options]="graficaDias()" class="pe-graf"></div></div>
+      <div class="tarjeta"><h3><mat-icon>grid_on</mat-icon>¿A qué horas trabaja?</h3><div echarts [options]="graficaHoras()" class="pe-graf"></div></div>
+      <div class="tarjeta"><h3><mat-icon>apps</mat-icon>Módulos que usa</h3><div echarts [options]="graficaModulos()" class="pe-graf"></div></div>
+    </section>
+
+    <nav class="pe-tabs" role="tablist">
+      <button role="tab" [class.on]="pestana() === 'linea'" (click)="pestana.set('linea')"><mat-icon>timeline</mat-icon>Línea de tiempo</button>
+      <button role="tab" [class.on]="pestana() === 'hizo'" (click)="pestana.set('hizo')"><mat-icon>checklist</mat-icon>Qué hizo</button>
+      <button role="tab" [class.on]="pestana() === 'sesiones'" (click)="pestana.set('sesiones')"><mat-icon>schedule</mat-icon>Sesiones</button>
+      <button role="tab" [class.on]="pestana() === 'pantallas'" (click)="pestana.set('pantallas')"><mat-icon>web</mat-icon>Pantallas</button>
+      <button role="tab" [class.on]="pestana() === 'tareas'" (click)="pestana.set('tareas')"><mat-icon>task</mat-icon>Tareas</button>
+      <button role="tab" [class.on]="pestana() === 'comunicaciones'" (click)="pestana.set('comunicaciones')"><mat-icon>forum</mat-icon>Comunicaciones</button>
+    </nav>
+
+    @switch (pestana()) {
+      @case ('linea') {
+        <section class="tarjeta pe-linea">
+          <div class="pe-filtros">
+            <label class="ap-buscar"><mat-icon>search</mat-icon><input type="search" placeholder="Buscar en la línea de tiempo…" [ngModel]="qLinea()" (ngModelChange)="buscarLinea($event)" /></label>
+            <select [ngModel]="tipoSel()" (ngModelChange)="tipoSel.set($event); cargarLinea(true)" aria-label="Tipo">
+              <option value="">Todo tipo</option><option value="CREACION">Creaciones</option><option value="EDICION">Ediciones</option>
+              <option value="BORRADO">Borrados</option><option value="CONSULTA">Consultas</option><option value="ACCESO">Accesos</option>
+              <option value="COMUNICACION">Comunicaciones</option><option value="NAVEGACION">Pantallas</option><option value="ERROR">Solo errores</option>
+            </select>
+            <select [ngModel]="moduloSel()" (ngModelChange)="moduloSel.set($event); cargarLinea(true)" aria-label="Módulo">
+              <option value="">Todos los módulos</option>
+              @for (m of f.por_modulo; track m.modulo) { <option [value]="m.modulo">{{ m.modulo }}</option> }
+            </select>
+            <label class="pe-check"><input type="checkbox" [ngModel]="ocultarPantallas()" (ngModelChange)="ocultarPantallas.set($event); cargarLinea(true)" /> Sin pantallas</label>
+          </div>
+          <div class="pe-fuentes">
+            @for (fu of f.fuentes; track fu.clave) {
+              <button type="button" [class.on]="fuentesSel().includes(fu.clave)" (click)="alternarFuente(fu.clave)">{{ fu.nombre }}</button>
+            }
+          </div>
+          @for (g of porDia(); track g.dia) {
+            <h4 class="pe-dia">{{ g.dia }}</h4>
+            <ol class="pe-items">
+              @for (i of g.items; track $index) {
+                @let t = estiloTipo(i);
+                <li [attr.data-tono]="t.tono">
+                  <time>{{ hora(i.fecha) }}</time>
+                  <mat-icon [matTooltip]="t.texto">{{ t.icono }}</mat-icon>
+                  <div class="pe-it">
+                    <span class="pe-acc-txt">
+                      @if (i.modulo) { <span class="chip">{{ i.modulo }}</span> }
+                      @if (rutaLink(i)) { <a (click)="irA(i)" class="pe-link">{{ i.accion }}</a> } @else { {{ i.accion }} }
+                    </span>
+                    @if (i.detalle) { <small class="pe-det" [class.pe-mono]="i.fuente === 'peticiones'">{{ i.detalle }}</small> }
+                  </div>
+                  <span class="pe-fuente">{{ nombreFuente(i.fuente) }}</span>
+                </li>
+              }
+            </ol>
+          } @empty {
+            @if (!cargandoLinea()) { <p class="muted">Sin actividad registrada en el periodo con estos filtros.</p> }
+          }
+          @if (cargandoLinea()) { <div class="ap-centro"><mat-spinner diameter="28" /></div> }
+          @else if (siguiente()) { <button mat-stroked-button class="pe-mas" (click)="cargarLinea(false)">Cargar más antiguo</button> }
+        </section>
+      }
+      @case ('hizo') {
+        <section class="pe-dos">
+          <div class="tarjeta">
+            <h3><mat-icon>leaderboard</mat-icon>Lo que más hizo</h3>
+            <div class="ap-tabla"><table>
+              <thead><tr><th>Acción</th><th>Módulo</th><th class="num">Veces</th><th>Última</th></tr></thead>
+              <tbody>
+                @for (a of f.top_acciones; track $index) {
+                  <tr><td>{{ a.accion }}</td><td>{{ a.modulo }}</td><td class="num">{{ a.veces }}</td><td>{{ hace(a.ultima) }}</td></tr>
+                } @empty { <tr><td colspan="4" class="ap-vacio">Sin acciones registradas.</td></tr> }
+              </tbody>
+            </table></div>
+          </div>
+          <div class="tarjeta">
+            <h3><mat-icon>edit_note</mat-icon>Cambios recientes</h3>
+            <ol class="pe-items">
+              @for (c of f.cambios_recientes; track $index) {
+                <li [attr.data-tono]="c.estado >= 400 ? 'peligro' : TIPOS[c.tipo]?.tono">
+                  <time>{{ fechaHora(c.ocurrido_en) }}</time>
+                  <mat-icon>{{ TIPOS[c.tipo]?.icono || 'edit' }}</mat-icon>
+                  <div class="pe-it"><span class="pe-acc-txt"><span class="chip">{{ c.modulo }}</span>{{ c.accion }}</span>
+                    <small class="pe-det pe-mono">{{ c.metodo }} {{ c.ruta }} · {{ c.estado }}</small></div>
+                </li>
+              } @empty { <li class="muted">Sin cambios en el periodo.</li> }
+            </ol>
+          </div>
+        </section>
+      }
+      @case ('sesiones') {
+        <section class="tarjeta">
+          <h3><mat-icon>schedule</mat-icon>Sesiones ({{ f.sesiones.length }})</h3>
+          <div class="ap-tabla"><table>
+            <thead><tr><th>Inicio</th><th>Fin</th><th class="num">Duración</th><th class="num">Acciones</th><th class="num">Cambios</th><th>Dispositivo</th><th>IP</th></tr></thead>
+            <tbody>
+              @for (s of f.sesiones; track $index) {
+                <tr [class.pe-fuera]="s.fuera_de_horario">
+                  <td>{{ fechaHora(s.inicio) }} @if (s.fuera_de_horario) { <span class="chip" data-tono="aviso">fuera de horario</span> }</td>
+                  <td>{{ hora(s.fin) }}</td><td class="num">{{ duracion(s.minutos) }}</td><td class="num">{{ s.acciones }}</td>
+                  <td class="num">{{ s.cambios }}</td><td>{{ s.dispositivo || '—' }}</td><td>{{ s.ips || '—' }}</td>
+                </tr>
+              } @empty { <tr><td colspan="7" class="ap-vacio">Sin sesiones registradas.</td></tr> }
+            </tbody>
+          </table></div>
+        </section>
+      }
+      @case ('pantallas') {
+        <section class="tarjeta">
+          <h3><mat-icon>web</mat-icon>Pantallas que más abre</h3>
+          <div class="ap-tabla"><table>
+            <thead><tr><th>Pantalla</th><th>Módulo</th><th class="num">Veces</th><th class="num">Tiempo</th></tr></thead>
+            <tbody>
+              @for (p of f.pantallas_top; track $index) {
+                <tr><td>{{ p.pantalla }}</td><td>{{ p.modulo }}</td><td class="num">{{ p.veces }}</td><td class="num">{{ duracion(Math.round(p.segundos / 60)) }}</td></tr>
+              } @empty { <tr><td colspan="4" class="ap-vacio">Sin pantallas registradas (se registran desde que se activó esta vista).</td></tr> }
+            </tbody>
+          </table></div>
+        </section>
+      }
+      @case ('tareas') {
+        <section class="tarjeta">
+          <h3><mat-icon>task</mat-icon>Seguimiento Tareas</h3>
+          <div class="pe-mini">
+            <span><b>{{ numero(f.tareas.creadas) }}</b> creadas</span><span><b>{{ numero(f.tareas.completadas) }}</b> completadas</span>
+            <span><b>{{ numero(f.tareas.abiertas) }}</b> abiertas</span><span [class.mal]="numero(f.tareas.vencidas) > 0"><b>{{ numero(f.tareas.vencidas) }}</b> vencidas</span>
+          </div>
+          <div class="ap-tabla"><table>
+            <thead><tr><th>Tarea</th><th>Estado</th><th>Vence</th><th>Rol</th></tr></thead>
+            <tbody>
+              @for (t of f.tareas.lista; track t.id) {
+                <tr><td><a [routerLink]="['/dashboard/tareas/tarea', t.id]">{{ t.titulo }}</a>@if (t.origen_tipo) { <small>{{ t.origen_tipo }}</small> }</td>
+                  <td>{{ t.estado }}</td><td>{{ t.vence ? fechaHora(t.vence) : '—' }}</td>
+                  <td>{{ t.asignada ? 'Responsable' : '' }}{{ t.asignada && t.la_creo ? ' · ' : '' }}{{ t.la_creo ? 'La creó' : '' }}</td></tr>
+              } @empty { <tr><td colspan="4" class="ap-vacio">Sin tareas.</td></tr> }
+            </tbody>
+          </table></div>
+        </section>
+      }
+      @case ('comunicaciones') {
+        @let c = f.comunicaciones;
+        <section class="pe-dos">
+          <div class="tarjeta">
+            <h3><mat-icon>forum</mat-icon>Correo y WhatsApp vinculados</h3>
+            @if (c.cuentas > 0 && c.periodo) {
+              <div class="pe-mini">
+                <span><b>{{ c.periodo.mensajes_recibidos }}</b> recibidos</span><span><b>{{ c.periodo.mensajes_enviados }}</b> enviados</span>
+                <span><b>{{ c.periodo.respuestas }}</b> respuestas</span><span [class.mal]="c.periodo.sin_respuesta > 0"><b>{{ c.periodo.sin_respuesta }}</b> sin respuesta</span>
+                <span>Mediana de respuesta <b>{{ duracion(c.periodo.respuesta_mediana_min) }}</b></span>
+              </div>
+              @if (c.bandeja) {
+                <div class="pe-mini">
+                  <span [class.mal]="(c.bandeja['por_responder'] ?? 0) > 0">Por responder hoy: <b>{{ c.bandeja['por_responder'] }}</b></span>
+                  <span>Vencidos: <b>{{ c.bandeja['vencidos'] }}</b></span>
+                  <span>Compromisos abiertos: <b>{{ c.bandeja['compromisos_abiertos'] }}</b> ({{ c.bandeja['compromisos_vencidos'] }} vencidos)</span>
+                </div>
+              }
+            } @else {
+              <p class="muted">No tiene cuentas vinculadas.</p>
+            }
+          </div>
+          <div class="tarjeta">
+            <h3><mat-icon>chat</mat-icon>Chat interno</h3>
+            <div class="pe-mini"><span><b>{{ c.chat_interno?.mensajes ?? 0 }}</b> mensajes</span><span>en <b>{{ c.chat_interno?.conversaciones ?? 0 }}</b> conversaciones</span></div>
+          </div>
+        </section>
+      }
+    }
+  }
+</div>

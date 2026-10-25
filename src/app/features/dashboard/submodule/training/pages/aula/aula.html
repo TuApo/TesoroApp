@@ -1,0 +1,210 @@
+<div class="audios" #audios aria-hidden="true"></div>
+
+@switch (fase()) {
+  @case ('cargando') { <p class="au-centro">Cargando el aula…</p> }
+  @case ('error') {
+    <div class="au-centro"><mat-icon>error_outline</mat-icon><p>{{ error() }}</p>
+      <a class="au-btn" routerLink="/dashboard/capacitaciones/en-vivo">Volver a En vivo</a></div>
+  }
+  @case ('final') {
+    @if (aula(); as a) {
+      <div class="au-centro au-final">
+        <span class="au-final__icono"><mat-icon>{{ a.estado === 'CANCELADA' ? 'event_busy' : 'task_alt' }}</mat-icon></span>
+        <h2>{{ a.estado === 'CANCELADA' ? 'El aula se canceló' : 'El aula terminó' }}</h2>
+        <p>{{ a.titulo }}</p>
+        @if (a.finalizada_at) { <p class="au-tenue">Terminó {{ a.finalizada_at | date: 'd MMM, h:mm a' }}</p> }
+        @if (a.group_id && a.estado === 'FINALIZADA') { <p class="au-tenue">La asistencia del grupo quedó registrada con el tiempo conectado.</p> }
+        <a class="au-btn au-btn--primario" routerLink="/dashboard/capacitaciones/en-vivo">Volver a En vivo</a>
+      </div>
+    }
+  }
+  @case ('previa') {
+    @if (aula(); as a) {
+      <div class="au-previa">
+        <div class="au-previa__video">
+          @if (conCam && a.mi_rol !== 'ESPECTADOR') {
+            <video #previa autoplay muted playsinline></video>
+          } @else {
+            <div class="au-previa__apagada"><mat-icon>{{ a.mi_rol === 'ESPECTADOR' ? 'visibility' : 'videocam_off' }}</mat-icon>
+              <span>{{ a.mi_rol === 'ESPECTADOR' ? 'Entras como espectador: ves y escribes; levanta la mano para hablar.' : 'Cámara apagada' }}</span></div>
+          }
+        </div>
+        <div class="au-previa__info">
+          <span class="au-chip" [attr.data-estado]="a.estado">{{ a.estado === 'EN_VIVO' ? 'En vivo' : 'Programada' }}</span>
+          <h1>{{ a.titulo }}</h1>
+          <p class="au-tenue">{{ a.tipo | titlecase }} · dirige {{ a.anfitrion_nombre || '—' }}@if (a.curso_nombre) { · {{ a.curso_nombre }} }</p>
+          @if (a.descripcion) { <p>{{ a.descripcion }}</p> }
+          <p class="au-rol">Entras como <strong>{{ a.mi_rol === 'ANFITRION' ? 'anfitrión' : a.mi_rol === 'COPRESENTADOR' ? 'copresentador' : a.mi_rol === 'PARTICIPANTE' ? 'participante' : 'espectador' }}</strong></p>
+
+          @if (!a.livekit_disponible) {
+            <p class="au-aviso"><mat-icon>cloud_off</mat-icon> Las aulas en vivo todavía no están configuradas (LiveKit en Configuración › Interoperabilidad).</p>
+          } @else {
+            @if (a.mi_rol !== 'ESPECTADOR') {
+              <div class="au-dispositivos">
+                <label class="au-sw"><input type="checkbox" [(ngModel)]="conCam" (ngModelChange)="probarCamara()" /> <mat-icon>videocam</mat-icon> Cámara</label>
+                @if (camaras().length > 1) {
+                  <select [(ngModel)]="camId" (ngModelChange)="probarCamara()" aria-label="Cámara">
+                    @for (c of camaras(); track c.deviceId) { <option [value]="c.deviceId">{{ c.label || 'Cámara' }}</option> }
+                  </select>
+                }
+                <label class="au-sw"><input type="checkbox" [(ngModel)]="conMic" /> <mat-icon>mic</mat-icon> Micrófono</label>
+                @if (micros().length > 1) {
+                  <select [(ngModel)]="micId" aria-label="Micrófono">
+                    @for (m of micros(); track m.deviceId) { <option [value]="m.deviceId">{{ m.label || 'Micrófono' }}</option> }
+                  </select>
+                }
+              </div>
+            }
+            @if (esperando()) {
+              <p class="au-espera"><span class="au-punto"></span> Esperando a que {{ a.anfitrion_nombre || 'quien dirige' }} abra el aula…</p>
+            }
+            <button type="button" class="au-btn au-btn--lima au-entrar" [disabled]="entrando()" (click)="entrar()">
+              <mat-icon>login</mat-icon> {{ entrando() ? 'Entrando…' : dirijo() && a.estado !== 'EN_VIVO' ? 'Abrir el aula y entrar' : 'Entrar al aula' }}
+            </button>
+          }
+          <p class="au-tenue">Código del aula: <strong>{{ a.codigo }}</strong></p>
+        </div>
+      </div>
+    }
+  }
+  @case ('sala') {
+    @if (aula(); as a) {
+      @if (sala(); as s) {
+        <div class="au-sala" [class.con-panel]="!!panel()">
+          <header class="au-cab">
+            <div class="au-cab__titulo">
+              <span class="au-vivo"><span class="au-punto"></span> EN VIVO @if (duracion()) { · {{ duracion() }} }</span>
+              <strong>{{ a.titulo }}</strong>
+              @if (equipoActual()) { <span class="au-equipo"><mat-icon>diversity_3</mat-icon> {{ nombreEquipo() }}</span> }
+            </div>
+            <div class="au-cab__acc">
+              @if (s.estado() === 'reconectando') { <span class="au-aviso-mini">Reconectando…</span> }
+              <button type="button" class="au-codigo" (click)="copiarCodigo()" title="Copiar el código del aula"><mat-icon>tag</mat-icon>{{ a.codigo }}</button>
+              <span class="au-contador"><mat-icon>group</mat-icon>{{ s.mosaicos().length }}</span>
+              @if (equipoActual()) {
+                <button type="button" class="au-btn au-btn--chico" (click)="volverAPrincipal()"><mat-icon>undo</mat-icon> Sala principal</button>
+              }
+              @if (dirijo()) {
+                <button type="button" class="au-btn au-btn--chico au-btn--peligro" (click)="finalizar()"><mat-icon>stop_circle</mat-icon> Finalizar</button>
+              }
+              @if (puedePantallaCompleta) {
+                <button type="button" class="au-codigo au-icono" (click)="alternarPantallaCompleta()" [attr.aria-label]="pantallaCompleta() ? 'Salir de pantalla completa' : 'Pantalla completa'"
+                        [title]="pantallaCompleta() ? 'Salir de pantalla completa' : 'Pantalla completa'"><mat-icon>{{ pantallaCompleta() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon></button>
+              }
+              <button type="button" class="au-btn au-btn--chico" (click)="salir()"><mat-icon>logout</mat-icon> Salir</button>
+            </div>
+          </header>
+
+          <main class="au-escenario">
+            @if (enEscenario(); as esc) {
+              <div class="au-escenario__compartido">
+                <div class="au-escenario__cab">
+                  <mat-icon>{{ esc.startsWith('pizarra') ? 'draw' : 'code' }}</mat-icon>
+                  <span>{{ esc.startsWith('pizarra') ? 'Pizarra en el escenario' : 'Código en el escenario' }}</span>
+                  @if (dirijo()) { <button type="button" class="au-btn au-btn--chico" (click)="quitarDelEscenario()">Quitar del escenario</button> }
+                </div>
+                @if (esc.startsWith('pizarra')) {
+                  <app-aula-pizarra [aulaId]="a.id" [sala]="s" [dirijo]="dirijo()" [espacioFijo]="esc.split(':')[1]" />
+                } @else {
+                  <app-aula-codigo [aulaId]="a.id" [sala]="s" [dirijo]="dirijo()" [ejecutorServidor]="a.ejecutor_servidor" [oscuro]="oscuro()" />
+                }
+              </div>
+            } @else {
+              <app-aula-escenario [mosaicos]="s.mosaicos()" [pantallas]="s.pantallas()" [disposicion]="disposicion()" [foco]="estadoAula()['foco'] ?? null" />
+            }
+            <div class="au-reacciones" aria-live="polite">
+              @for (r of s.reacciones(); track r.id) { <span class="au-reaccion"><b>{{ r.emoji }}</b><em>{{ r.nombre }}</em></span> }
+            </div>
+            @if (s.audioBloqueado()) {
+              <button type="button" class="au-btn au-btn--lima au-activar-audio" (click)="s.activarAudio()"><mat-icon>volume_up</mat-icon> Activar el sonido</button>
+            }
+            @if (s.error()) { <p class="au-error-flot" (click)="s.error.set(null)">{{ s.error() }}</p> }
+          </main>
+
+          @if (panel(); as p) {
+            <aside class="au-panel">
+              <header>
+                <strong>{{ paneles.find(x => x.id === p)?.nombre }}</strong>
+                <button type="button" class="au-cerrar" (click)="panel.set(null)" aria-label="Cerrar panel"><mat-icon>close</mat-icon></button>
+              </header>
+              <div class="au-panel__cuerpo">
+                @switch (p) {
+                  @case ('chat') { <app-aula-chat [sala]="s" [largo]="s.chat().length" /> }
+                  @case ('personas') { <app-aula-personas [sala]="s" [mosaicos]="s.mosaicos()" [dirijo]="dirijo() && !equipoActual()" (accion)="accionPersona($event)" /> }
+                  @case ('clase') { <app-aula-clase [aulaId]="a.id" [dirijo]="dirijo()" [bloqueActual]="estadoAula()['clase_bloque'] ?? null" (llevar)="llevarATodos($event)" /> }
+                  @case ('codigo') {
+                    @if (!enEscenario()?.startsWith('codigo')) {
+                      <app-aula-codigo [aulaId]="a.id" [sala]="s" [equipoId]="equipoActual()" [dirijo]="dirijo()" [ejecutorServidor]="a.ejecutor_servidor" [oscuro]="oscuro()" (alEscenario)="alEscenario('codigo', $event)" />
+                    } @else { <p class="au-tenue">El código está en el escenario.</p> }
+                  }
+                  @case ('pizarra') {
+                    @if (!enEscenario()?.startsWith('pizarra')) {
+                      <app-aula-pizarra [aulaId]="a.id" [sala]="s" [equipoId]="equipoActual()" [dirijo]="dirijo()" (alEscenario)="alEscenario('pizarra', $event)" />
+                      @if (dirijo()) { <p class="au-tenue">Para que todos la vean grande: abre la pizarra y usa «Al escenario».</p> }
+                    } @else { <p class="au-tenue">La pizarra está en el escenario.</p> }
+                  }
+                  @case ('equipos') {
+                    <app-aula-equipos [aula]="a" [dirijo]="dirijo()" [abiertos]="!!estadoAula()['equipos_abiertos']" [miEquipo]="a.mi_equipo"
+                                      [enEquipo]="!!equipoActual()" [refresco]="refrescoEspacios()" (visitar)="irAEquipo($event)" (cambio)="recargarAula()" />
+                  }
+                  @case ('actividades') { <app-aula-actividades [aula]="a" [sala]="s" [dirijo]="dirijo()" /> }
+                }
+              </div>
+            </aside>
+          }
+
+          @if (reaccionesAbiertas()) {
+            <div class="au-emojis" role="menu" aria-label="Reacciones">
+              @for (e of emojis; track e) { <button type="button" role="menuitem" (click)="s.reaccionar(e); reaccionesAbiertas.set(false)">{{ e }}</button> }
+            </div>
+          }
+
+          <footer class="au-controles">
+            <div class="au-controles__grupo">
+              @if (s.puedoPublicar()) {
+                <button type="button" class="au-ctrl" [class.off]="!s.micActivo()" (click)="s.activarMic(!s.micActivo())" [attr.aria-label]="s.micActivo() ? 'Silenciar' : 'Activar micrófono'">
+                  <mat-icon>{{ s.micActivo() ? 'mic' : 'mic_off' }}</mat-icon><span>Micrófono</span></button>
+                <button type="button" class="au-ctrl" [class.off]="!s.camActiva()" (click)="s.activarCam(!s.camActiva())" [attr.aria-label]="s.camActiva() ? 'Apagar cámara' : 'Encender cámara'">
+                  <mat-icon>{{ s.camActiva() ? 'videocam' : 'videocam_off' }}</mat-icon><span>Cámara</span></button>
+                @if (puedeCompartirPantalla) {
+                <button type="button" class="au-ctrl" [class.on]="s.misPantallas() > 0" (click)="s.compartirPantalla()" [disabled]="s.misPantallas() >= 2"
+                        [title]="s.misPantallas() ? 'Compartir otra pantalla (máximo 2)' : 'Compartir pantalla'">
+                  <mat-icon>present_to_all</mat-icon><span>{{ s.misPantallas() ? 'Otra pantalla' : 'Compartir' }}</span></button>
+                @if (s.misPantallas() > 0) {
+                  <button type="button" class="au-ctrl au-ctrl--rojo" (click)="s.dejarDeCompartir()"><mat-icon>cancel_presentation</mat-icon><span>Dejar de compartir</span></button>
+                }
+                }
+              } @else {
+                <span class="au-espectador"><mat-icon>visibility</mat-icon> Estás como espectador</span>
+              }
+              <button type="button" class="au-ctrl" [class.on]="s.manoLevantada()" (click)="s.levantarMano(!s.manoLevantada())">
+                <mat-icon>back_hand</mat-icon><span>{{ s.manoLevantada() ? 'Bajar mano' : 'Levantar mano' }}</span></button>
+              <button type="button" class="au-ctrl" [class.on]="reaccionesAbiertas()" (click)="reaccionesAbiertas.set(!reaccionesAbiertas())"><mat-icon>add_reaction</mat-icon><span>Reaccionar</span></button>
+              <select class="au-disposicion" [ngModel]="disposicionLocal()" (ngModelChange)="disposicionLocal.set($event)" aria-label="Disposición del escenario">
+                <option value="auto">Disposición automática</option>
+                <option value="galeria">Galería</option>
+                <option value="presentacion">Presentación</option>
+                <option value="multipantalla">Multipantalla</option>
+              </select>
+              @if (dirijo()) {
+                <button type="button" class="au-ctrl" (click)="estado({ disposicion: disposicionLocal(), foco: null })" title="Aplicar esta disposición para todos">
+                  <mat-icon>cast_for_education</mat-icon><span>Para todos</span></button>
+              }
+            </div>
+            <nav class="au-controles__paneles" aria-label="Paneles">
+              @for (p of paneles; track p.id) {
+                @if (p.id !== 'equipos' || dirijo() || a.equipos.length) {
+                  <button type="button" class="au-ctrl" [class.activo]="panel() === p.id" (click)="alternarPanel(p.id)">
+                    <mat-icon>{{ p.icono }}</mat-icon><span>{{ p.nombre }}</span>
+                    @if (p.id === 'chat' && s.chatSinLeer() && panel() !== 'chat') { <i class="au-badge">{{ s.chatSinLeer() }}</i> }
+                    @if (p.id === 'personas' && manos()) { <i class="au-badge au-badge--mano">✋{{ manos() }}</i> }
+                  </button>
+                }
+              }
+            </nav>
+          </footer>
+        </div>
+      }
+    }
+  }
+}

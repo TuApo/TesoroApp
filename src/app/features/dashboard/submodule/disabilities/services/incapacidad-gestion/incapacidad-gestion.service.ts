@@ -146,6 +146,25 @@ export class IncapacidadGestionService {
     );
   }
 
+  // ── Correos: resumen del dia (modo INMEDIATO, respuesta funcional 2026-10-07) ──
+
+  /** Lo que saldria en el resumen del dia: misma forma que la previsualizacion del lote. */
+  previsualizarResumen(fecha?: string): Observable<LotePreview> {
+    return this.http.get<LotePreview>(`${this.base}/correos/resumen/previsualizar`, {
+      headers: this.cabeceras(),
+      params: this.params({ fecha }),
+    });
+  }
+
+  /** Envia YA el resumen de hoy (disparo MANUAL; marca el dia para que no se repita a la hora). */
+  enviarResumenAhora(): Observable<ResultadoEnvioLote> {
+    return this.http.post<ResultadoEnvioLote>(
+      `${this.base}/correos/resumen/enviar`,
+      { actor: this.actor() },
+      { headers: this.cabecerasJson() },
+    );
+  }
+
   lotes(desde?: string, hasta?: string): Observable<LoteCorreo[]> {
     return this.http.get<LoteCorreo[]>(`${this.base}/correos/lotes`, {
       headers: this.cabeceras(),
