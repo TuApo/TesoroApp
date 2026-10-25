@@ -205,6 +205,23 @@ jobs:
             TesoroApp-*.apk
           retention-days: 30
 
+      - name: Verificar integridad (Play)
+        # Firma, targetSdk, 16 KB, permisos sensibles y origen de Capacitor. Si algo
+        # falla no se sube a Play; el informe lo muestra Infraestructura › DevOps.
+        run: |
+          python3 .github/scripts/verificar-android.py \
+            TesoroApp-*.apk TesoroApp-*.aab \
+            android/app/src/main/assets/capacitor.config.json verificacion.json
+
+      - name: Guardar verificación
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: verificacion-android-${{ steps.version.outputs.name }}-${{ steps.version.outputs.code }}
+          path: verificacion.json
+          if-no-files-found: ignore
+          retention-days: 90
+
       - name: Subir a Google Play (prueba interna)
         if: env.DESTINO == 'interna'
         uses: r0adkll/upload-google-play@v1
