@@ -11,7 +11,8 @@ import { LoginService } from '../service/login.service';
 import { SharedModule } from '../../../shared/shared.module';
 import { LoginEscenaComponent } from './login-escena.component';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
-import { setLocalStorageItem } from '../../../core/utils/safe-storage';
+import { removeLocalStorageItem, setLocalStorageItem } from '../../../core/utils/safe-storage';
+import { activarModoDemo, CLAVE_MODO_DEMO, esCuentaDeRevision } from '../../../core/demo/modo-demo';
 import { OfflineSyncService } from '../../../core/services/offline-sync.service';
 import { CatalogPreloadService } from '../../../core/services/catalog-preload.service';
 import { MatDialog } from '@angular/material/dialog';
@@ -225,22 +226,11 @@ export class LoginComponent implements OnInit {
 
     const { login, password } = this.loginForm.value;
 
-    if (login === 'thisisatestaccount@test.com' && password === 'thisisatestaccount23#') {
-      setLocalStorageItem('token', 'testToken');
-      const testUser = {
-        numero_de_documento: '1005851505',
-        primer_nombre: 'PRUEBA',
-        primer_apellido: 'GOOGLE',
-        segundo_nombre: '5',
-        segundo_apellido: 'Campos',
-        correo_electronico: login,
-        rol: { nombre: 'ADMIN' },
-        sede: { nombre: 'SOACHA' },
-        estado_solicitudes: true,
-      };
-      setLocalStorageItem('user', JSON.stringify(testUser));
-      this.offlineSync.syncNow().catch(() => null);
-      this.router.navigate(['/dashboard']);
+    if (esCuentaDeRevision(login, password)) {
+      // Revisión de Google Play: desde aquí la app no sale al API y trabaja con datos
+      // ficticios (ver core/demo/modo-demo.ts). El login sigue el camino normal.
+      await activarModoDemo();
+      await this.autenticar(login, password, 'demo');
       return;
     }
 
@@ -248,14 +238,14 @@ export class LoginComponent implements OnInit {
   }
 
   /**
-   * Camino único de autenticación, venga del formulario o del acceso rápido.
-   * `origen` solo cambia dos cosas: si se ofrece guardar el acceso al terminar,
-   * y qué hacer cuando el servidor rechaza las credenciales.
+   * Camino único de autenticación, venga del formulario, del acceso rápido o de la
+   * cuenta de revisión. `origen` solo cambia dos cosas: si se ofrece guardar el acceso
+   * al terminar, y qué hacer cuando el servidor rechaza las credenciales.
    */
   private async autenticar(
     login: string,
     password: string,
-    origen: 'formulario' | 'acceso-rapido',
+    origen: 'formulario' | 'acceso-rapido' | 'demo',
   ): Promise<void> {
     this.loading.set(true);
     try {
@@ -312,6 +302,9 @@ export class LoginComponent implements OnInit {
     } catch (err) {
       const e = err as HttpErrorResponse;
       const rechazado = e.status === 401 || e.status === 403;
+      // Una demostración que no arrancó no puede dejar la marca puesta: el próximo login
+      // de verdad se iría al sandbox.
+      if (origen === 'demo') removeLocalStorageItem(CLAVE_MODO_DEMO);
 
       if (rechazado && origen === 'acceso-rapido') {
         // La contraseña guardada dejó de servir (la cambiaron, o revocaron el
