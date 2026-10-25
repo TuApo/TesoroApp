@@ -1,0 +1,162 @@
+@if (datos(); as d) {
+  @if (!d.disponible) {
+    <div class="if-aviso warn">
+      <mat-icon>key_off</mat-icon>
+      <div><strong>Sin acceso al clúster K3s.</strong> {{ d.motivo }}. La cuenta de solo lectura se crea con
+        <span class="if-mono">infrastructure/infra-k8s/infra-reader.yaml</span> (ver runbooks/21-infraestructura.md).</div>
+    </div>
+  }
+}
+
+<div class="if-fila if-fila--entre">
+  <h2 class="if-titulo-seccion"><mat-icon>hub</mat-icon> Nodos del clúster</h2>
+  <button type="button" class="if-boton" (click)="recetaAbierta.set(!recetaAbierta())" [attr.aria-expanded]="recetaAbierta()">
+    <mat-icon>add_circle</mat-icon> Cómo sumar un nodo</button>
+</div>
+
+@if (recetaAbierta()) {
+  <section class="if-tarjeta receta">
+    <p class="if-nota">En el equipo nuevo (Linux, o Windows con WSL2 + Ubuntu), con el token del clúster que guarda el servidor:</p>
+    <pre>curl -sfL https://get.k3s.io | K3S_URL=https://10.0.0.60:6443 K3S_TOKEN=&lt;token del clúster&gt; sh -</pre>
+    <p class="if-nota">En cuanto el nodo se registre aparece aquí, en la bitácora y como una plataforma nueva en la vista 3D, sin tocar nada más.
+      El token está en el servidor (<span class="if-mono">~/k3s-token.txt</span>); no lo pegue en chats ni correos.</p>
+  </section>
+}
+
+@if (nodos().length) {
+  @let t = totales();
+  <section class="if-tarjeta totales" aria-label="Capacidad del clúster">
+    <div><span class="cifra">{{ t.listos }}/{{ t.equipos }}</span><span class="if-tenue">equipos listos</span></div>
+    <div><span class="cifra">{{ t.nucleos }}</span><span class="if-tenue">núcleos</span></div>
+    <div><span class="cifra">{{ f.bytes(t.mem) }}</span><span class="if-tenue">de memoria</span></div>
+    @if (t.gpus) {
+      <div><span class="cifra">{{ t.gpus }}</span><span class="if-tenue">{{ t.gpus === 1 ? 'tarjeta gráfica' : 'tarjetas gráficas' }}</span></div>
+    }
+    @if (t.discos) {
+      <div><span class="cifra">{{ f.bytes(t.disco) }}</span><span class="if-tenue">de disco en {{ t.discos }} {{ t.discos === 1 ? 'unidad' : 'unidades' }}</span></div>
+      <div><span class="cifra">{{ f.bytes(t.libre) }}</span><span class="if-tenue">libres ({{ f.pct(100 * t.libre / t.disco) }})</span></div>
+    }
+  </section>
+}
+
+<div class="nodos">
+  @for (n of nodos(); track n.nombre) {
+    @let h = equipos().get(n.nombre);
+    <article class="if-tarjeta nodo" [class.caido]="!n.listo">
+      <div class="if-fila if-fila--entre">
+        <strong class="if-mono">{{ n.nombre }}</strong>
+        <span class="if-chip" [class]="'if-chip ' + (n.listo ? 'ok' : 'danger')"><mat-icon>{{ n.listo ? 'check_circle' : 'cancel' }}</mat-icon>{{ n.listo ? 'Listo' : 'No listo' }}</span>
+      </div>
+      <div class="if-tenue">{{ n.roles.join(' · ') }} · {{ n.ip }}</div>
+      <div class="if-medidor"><span class="nombre">CPU</span><span class="if-barra"><i [style.width.%]="usoCpu(n) ?? 0"></i></span>
+        <span class="valor">{{ f.pct(usoCpu(n)) }} de {{ h?.nucleos ?? n.cpu_capacidad }} núcleos</span></div>
+      <div class="if-medidor"><span class="nombre">Memoria</span><span class="if-barra"><i [style.width.%]="usoMem(n) ?? 0"></i></span>
+        <span class="valor">{{ f.bytes(memUsada(n)) }} de {{ f.bytes(memTotal(n)) }}</span></div>
+
+      @if (h?.gpus?.length) {
+        <h4 class="sub"><mat-icon>memory</mat-icon> {{ h!.gpus!.length === 1 ? 'Tarjeta gráfica' : 'Tarjetas gráficas' }}</h4>
+        @for (g of h!.gpus!; track g.pci) { <app-infra-gpu [gpu]="g" /> }
+      }
+
+      @if (discosLocales(h).length) {
+        <h4 class="sub"><mat-icon>storage</mat-icon> Almacenamiento</h4>
+        @for (d of discosLocales(h); track d.dispositivo) {
+          <div class="if-medidor" [title]="d.dispositivo + ' (' + d.tipo + ') · ' + f.bytes(d.total)">
+            <span class="nombre">{{ d.montaje }}</span>
+            <span class="if-barra"><i [class]="tonoDisco(d.pct)" [style.width.%]="d.pct"></i></span>
+            <span class="valor">{{ f.pct(d.pct) }} · {{ f.bytes(d.libre) }} libres de {{ f.bytes(d.total) }}</span>
+          </div>
+        }
+        @if (discosRed(h).length) {
+          <div class="if-tenue red">Carpetas de red montadas: @for (d of discosRed(h); track d.dispositivo) {<span class="if-mono">{{ d.montaje }}</span> ({{ f.bytes(d.total) }}){{ $last ? '' : ', ' }}}</div>
+        }
+      } @else if (n.listo) {
+        <div class="if-tenue">Sin datos de discos: falta su node-exporter (DaemonSet <span class="if-mono">tuapo-monitoreo/node-exporter</span>).</div>
+      }
+
+      <dl class="datos">
+        @if (h?.temp_c != null) { <dt>Temperatura</dt><dd [class]="tonoTemp(h?.temp_c)">{{ f.num(h?.temp_c, 0) }} °C</dd> }
+        @if (h?.carga1 != null) { <dt>Carga</dt><dd>{{ f.num(h?.carga1, 2) }}</dd> }
+        @if (h?.red_rx_bps != null) { <dt>Red</dt><dd>↓ {{ f.bps(h?.red_rx_bps) }} · ↑ {{ f.bps(h?.red_tx_bps) }}</dd> }
+        @if (h?.uptime_seg != null && discosLocales(h).length) { <dt>Encendido</dt><dd>{{ f.duracion(h?.uptime_seg) }}</dd> }
+        <dt>Pods</dt><dd>{{ n.pods }}</dd>
+        <dt>Versión</dt><dd>{{ n.version }}</dd>
+        <dt>Sistema</dt><dd>{{ n.so }} · {{ n.kernel }}</dd>
+        <dt>Runtime</dt><dd>{{ n.runtime }}</dd>
+        <dt>En el clúster</dt><dd>{{ n.creado ? f.duracion(ahoraSeg() - n.creado) : '—' }}</dd>
+        @if (n.condiciones.length) { <dt>Presión</dt><dd class="malo">{{ n.condiciones.join(', ') }}</dd> }
+      </dl>
+
+      @if (h) {
+        <button type="button" class="if-boton graficas" (click)="alternarGraficas(n.nombre)" [attr.aria-expanded]="graficasAbiertas().has(n.nombre)">
+          <mat-icon>{{ graficasAbiertas().has(n.nombre) ? 'expand_less' : 'show_chart' }}</mat-icon>
+          {{ graficasAbiertas().has(n.nombre) ? 'Ocultar gráficas' : 'Ver gráficas (24 h)' }}</button>
+        @if (graficasAbiertas().has(n.nombre)) {
+          <app-infra-grafica clave="host.cpu" [objeto]="h.id" rango="24h" [alto]="150" [titulo]="'CPU de ' + n.nombre" />
+          <app-infra-grafica clave="host.mem" [objeto]="h.id" rango="24h" [alto]="150" [titulo]="'Memoria de ' + n.nombre" />
+          <app-infra-grafica clave="host.temp" [objeto]="h.id" rango="24h" [alto]="150" [titulo]="'Temperatura de ' + n.nombre" [area]="false" />
+          @if (conTempGpu(h)) {
+            <app-infra-grafica clave="gpu.temp" [objeto]="h.id" rango="24h" [alto]="150" [titulo]="'Temperatura de la tarjeta gráfica de ' + n.nombre" [area]="false" />
+          }
+          @if (conUsoGpu(h)) {
+            <app-infra-grafica clave="gpu.uso" [objeto]="h.id" rango="24h" [alto]="150" [titulo]="'Uso de la tarjeta gráfica de ' + n.nombre" />
+          }
+          <app-infra-grafica clave="host.discos" [objeto]="h.id" rango="7d" [alto]="150" [titulo]="'Uso de los discos de ' + n.nombre + ' (7 días)'" [area]="false" />
+        }
+      }
+    </article>
+  } @empty {
+    <div class="if-vacio">No hay nodos que mostrar.</div>
+  }
+</div>
+
+<app-tabla-estandar id="infra-cluster-pods" titulo="Pods" modulo="Infraestructura" [datos]="pods()" [columnas]="columnas"
+  [filaId]="idPod" [seleccionable]="false" vacio="No hay pods." />
+
+@if (datos(); as d) {
+  <div class="if-rejilla--2">
+    @if (d.despliegues?.length) {
+      <section class="if-tarjeta">
+        <h3><mat-icon>rocket_launch</mat-icon> Despliegues</h3>
+        <div class="if-scroll-x">
+          <table class="if-tabla-simple">
+            <thead><tr><th>Nombre</th><th>Namespace</th><th class="num">Listas</th><th>Imagen</th></tr></thead>
+            <tbody>
+              @for (x of d.despliegues; track x.ns + x.nombre) {
+                <tr><td>{{ x.nombre }}</td><td>{{ x.ns }}</td><td class="num" [class.malo]="x.listas < x.deseadas">{{ x.listas }}/{{ x.deseadas }}</td><td class="if-mono img">{{ x.imagen }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+    @if (d.servicios?.length) {
+      <section class="if-tarjeta">
+        <h3><mat-icon>settings_input_component</mat-icon> Servicios</h3>
+        <div class="if-scroll-x">
+          <table class="if-tabla-simple">
+            <thead><tr><th>Nombre</th><th>Tipo</th><th>Puertos</th></tr></thead>
+            <tbody>
+              @for (x of d.servicios; track x.ns + x.nombre) {
+                <tr><td>{{ x.nombre }}<br><span class="if-tenue">{{ x.ns }}</span></td><td>{{ x.tipo }}</td><td class="if-mono">{{ x.puertos.join(' ') }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </div>
+      </section>
+    }
+  </div>
+  @if (d.eventos?.length) {
+    <section class="if-tarjeta">
+      <h3><mat-icon>event_note</mat-icon> Eventos de Kubernetes</h3>
+      <ul class="if-lista">
+        @for (e of d.eventos; track $index) {
+          <li>
+            <span class="if-chip" [class]="'if-chip ' + (e.tipo === 'Warning' ? 'warn' : 'neutro')">{{ e.razon }}</span>
+            <div class="cuerpo"><div class="t if-mono">{{ e.objeto }} <span class="if-tenue">· {{ e.ns }}{{ e.veces > 1 ? ' · ×' + e.veces : '' }}</span></div><div class="d">{{ e.mensaje }}</div></div>
+          </li>
+        }
+      </ul>
+    </section>
+  }
+}

@@ -1,0 +1,267 @@
+@if (error()) { <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ error() }}</div></div> }
+@if (aviso()) { <div class="if-aviso info" role="status"><mat-icon>info</mat-icon><div>{{ aviso() }}</div></div> }
+
+<div class="if-fila if-fila--entre">
+  <h2 class="if-titulo-seccion"><mat-icon>travel_explore</mat-icon> Ubicaciones, equipos y respaldos</h2>
+  <button type="button" class="if-boton if-boton--primario" (click)="nuevaUbicacion()" [disabled]="ocupado()"><mat-icon>add_location_alt</mat-icon> Nueva ubicación</button>
+</div>
+<p class="if-nota">Cada servidor o clúster de otra sede, datacenter o nube corre el <strong>agente TuApo</strong>: cada minuto envía su salud y el
+  estado de sus respaldos. Solo hace conexiones de salida (no abre puertos ni necesita VPN) y usa un token propio por equipo.
+  La sede principal se arma sola con lo que ya se ve en las demás pestañas.</p>
+
+@if (datos(); as d) {
+  <section class="if-tarjeta totales" aria-label="Totales">
+    <div><span class="cifra">{{ d.ubicaciones }}</span><span class="if-tenue">{{ d.ubicaciones === 1 ? 'ubicación' : 'ubicaciones' }}</span></div>
+    <div><span class="cifra">{{ d.en_linea }}<small>/{{ d.equipos }}</small></span><span class="if-tenue">equipos en línea</span></div>
+    <div [class.malo]="d.caidos > 0"><span class="cifra">{{ d.caidos }}</span><span class="if-tenue">sin responder</span></div>
+    <div [class.malo]="d.respaldos_con_problema > 0"><span class="cifra">{{ d.respaldos - d.respaldos_con_problema }}<small>/{{ d.respaldos }}</small></span>
+      <span class="if-tenue">respaldos al día</span></div>
+  </section>
+}
+
+<!-- Formulario de ubicación -->
+@if (formUbicacion(); as fu) {
+  <form class="if-tarjeta formulario" (ngSubmit)="guardarUbicacion()" aria-label="Ubicación">
+    <h3><mat-icon>edit_location_alt</mat-icon> {{ fu.id ? 'Editar ubicación' : 'Nueva ubicación' }}</h3>
+    <div class="campos">
+      <label>Nombre <input name="nombre" required maxlength="120" [(ngModel)]="fu.nombre" placeholder="Sede Medellín" /></label>
+      <label>Tipo
+        <select name="tipo" [(ngModel)]="fu.tipo">
+          <option value="oficina">Oficina / sede</option><option value="datacenter">Datacenter</option>
+          <option value="nube">Nube</option><option value="otro">Otro</option>
+        </select>
+      </label>
+      <label>Ciudad <input name="ciudad" maxlength="80" [(ngModel)]="fu.ciudad" placeholder="Medellín" /></label>
+      <label class="ancho">Notas <input name="notas" maxlength="200" [(ngModel)]="fu.notas" placeholder="Proveedor de Internet, contacto en sitio…" /></label>
+    </div>
+    <div class="if-fila">
+      <button type="submit" class="if-boton if-boton--primario" [disabled]="ocupado() || !fu.nombre.trim()"><mat-icon>save</mat-icon> Guardar</button>
+      <button type="button" class="if-boton" (click)="formUbicacion.set(null)">Cancelar</button>
+    </div>
+  </form>
+}
+
+<!-- Alta recién hecha: token + instalación -->
+@if (alta(); as a) {
+  <section class="if-tarjeta instalar" aria-labelledby="t-instalar">
+    <div class="if-fila if-fila--entre">
+      <h3 id="t-instalar"><mat-icon>install_desktop</mat-icon> Instalar el agente en «{{ a.agente.nombre }}»</h3>
+      <button type="button" class="if-boton" (click)="cerrarAlta()" aria-label="Cerrar"><mat-icon>close</mat-icon> Ya lo copié</button>
+    </div>
+    <div class="if-aviso warn"><mat-icon>key</mat-icon><div><strong>Este token se muestra una sola vez.</strong> Copia el comando ahora; si se pierde,
+      regenera el token desde el equipo (el anterior deja de servir).</div></div>
+    <div class="token"><span class="if-mono">{{ a.token }}</span>
+      <button type="button" class="if-boton" (click)="copiar(a.token, 'token')"><mat-icon>{{ copiado() === 'token' ? 'check' : 'content_copy' }}</mat-icon> Token</button></div>
+
+    <div class="if-segmentos" role="group" aria-label="Sistema del equipo">
+      <button type="button" [attr.aria-pressed]="sistema() === 'linux'" (click)="sistema.set('linux')">Linux</button>
+      <button type="button" [attr.aria-pressed]="sistema() === 'windows'" (click)="sistema.set('windows')">Windows</button>
+      <button type="button" [attr.aria-pressed]="sistema() === 'kubernetes'" (click)="sistema.set('kubernetes')">Kubernetes / K3s</button>
+    </div>
+
+    @if (sistema() !== 'kubernetes') {
+      <details class="opcionales">
+        <summary>Respaldos y chequeos a vigilar (opcional, se puede hacer después en el archivo de configuración)</summary>
+        <label>Respaldos: una línea por trabajo, <span class="if-mono">nombre|carpeta o patrón|RPO en horas|1 si la copia está fuera del sitio</span>
+          <textarea rows="3" [ngModel]="respaldosInstalacion()" (ngModelChange)="respaldosInstalacion.set($event)" name="respaldos"
+            placeholder="MySQL diario|/var/backups/mysql|26|0&#10;Copia al NAS de Bogotá|/mnt/nas-bogota/medellin|26|1"></textarea></label>
+        <label>Chequeos: una línea por cada uno, <span class="if-mono">nombre|host:puerto</span> o <span class="if-mono">nombre|https://url</span>
+          <textarea rows="2" [ngModel]="chequeosInstalacion()" (ngModelChange)="chequeosInstalacion.set($event)" name="chequeos"
+            placeholder="Intranet|https://intranet.local&#10;NAS|192.168.1.5:445"></textarea></label>
+      </details>
+    }
+
+    @if (comandos(); as c) {
+      @switch (sistema()) {
+        @case ('linux') {
+          <p class="if-nota">En el equipo (Ubuntu, Debian, RHEL… con systemd y python3), en una terminal:</p>
+          <pre class="comando">{{ c.linux }}</pre>
+          <button type="button" class="if-boton" (click)="copiar(c.linux, 'linux')"><mat-icon>{{ copiado() === 'linux' ? 'check' : 'content_copy' }}</mat-icon> Copiar comando</button>
+        }
+        @case ('windows') {
+          <p class="if-nota">En el equipo (con Python 3.8 o más nuevo), en PowerShell <strong>como administrador</strong>:</p>
+          <pre class="comando">{{ c.windows }}</pre>
+          <button type="button" class="if-boton" (click)="copiar(c.windows, 'windows')"><mat-icon>{{ copiado() === 'windows' ? 'check' : 'content_copy' }}</mat-icon> Copiar comando</button>
+        }
+        @case ('kubernetes') {
+          <p class="if-nota">Con <span class="if-mono">kubectl</span> apuntando al clúster (modo clúster: nodos, pods y GPU, solo lectura):</p>
+          <pre class="comando">{{ c.kubernetes }}</pre>
+          <button type="button" class="if-boton" (click)="copiar(c.kubernetes, 'k8s')"><mat-icon>{{ copiado() === 'k8s' ? 'check' : 'content_copy' }}</mat-icon> Copiar comandos</button>
+        }
+      }
+    }
+    <p class="if-nota">En cuanto llegue su primer reporte (menos de un minuto) el equipo pasa a <strong>En línea</strong> aquí.</p>
+  </section>
+}
+
+<!-- Una tarjeta por ubicación -->
+@for (u of lista(); track u.ubicacion.id) {
+  <section class="if-tarjeta ubicacion" [class]="'if-tarjeta ubicacion ' + tonoUbicacion(u)" [attr.aria-labelledby]="'u-' + u.ubicacion.id">
+    <div class="if-fila if-fila--entre cabecera">
+      <div class="nombre">
+        <mat-icon>{{ iconoUbicacion(u.ubicacion.tipo) }}</mat-icon>
+        <div>
+          <h3 [id]="'u-' + u.ubicacion.id">{{ u.ubicacion.nombre }} @if (u.principal) { <span class="if-chip neutro">principal</span> }</h3>
+          <div class="if-tenue">{{ u.ubicacion.ciudad ? u.ubicacion.ciudad + ' · ' : '' }}{{ u.en_linea }}/{{ u.equipos }} en línea
+            {{ u.caidos ? '· ' + u.caidos + ' sin responder' : '' }} · respaldos {{ u.respaldos_al_dia }}/{{ u.respaldos.length }} al día</div>
+        </div>
+      </div>
+      <div class="if-fila acciones">
+        <button type="button" class="if-boton" (click)="nuevoEquipo(u)" [disabled]="ocupado()"><mat-icon>add</mat-icon> Equipo o clúster</button>
+        @if (!u.principal) {
+          <button type="button" class="if-boton" (click)="editarUbicacion(u)" aria-label="Editar ubicación"><mat-icon>edit</mat-icon></button>
+          <button type="button" class="if-boton" (click)="borrarUbicacion(u)" [disabled]="u.equipos > 0 || ocupado()"
+            [attr.aria-label]="'Borrar ' + u.ubicacion.nombre" [title]="u.equipos > 0 ? 'Primero borra o mueve sus equipos' : 'Borrar ubicación'">
+            <mat-icon>delete</mat-icon>{{ confirmando() === 'ubicacion:' + u.ubicacion.id ? ' ¿Seguro?' : '' }}</button>
+        }
+      </div>
+    </div>
+
+    @if (formEquipo(); as fe) {
+      @if (fe.ubicacionId === u.ubicacion.id) {
+        <form class="formulario interno" (ngSubmit)="crearEquipo()" aria-label="Equipo nuevo">
+          <div class="campos">
+            <label>Nombre <input name="nombre" required maxlength="120" [(ngModel)]="fe.nombre" placeholder="Servidor de la sede" /></label>
+            <label>Tipo
+              <select name="tipo" [(ngModel)]="fe.tipo">
+                <option value="servidor">Servidor (Linux o Windows)</option>
+                <option value="cluster">Clúster (Kubernetes / K3s)</option>
+              </select>
+            </label>
+            <label class="ancho">Descripción <input name="descripcion" maxlength="200" [(ngModel)]="fe.descripcion" placeholder="Qué corre ahí" /></label>
+          </div>
+          <div class="if-fila">
+            <button type="submit" class="if-boton if-boton--primario" [disabled]="ocupado() || !fe.nombre.trim()"><mat-icon>vpn_key</mat-icon> Crear y ver cómo instalar</button>
+            <button type="button" class="if-boton" (click)="formEquipo.set(null)">Cancelar</button>
+          </div>
+        </form>
+      }
+    }
+
+    @if (u.equipos_detalle.length) {
+      <div class="if-scroll-x">
+        <table class="if-tabla-simple equipos">
+          <thead><tr><th>Equipo</th><th>Estado</th><th>Sistema</th><th class="num">CPU</th><th class="num">RAM</th><th>Disco más lleno</th><th>GPU</th><th>Avisos</th></tr></thead>
+          <tbody>
+            @for (e of u.equipos_detalle; track e.id) {
+              @let est = estadoEquipo(e);
+              @let disco = peorDisco(e);
+              <tr [class.elegido]="elegido() === e.id" (click)="elegido.set(elegido() === e.id ? null : e.id)" tabindex="0"
+                  (keydown.enter)="elegido.set(elegido() === e.id ? null : e.id)" [attr.aria-expanded]="elegido() === e.id">
+                <td><span class="eq"><mat-icon>{{ iconoEquipo(e) }}</mat-icon><span><strong>{{ e.nombre }}</strong>
+                  <span class="if-tenue d">{{ e.ip ?? '' }}{{ e.descripcion ? ' · ' + e.descripcion : '' }}</span></span></span></td>
+                <td><span class="if-chip" [class]="'if-chip ' + est.tono"><mat-icon>{{ est.icono }}</mat-icon>{{ est.texto }}</span></td>
+                <td class="so">{{ e.reporte?.cluster ? 'Clúster ' + (e.reporte?.cluster?.version ?? '') : (e.reporte?.so ?? '—') }}</td>
+                <td class="num">{{ e.reporte?.cpu_pct != null ? f.pct(e.reporte?.cpu_pct) : '—' }}</td>
+                <td class="num" [class]="'num ' + tonoPct(memPct(e), 85, 95)">{{ memPct(e) != null ? f.pct(memPct(e)) : '—' }}</td>
+                <td>@if (disco) { <span [class]="tonoPct(disco.pct, 85, 95)">{{ f.pct(disco.pct) }}</span> <span class="if-tenue if-mono">{{ disco.montaje }}</span> } @else { — }</td>
+                <td>{{ e.reporte?.gpus?.length ? e.reporte!.gpus![0].modelo : (e.reporte?.cluster?.gpus ? e.reporte!.cluster!.gpus + ' GPU' : '—') }}</td>
+                <td>@if (e.problemas.length) { <span class="if-chip warn"><mat-icon>warning</mat-icon>{{ e.problemas.length }}</span> } @else { <span class="if-tenue">—</span> }</td>
+              </tr>
+              @if (elegido() === e.id) {
+                <tr class="fila-detalle"><td colspan="8">
+                  <div class="detalle">
+                    @if (e.problemas.length) {
+                      <ul class="problemas">@for (p of e.problemas; track p) { <li><mat-icon>warning</mat-icon>{{ p }}</li> }</ul>
+                    }
+                    <div class="if-rejilla--2">
+                      <div>
+                        <dl class="datos">
+                          @if (e.reporte?.so) { <dt>Sistema</dt><dd>{{ e.reporte?.so }}{{ e.reporte?.arquitectura ? ' · ' + e.reporte?.arquitectura : '' }}</dd> }
+                          @if (e.reporte?.cpu_modelo) { <dt>CPU</dt><dd>{{ e.reporte?.cpu_modelo }} · {{ e.reporte?.nucleos }} núcleos</dd> }
+                          @if (e.reporte?.mem_total) { <dt>Memoria</dt><dd>{{ f.bytes(e.reporte?.mem_usada) }} de {{ f.bytes(e.reporte?.mem_total) }}</dd> }
+                          @if (e.reporte?.carga1 != null) { <dt>Carga</dt><dd>{{ f.num(e.reporte?.carga1, 2) }}</dd> }
+                          @if (e.reporte?.temp_c != null) { <dt>Temperatura</dt><dd>{{ f.num(e.reporte?.temp_c, 0) }} °C</dd> }
+                          @if (e.reporte?.uptime_seg != null) { <dt>Encendido</dt><dd>{{ f.duracion(e.reporte?.uptime_seg) }}</dd> }
+                          @if (e.reporte?.red_rx_bps != null) { <dt>Red</dt><dd>↓ {{ f.bps(e.reporte?.red_rx_bps) }} · ↑ {{ f.bps(e.reporte?.red_tx_bps) }}</dd> }
+                          @if (e.reporte?.ips?.length) { <dt>IP</dt><dd class="if-mono">{{ e.reporte!.ips!.join('  ') }}</dd> }
+                          @if (e.reporte?.contenedores) { <dt>Contenedores</dt><dd>{{ e.reporte?.contenedores?.corriendo }} de {{ e.reporte?.contenedores?.total }} corriendo</dd> }
+                          @if (e.origen === 'agente') {
+                            <dt>Agente</dt><dd>versión {{ e.reporte?.version ?? '—' }} · token …{{ e.token_pista }}{{ e.ip ? ' · llega desde ' + e.ip : '' }}</dd>
+                            @if (e.ultimo_reporte) { <dt>Último reporte</dt><dd>{{ f.hora(e.ultimo_reporte) }} ({{ f.hace(e.ultimo_reporte) }})</dd> }
+                          }
+                        </dl>
+                        @for (d of e.reporte?.discos ?? []; track d.dispositivo + (d.montaje ?? '')) {
+                          @let p = usoDisco(d);
+                          <div class="if-medidor" [title]="(d.dispositivo ?? '') + ' (' + (d.tipo ?? '') + ')'">
+                            <span class="nombre">{{ d.montaje }}</span>
+                            <span class="if-barra"><i [class]="tonoPct(p)" [style.width.%]="p ?? 0"></i></span>
+                            <span class="valor">{{ f.pct(p) }} · {{ f.bytes(d.libre) }} libres de {{ f.bytes(d.total) }}</span>
+                          </div>
+                        }
+                      </div>
+                      <div>
+                        @for (g of e.reporte?.gpus ?? []; track $index) {
+                          <div class="gpu"><mat-icon>memory</mat-icon><div><strong>{{ g.fabricante }} {{ g.modelo }}</strong>
+                            <div class="if-tenue">{{ g.driver }}{{ g.temp_c != null ? ' · ' + f.num(g.temp_c, 0) + ' °C' : '' }}{{ g.uso_pct != null ? ' · uso ' + f.pct(g.uso_pct) : '' }}{{ g.vram_total ? ' · ' + (g.vram_usada != null ? f.bytes(g.vram_usada) + ' de ' : '') + f.bytes(g.vram_total) : '' }}</div></div></div>
+                        }
+                        @if (e.reporte?.cluster; as k) {
+                          <div class="cluster"><strong>Clúster {{ k.nombre }}</strong> <span class="if-tenue">{{ k.version }}</span>
+                            <div class="if-tenue">{{ k.nodos_listos }}/{{ k.nodos }} nodos listos · {{ k.pods_corriendo }}/{{ k.pods }} pods corriendo{{ k.gpus ? ' · ' + k.gpus + ' GPU' : '' }}</div>
+                            <ul class="if-lista compacta">@for (n of k.nodos_detalle ?? []; track n.nombre) {
+                              <li><span class="if-chip" [class]="'if-chip ' + (n.listo ? 'ok' : 'danger')">{{ n.listo ? 'Listo' : 'No listo' }}</span>
+                                <div class="cuerpo"><div class="t if-mono">{{ n.nombre }}</div><div class="d">{{ (n.roles ?? []).join(', ') }} · {{ n.cpu_capacidad }} núcleos · {{ f.bytes(n.mem_capacidad) }}{{ n.gpus ? ' · ' + n.gpus + ' GPU' : '' }}</div></div></li>
+                            }</ul>
+                          </div>
+                        }
+                        @if (e.reporte?.servicios_caidos?.length) {
+                          <div class="lista-corta"><strong>Servicios caídos:</strong> <span class="if-mono">{{ e.reporte!.servicios_caidos!.join(', ') }}</span></div>
+                        }
+                        @if (e.reporte?.contenedores?.problemas?.length) {
+                          <div class="lista-corta"><strong>Contenedores con problemas:</strong> <span class="if-mono">{{ e.reporte!.contenedores!.problemas!.join(', ') }}</span></div>
+                        }
+                        @for (c of e.reporte?.chequeos ?? []; track c.nombre) {
+                          <div class="lista-corta"><span class="if-chip" [class]="'if-chip ' + (c.ok ? 'ok' : 'danger')">{{ c.ok ? (c.latencia_ms != null ? f.num(c.latencia_ms, 0) + ' ms' : 'OK') : 'Falla' }}</span>
+                            {{ c.nombre }} <span class="if-tenue if-mono">{{ c.destino }}</span>{{ !c.ok && c.detalle ? ' · ' + c.detalle : '' }}</div>
+                        }
+                        @if (e.reporte?.errores?.length) {
+                          <div class="lista-corta if-tenue">Lecturas con error: {{ e.reporte!.errores!.join(' · ') }}</div>
+                        }
+                      </div>
+                    </div>
+                    @if (e.origen === 'agente') {
+                      <div class="if-fila acciones-equipo">
+                        <button type="button" class="if-boton" (click)="regenerar(e)" [disabled]="ocupado()"><mat-icon>key</mat-icon>
+                          {{ confirmando() === 'token:' + e.id ? '¿Seguro? El token actual deja de servir' : 'Regenerar token' }}</button>
+                        <button type="button" class="if-boton" (click)="alternarActivo(e)" [disabled]="ocupado()"><mat-icon>{{ e.activo ? 'block' : 'play_arrow' }}</mat-icon>
+                          {{ e.activo ? 'Desactivar' : 'Reactivar' }}</button>
+                        <button type="button" class="if-boton" (click)="borrarEquipo(e)" [disabled]="ocupado()"><mat-icon>delete</mat-icon>
+                          {{ confirmando() === 'borrar:' + e.id ? '¿Seguro? Se borra su historial' : 'Borrar equipo' }}</button>
+                      </div>
+                    }
+                  </div>
+                </td></tr>
+              }
+            }
+          </tbody>
+        </table>
+      </div>
+    } @else {
+      <div class="if-vacio">Sin equipos todavía. Agrega el primero con «Equipo o clúster»: te da el comando para instalar su agente.</div>
+    }
+
+    @if (u.respaldos.length) {
+      <h4 class="sub"><mat-icon>backup</mat-icon> Respaldos</h4>
+      <ul class="if-lista respaldos">
+        @for (r of u.respaldos; track r.equipo + r.nombre) {
+          @let er = estadoRespaldo(r);
+          <li>
+            <span class="if-chip" [class]="'if-chip ' + er.tono"><mat-icon>{{ er.icono }}</mat-icon>{{ er.texto }}</span>
+            <div class="cuerpo">
+              <div class="t">{{ r.nombre }} <span class="if-tenue">· {{ r.equipo }}</span></div>
+              <div class="d">
+                Último bueno {{ r.horas_desde_exito != null ? 'hace ' + horas(r.horas_desde_exito) : '—' }} (máximo {{ horas(r.rpo_horas) }})
+                {{ r.bytes ? '· ' + f.bytes(r.bytes) : '' }}
+                {{ r.verificado ? '· verificado' : r.verificado === false ? '· sin verificar' : '' }}
+                {{ r.fuera_del_sitio ? '· copia fuera del sitio' : r.fuera_del_sitio === false ? '· solo en el sitio' : '' }}
+                @if (r.detalle) { <br><span class="if-tenue">{{ r.detalle }}</span> }
+              </div>
+            </div>
+          </li>
+        }
+      </ul>
+    }
+  </section>
+} @empty {
+  @if (!error()) { <div class="if-vacio">Cargando ubicaciones…</div> }
+}

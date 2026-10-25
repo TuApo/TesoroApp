@@ -1,0 +1,143 @@
+<section class="sala" [class.completa]="pantallaCompleta()" aria-label="Vista 3D de la infraestructura en vivo">
+  <div class="caja" #caja>
+    <canvas #lienzo class="lienzo" tabindex="0"
+            aria-label="Maqueta 3D: arrastre para girar, rueda para acercar, clic en un edificio para ver su ficha"></canvas>
+    <div class="hud" #hud aria-hidden="true"></div>
+
+    @if (fallo()) {
+      <div class="fallo if-aviso warn"><mat-icon>view_in_ar</mat-icon><div>{{ fallo() }} <a routerLink="../resumen">Ir al resumen</a></div></div>
+    } @else if (!montada()) {
+      <div class="cargando">Armando la maqueta…</div>
+    }
+
+    <!-- Barra de controles -->
+    <div class="barra" role="toolbar" aria-label="Controles de la vista 3D">
+      <label class="buscar">
+        <mat-icon aria-hidden="true">search</mat-icon>
+        <input type="search" list="infra-3d-contenedores" placeholder="Buscar contenedor…" [ngModel]="busqueda()"
+               (ngModelChange)="busqueda.set($event)" (change)="buscar(busqueda())" (keydown.enter)="buscar(busqueda())"
+               aria-label="Buscar un contenedor y volar hasta él" />
+        <datalist id="infra-3d-contenedores">
+          @for (n of opcionesBusqueda(); track n) { <option [value]="n"></option> }
+        </datalist>
+      </label>
+      <div class="interruptores">
+        <button type="button" class="int" [attr.aria-pressed]="flujos()" (click)="flujos.set(!flujos())" matTooltip="Partículas por los cables según las peticiones reales">
+          <mat-icon>timeline</mat-icon><span>Flujos</span></button>
+        <button type="button" class="int" [attr.aria-pressed]="etiquetas()" (click)="etiquetas.set(!etiquetas())" matTooltip="Nombre sobre cada edificio">
+          <mat-icon>label</mat-icon><span>Nombres</span></button>
+        <button type="button" class="int" [attr.aria-pressed]="observabilidad()" (click)="observabilidad.set(!observabilidad())" matTooltip="Prometheus, Grafana, exporters…">
+          <mat-icon>insights</mat-icon><span>Observabilidad</span></button>
+        <button type="button" class="int" [attr.aria-pressed]="pruebas()" (click)="pruebas.set(!pruebas())" matTooltip="Contenedores sueltos y de pruebas, fuera de producción">
+          <mat-icon>science</mat-icon><span>Pruebas</span></button>
+        <button type="button" class="int" [attr.aria-pressed]="rotacion()" (click)="rotacion.set(!rotacion())" matTooltip="Girar sola (para una pantalla en la pared)">
+          <mat-icon>3d_rotation</mat-icon><span>Girar</span></button>
+        <button type="button" class="int" [attr.aria-pressed]="calidad() === 'alta'" (click)="calidad.set(calidad() === 'alta' ? 'baja' : 'alta')" matTooltip="Sombras y alta resolución">
+          <mat-icon>high_quality</mat-icon><span>Calidad</span></button>
+        <button type="button" class="int" (click)="vistaGeneral()" matTooltip="Volver a ver todo"><mat-icon>zoom_out_map</mat-icon><span>Todo</span></button>
+        <button type="button" class="int" (click)="alternarPantalla()" [matTooltip]="pantallaCompleta() ? 'Salir de pantalla completa' : 'Pantalla completa'">
+          <mat-icon>{{ pantallaCompleta() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon></button>
+      </div>
+    </div>
+
+    <!-- Tooltip de lo que está bajo el puntero -->
+    @if (hover(); as h) {
+      <div class="tip" [class]="'tip ' + h.info.tono" [style.left.px]="h.x + 14" [style.top.px]="h.y + 14" role="tooltip">
+        <strong>{{ h.info.titulo }}</strong>
+        @for (l of h.info.lineas; track $index) { <span>{{ l }}</span> }
+      </div>
+    }
+
+    <!-- Avisos en vivo -->
+    <div class="avisos" aria-live="polite">
+      @for (e of avisos(); track e.id) {
+        <div class="aviso" [class]="'aviso ' + e.severidad">
+          <mat-icon>{{ e.severidad === 'info' ? 'bolt' : 'warning' }}</mat-icon><span>{{ e.mensaje }}</span>
+        </div>
+      }
+    </div>
+
+    <!-- Leyenda: cómo leer la maqueta -->
+    <aside class="leyenda" [class.cerrada]="!leyendaAbierta()" aria-label="Cómo leer la maqueta">
+      <button type="button" class="titulo" (click)="leyendaAbierta.set(!leyendaAbierta())" [attr.aria-expanded]="leyendaAbierta()">
+        <mat-icon>help_outline</mat-icon> Cómo leerla <mat-icon class="flecha">{{ leyendaAbierta() ? 'expand_more' : 'expand_less' }}</mat-icon>
+      </button>
+      @if (leyendaAbierta()) {
+        <dl>
+          <dt><i class="m edificio"></i></dt><dd><b>Altura</b>: memoria reservada (límite). <b>Relleno</b>: la que usa.</dd>
+          <dt><i class="m tapa"></i></dt><dd><b>Tapa encendida</b>: CPU (azul frío → naranja caliente).</dd>
+          <dt><i class="m base"></i></dt><dd><b>Base</b>: verde bien · ámbar detenido o arrancando · roja parpadeando mal.</dd>
+          <dt><i class="m fl http"></i></dt><dd>Peticiones HTTP (más partículas = más tráfico; rojas = 5xx)</dd>
+          <dt><i class="m fl db"></i></dt><dd>Conexiones a MySQL (uso del pool)</dd>
+          <dt><i class="m fl kafka"></i></dt><dd>Kafka (lag pendiente del consumidor)</dd>
+          <dt><i class="m pod"></i></dt><dd>Pods de K3s. Cada nodo nuevo aparece como otra plataforma.</dd>
+        </dl>
+        <p>Arrastre para girar · rueda para acercar · clic derecho para desplazar · clic en algo para su ficha.</p>
+      }
+    </aside>
+
+    <!-- Ficha de lo elegido -->
+    @if (ficha(); as fi) {
+      <aside class="ficha" aria-label="Ficha del elemento elegido">
+        <div class="cab">
+          @switch (fi.tipo) {
+            @case ('contenedor') { <strong class="if-mono">{{ fi.c.nombre }}</strong> }
+            @case ('pod') { <strong class="if-mono">{{ fi.p.nombre }}</strong> }
+            @case ('host') { <strong>{{ fi.h?.nombre ?? fi.n?.nombre }}</strong> }
+          }
+          <button type="button" class="if-boton" (click)="enfocarElegido()" aria-label="Acercar"><mat-icon>center_focus_strong</mat-icon></button>
+          <button type="button" class="if-boton" (click)="cerrarFicha()" aria-label="Cerrar ficha"><mat-icon>close</mat-icon></button>
+        </div>
+        @switch (fi.tipo) {
+          @case ('contenedor') {
+            <div class="if-fila"><span class="if-chip" [class]="'if-chip ' + estado(fi.c).tono">{{ estado(fi.c).texto }}</span>
+              <span class="if-tenue">{{ nombreGrupo[fi.c.grupo] }}</span></div>
+            <dl class="datos">
+              <dt>Imagen</dt><dd class="if-mono">{{ fi.c.imagen }}</dd>
+              <dt>CPU</dt><dd>{{ f.num(fi.c.cpu_pct) }} % de un núcleo</dd>
+              <dt>Memoria</dt><dd>{{ f.bytes(fi.c.mem_bytes) }}{{ fi.c.mem_limite ? ' de ' + f.bytes(fi.c.mem_limite) : ' (sin límite)' }}</dd>
+              @if (fi.c.red_rx_bps != null) { <dt>Red</dt><dd>↓ {{ f.bps(fi.c.red_rx_bps) }} · ↑ {{ f.bps(fi.c.red_tx_bps) }}</dd> }
+              @if (fi.c.req_s != null) { <dt>HTTP</dt><dd>{{ f.num(fi.c.req_s, 2) }} req/s · {{ f.ms(fi.c.lat_ms) }} · 5xx {{ f.pct(fi.c.err_pct, 1) }}</dd> }
+              @if (fi.c.heap_pct != null) { <dt>Heap</dt><dd>{{ f.pct(fi.c.heap_pct) }}</dd> }
+              @if (fi.c.db_max) { <dt>Pool BD</dt><dd>{{ fi.c.db_activas }}/{{ fi.c.db_max }}</dd> }
+              @if (fi.c.eureka) { <dt>Eureka</dt><dd>{{ fi.c.eureka }}</dd> }
+              <dt>Reinicios</dt><dd>{{ fi.c.reinicios ?? '—' }}</dd>
+              <dt>Arrancó</dt><dd>{{ fi.c.inicio ? f.hace(fi.c.inicio * 1000) : '—' }}</dd>
+            </dl>
+            @if (fi.c.estado === 'running') {
+              <app-infra-grafica clave="contenedor.cpu" [objeto]="fi.c.nombre" rango="1h" [alto]="120" titulo="CPU última hora" />
+            }
+          }
+          @case ('pod') {
+            <dl class="datos">
+              <dt>Namespace</dt><dd>{{ fi.p.ns }}</dd>
+              <dt>Nodo</dt><dd>{{ fi.p.nodo }}</dd>
+              <dt>Fase</dt><dd>{{ fi.p.fase }} · {{ fi.p.listos }}/{{ fi.p.total }} listos</dd>
+              <dt>Reinicios</dt><dd>{{ fi.p.reinicios }}</dd>
+              <dt>CPU / RAM</dt><dd>{{ f.num(fi.p.cpu_milli) }} m · {{ f.bytes(fi.p.mem_bytes) }}</dd>
+              <dt>IP</dt><dd class="if-mono">{{ fi.p.ip ?? '—' }}</dd>
+            </dl>
+          }
+          @case ('host') {
+            <dl class="datos">
+              @if (fi.h; as h) {
+                <dt>Papel</dt><dd>{{ h.rol }}</dd>
+                <dt>IP</dt><dd class="if-mono">{{ h.ip }}</dd>
+                @if (h.cpu_pct != null) { <dt>CPU</dt><dd>{{ f.num(h.cpu_pct) }} % · {{ h.nucleos }} hilos</dd> }
+                @if (h.mem_pct != null) { <dt>RAM</dt><dd>{{ f.num(h.mem_pct) }} % de {{ f.bytes(h.mem_total) }}</dd> }
+                @if (h.uptime_seg != null) { <dt>Encendido</dt><dd>{{ f.duracion(h.uptime_seg) }}</dd> }
+                @if (h.latencia_ms != null) { <dt>Latencia</dt><dd>{{ f.num(h.latencia_ms, 2) }} ms</dd> }
+                @if (h.detalle) { <dt>Detalle</dt><dd>{{ h.detalle }}</dd> }
+              }
+              @if (fi.n; as n) {
+                <dt>K3s</dt><dd>{{ n.roles.join(', ') }} · {{ n.listo ? 'listo' : 'NO listo' }}</dd>
+                <dt>Versión</dt><dd>{{ n.version }}</dd>
+                <dt>Pods</dt><dd>{{ n.pods }}</dd>
+              }
+            </dl>
+          }
+        }
+      </aside>
+    }
+  </div>
+</section>

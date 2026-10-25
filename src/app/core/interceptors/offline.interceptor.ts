@@ -65,6 +65,9 @@ const NEVER_QUEUE_PATHS = [
   '/gestion_admin/auth/logout/',
   '/gestion_admin/auth/register/',
 
+  // Infraestructura: generar un informe tarde (al volver la red) no sirve de nada.
+  '/api/v1/infra/',
+
   // Descargas binarias (ZIP, Excel, PDF generados): se devuelve Blob.
   '/gestion_documental/descargar-zip',
   '/EstadosRobots/descargar-zip',

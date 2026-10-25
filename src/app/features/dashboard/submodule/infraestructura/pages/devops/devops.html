@@ -1,0 +1,430 @@
+<div class="if-pagina devops">
+  <div class="if-fila if-fila--entre cabeza">
+    <div>
+      <h2 class="if-titulo-seccion"><mat-icon aria-hidden="true">rocket_launch</mat-icon> DevOps de las apps</h2>
+      <p class="if-nota">
+        Versiones de TesoroApp en Android, iPhone, web y escritorio: de dónde sale cada una, si pasó la verificación de
+        las tiendas y qué integraciones la sostienen.
+        @if (datos(); as d) { Repositorio <b class="if-mono">{{ d.repo }}</b>, rama de compilación <b class="if-mono">{{ d.rama }}</b>. }
+      </p>
+    </div>
+    <div class="if-fila">
+      @if (enCurso() > 0) {
+        <span class="if-chip info"><mat-icon class="gira">autorenew</mat-icon>{{ enCurso() }} en curso</span>
+      }
+      <button type="button" class="if-boton" (click)="cargar()" [disabled]="cargando()">
+        <mat-icon [class.gira]="cargando()">refresh</mat-icon> Actualizar
+      </button>
+    </div>
+  </div>
+
+  <nav class="subnav" aria-label="Secciones de DevOps">
+    @for (s of secciones; track s.clave) {
+      <a [routerLink]="['/dashboard/infraestructura/devops', s.clave]" class="sub" [class.activa]="seccion() === s.clave"
+         [attr.aria-current]="seccion() === s.clave ? 'page' : null">
+        <mat-icon aria-hidden="true">{{ s.icono }}</mat-icon><span>{{ s.texto }}</span>
+        @if (s.clave === 'integraciones' && cuentaIntegraciones().mal > 0) {
+          <i class="globo" [matTooltip]="cuentaIntegraciones().mal + ' integraciones por revisar'">{{ cuentaIntegraciones().mal }}</i>
+        }
+      </a>
+    }
+  </nav>
+
+  @if (error(); as e) {
+    <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ e }}</div></div>
+  }
+  @if (mensaje(); as m) {
+    <div class="if-aviso" [class]="'if-aviso ' + m.tono" role="status">
+      <mat-icon>{{ iconoTono(m.tono) }}</mat-icon><div>{{ m.texto }}</div>
+      <button type="button" class="cerrar" (click)="mensaje.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+    </div>
+  }
+
+  @switch (seccion()) {
+    <!-- ═════════════════════════ RESUMEN ═════════════════════════ -->
+    @case ('resumen') {
+      @if (datos(); as d) {
+        <section class="plataformas">
+          @for (p of d.plataformas; track p.clave) {
+            <article class="plataforma" [class]="'plataforma ' + tonoEstado(p.estado)">
+              <header>
+                <mat-icon class="logo" aria-hidden="true">{{ p.icono }}</mat-icon>
+                <div class="nom"><b>{{ p.nombre }}</b><small>{{ p.version ? 'v' + p.version : 'sin versión' }}</small></div>
+                <span class="if-chip" [class]="'if-chip ' + tonoEstado(p.estado)">
+                  <mat-icon>{{ iconoTono(tonoEstado(p.estado)) }}</mat-icon>{{ textoEstado(p.estado) }}
+                </span>
+              </header>
+              <p class="det">{{ p.detalle || '—' }}</p>
+              <footer>
+                <span class="if-tenue">{{ f.hace(ts(p.fecha)) }}</span>
+                @if (p.url) { <a class="enlace" [href]="p.url" target="_blank" rel="noopener">Abrir <mat-icon>open_in_new</mat-icon></a> }
+              </footer>
+            </article>
+          }
+        </section>
+
+        <div class="if-rejilla--2">
+          <section class="if-tarjeta">
+            <h3><mat-icon>play_circle</mat-icon> Últimas compilaciones
+              <a class="if-sub" routerLink="/dashboard/infraestructura/devops/ejecuciones">ver todas</a></h3>
+            @if (d.ejecuciones.length) {
+              <ul class="if-lista">
+                @for (e of d.ejecuciones.slice(0, 6); track e.id) {
+                  <li>
+                    <mat-icon [class]="'tono-' + tonoEjecucion(e)" [class.gira]="tonoEjecucion(e) === 'info'">{{ iconoEjecucion(e) }}</mat-icon>
+                    <div class="cuerpo">
+                      <div class="t">{{ e.flujo === 'android' ? 'Android' : e.flujo === 'ios' ? 'iPhone' : e.flujo }} #{{ e.numero }} · {{ textoEjecucion(e) }}</div>
+                      <div class="d">{{ e.titulo }} · <span class="if-mono">{{ e.rama }}</span> · {{ e.actor }}</div>
+                    </div>
+                    <span class="cuando">{{ f.hace(ts(e.creada)) }}</span>
+                  </li>
+                }
+              </ul>
+            } @else {
+              <p class="if-nota">Sin datos de GitHub. Revisa la integración en «Integraciones».</p>
+            }
+          </section>
+
+          <section class="if-tarjeta">
+            <h3><mat-icon>hub</mat-icon> Integraciones
+              <span class="if-sub">{{ cuentaIntegraciones().ok }}/{{ cuentaIntegraciones().total }} bien</span></h3>
+            <ul class="if-lista">
+              @for (i of d.integraciones; track i.clave) {
+                @if (i.estado !== 'OK') {
+                  <li>
+                    <mat-icon [class]="'tono-' + tonoEstado(i.estado)">{{ iconoTono(tonoEstado(i.estado)) }}</mat-icon>
+                    <div class="cuerpo"><div class="t">{{ i.grupo }} · {{ i.nombre }}</div><div class="d">{{ i.detalle }}</div></div>
+                  </li>
+                }
+              }
+              @if (cuentaIntegraciones().mal === 0) {
+                <li><mat-icon class="tono-ok">check_circle</mat-icon><div class="cuerpo"><div class="t">Todo conectado</div></div></li>
+              }
+            </ul>
+          </section>
+        </div>
+
+        <section class="if-tarjeta">
+          <h3><mat-icon>dns</mat-icon> Publicaciones en el servidor
+            <a class="if-sub" routerLink="/dashboard/infraestructura/devops/servidor">ver todas</a></h3>
+          @if (d.trabajos.length) {
+            <ul class="if-lista">
+              @for (t of d.trabajos.slice(0, 5); track t.id) {
+                <li>
+                  <mat-icon [class]="'tono-' + tonoEstado(t.estado)">{{ iconoTono(tonoEstado(t.estado)) }}</mat-icon>
+                  <div class="cuerpo"><div class="t">{{ nombreTipo(t.tipo) }} · {{ textoEstado(t.estado) }}</div>
+                    <div class="d">Pedido por {{ t.usuario }} · duró {{ duracionTrabajo(t) }}</div></div>
+                  <span class="cuando">{{ f.hace(ts(t.creado)) }}</span>
+                </li>
+              }
+            </ul>
+          } @else {
+            <p class="if-nota">Aún no se ha publicado nada desde aquí.</p>
+          }
+        </section>
+      } @else if (cargando()) {
+        <p class="if-nota">Leyendo GitHub, Google Play y el servidor…</p>
+      }
+    }
+
+    <!-- ═════════════════════════ PUBLICAR ═════════════════════════ -->
+    @case ('publicar') {
+      <p class="if-nota">
+        Elige qué publicar. Android e iPhone se compilan en GitHub Actions desde la rama que elijas; la web, el APK directo y el
+        instalador de escritorio los publica el ejecutor del servidor, que solo acepta esos tres trabajos. Todo queda en la
+        bitácora de Infraestructura con tu usuario.
+      </p>
+      <div class="acciones">
+        @for (a of datos()?.acciones ?? []; track a.tipo) {
+          <button type="button" class="accion" [class.elegida]="elegida()?.tipo === a.tipo" [disabled]="!a.disponible" (click)="elegir(a)"
+                  [attr.aria-pressed]="elegida()?.tipo === a.tipo">
+            <mat-icon class="logo" aria-hidden="true">{{ a.icono }}</mat-icon>
+            <span class="txt"><b>{{ a.nombre }}</b><small>{{ a.descripcion }}</small>
+              @if (a.motivo) { <em><mat-icon>info</mat-icon>{{ a.motivo }}</em> }</span>
+          </button>
+        }
+      </div>
+
+      @if (elegida(); as a) {
+        <section class="if-tarjeta orden">
+          <h3><mat-icon>{{ a.icono }}</mat-icon> {{ a.nombre }}</h3>
+          @if (a.tipo === 'android' || a.tipo === 'ios') {
+            <div class="campos">
+              <label>Rama
+                <select [value]="rama()" (change)="rama.set($any($event.target).value); confirmando.set(false)">
+                  @for (r of ramas(); track r) { <option [value]="r" [selected]="r === rama()">{{ r }}</option> }
+                </select>
+              </label>
+              <fieldset>
+                <legend>Destino</legend>
+                <div class="if-segmentos">
+                  @for (d of a.destinos; track d) {
+                    <button type="button" [attr.aria-pressed]="destino() === d" (click)="destino.set(d); confirmando.set(false)">{{ textoDestino(d) }}</button>
+                  }
+                </div>
+              </fieldset>
+              @if (a.tipo === 'android' && destino() === 'interna') {
+                <fieldset>
+                  <legend>Estado en Play</legend>
+                  <div class="if-segmentos">
+                    <button type="button" [attr.aria-pressed]="estadoPlay() === 'draft'" (click)="estadoPlay.set('draft'); confirmando.set(false)">Borrador</button>
+                    <button type="button" [attr.aria-pressed]="estadoPlay() === 'completed'" (click)="estadoPlay.set('completed'); confirmando.set(false)">Publicar a testers</button>
+                  </div>
+                </fieldset>
+              }
+            </div>
+            @if (a.tipo === 'android' && destino() === 'interna' && estadoPlay() === 'completed') {
+              <p class="if-nota aviso-play"><mat-icon>warning</mat-icon> Play solo acepta «Publicar a testers» cuando la app ya pasó su
+                primera revisión; mientras tanto la subida falla y hay que usar «Borrador».</p>
+            }
+          }
+          <p class="resumen-orden"><mat-icon>subdirectory_arrow_right</mat-icon>{{ resumenOrden() }}</p>
+          <div class="if-fila">
+            <button type="button" class="if-boton" (click)="elegida.set(null)">Cancelar</button>
+            <button type="button" class="if-boton if-boton--primario" [class.peligro]="confirmando()" (click)="enviar()" [disabled]="enviando()">
+              <mat-icon>{{ confirmando() ? 'check' : 'rocket_launch' }}</mat-icon>
+              {{ enviando() ? 'Enviando…' : confirmando() ? 'Sí, dar la orden' : 'Publicar' }}
+            </button>
+          </div>
+        </section>
+      }
+    }
+
+    <!-- ═════════════════════════ EJECUCIONES ═════════════════════════ -->
+    @case ('ejecuciones') {
+      <div class="if-fila">
+        <div class="if-segmentos" role="group" aria-label="Filtrar por plataforma">
+          <button type="button" [attr.aria-pressed]="filtroFlujo() === null" (click)="filtrar(null)">Todas</button>
+          <button type="button" [attr.aria-pressed]="filtroFlujo() === 'android'" (click)="filtrar('android')">Android</button>
+          <button type="button" [attr.aria-pressed]="filtroFlujo() === 'ios'" (click)="filtrar('ios')">iPhone</button>
+        </div>
+        <span class="if-espaciador"></span>
+        <button type="button" class="if-boton" (click)="cargarEjecuciones()"><mat-icon>refresh</mat-icon> Recargar</button>
+      </div>
+      <section class="if-tarjeta">
+        @if (ejecuciones().length) {
+          <ul class="if-lista ejecuciones">
+            @for (e of ejecuciones(); track e.id) {
+              <li [class.abierta]="detalleId() === e.id">
+                <button type="button" class="fila" (click)="abrirEjecucion(e)" [attr.aria-expanded]="detalleId() === e.id">
+                  <mat-icon [class]="'tono-' + tonoEjecucion(e)" [class.gira]="tonoEjecucion(e) === 'info'">{{ iconoEjecucion(e) }}</mat-icon>
+                  <div class="cuerpo">
+                    <div class="t">{{ e.flujo === 'android' ? 'Android' : e.flujo === 'ios' ? 'iPhone' : e.flujo }} #{{ e.numero }} · {{ textoEjecucion(e) }}</div>
+                    <div class="d">{{ e.titulo }} · <span class="if-mono">{{ e.rama }}</span> · {{ e.evento }} · {{ e.actor }} · {{ f.duracion(e.duracion_seg) }}</div>
+                  </div>
+                  <span class="cuando">{{ f.fecha(ts(e.creada)) }}</span>
+                  <mat-icon class="chev">{{ detalleId() === e.id ? 'expand_less' : 'expand_more' }}</mat-icon>
+                </button>
+                @if (detalleId() === e.id) {
+                  <div class="detalle">
+                    @if (detalle(); as dt) {
+                      <div class="if-rejilla--2">
+                        <div>
+                          <h4>Pasos</h4>
+                          <ol class="pasos">
+                            @for (p of dt.pasos; track $index) {
+                              <li [class]="'tono-' + (p.conclusion === 'success' ? 'ok' : p.conclusion === 'skipped' ? 'neutro' : p.conclusion ? 'danger' : 'info')">
+                                <span>{{ p.nombre }}</span><span class="if-mono if-tenue">{{ f.duracion(p.duracion_seg) }}</span>
+                              </li>
+                            }
+                          </ol>
+                        </div>
+                        <div>
+                          <h4>Artefactos</h4>
+                          @for (a of dt.artefactos; track a.id) {
+                            <div class="artefacto"><mat-icon>inventory_2</mat-icon><span class="if-mono">{{ a.nombre }}</span>
+                              <span class="if-tenue">{{ a.expirado ? 'vencido' : f.bytes(a.bytes) }}</span></div>
+                          } @empty { <p class="if-nota">Sin artefactos.</p> }
+                          @if (dt.verificacion) {
+                            <h4>Verificación</h4>
+                            <p class="if-nota">Este build trae verificación de integridad: mírala en «Integridad».</p>
+                          }
+                          <div class="if-fila acciones-run">
+                            @if (e.url) { <a class="if-boton" [href]="e.url" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon> Ver en GitHub</a> }
+                            @if (tonoEjecucion(e) === 'info') {
+                              <button type="button" class="if-boton" (click)="cancelar(e)"><mat-icon>stop_circle</mat-icon> Cancelar</button>
+                            }
+                          </div>
+                        </div>
+                      </div>
+                    } @else {
+                      <p class="if-nota">Cargando pasos…</p>
+                    }
+                  </div>
+                }
+              </li>
+            }
+          </ul>
+        } @else {
+          <p class="if-nota">Sin ejecuciones (o falta el token de GitHub).</p>
+        }
+      </section>
+    }
+
+    <!-- ═════════════════════════ TIENDAS ═════════════════════════ -->
+    @case ('tiendas') {
+      @if (datos(); as d) {
+        <div class="if-rejilla--2">
+          <section class="if-tarjeta">
+            <h3><mat-icon>android</mat-icon> Google Play <span class="if-sub if-mono">{{ d.play.paquete }}</span></h3>
+            @if (!d.play.configurado) {
+              <div class="if-aviso warn"><mat-icon>key_off</mat-icon><div>{{ d.play.error }}</div></div>
+            } @else if (d.play.error) {
+              <div class="if-aviso danger"><mat-icon>error</mat-icon><div>{{ d.play.error }}</div></div>
+            }
+            @if (d.play.cuenta) { <p class="if-nota">Cuenta de servicio <span class="if-mono">{{ d.play.cuenta }}</span> (solo lectura desde aquí).</p> }
+            @for (p of d.play.pistas; track p.pista) {
+              <div class="pista">
+                <h4>{{ nombrePista(p.pista) }}</h4>
+                @for (v of p.versiones; track $index) {
+                  <div class="version">
+                    <span class="if-chip" [class]="'if-chip ' + tonoEstado(v.estado)">{{ textoEstado(v.estado) }}</span>
+                    <b>{{ v.nombre || 'sin nombre' }}</b>
+                    <span class="if-mono if-tenue">código {{ v.codigos.join(', ') }}</span>
+                    @if (v.fraccion != null) { <span class="if-tenue">{{ (v.fraccion * 100).toFixed(0) }} % de usuarios</span> }
+                  </div>
+                } @empty { <p class="if-nota">Sin versiones.</p> }
+              </div>
+            }
+            <div class="if-fila">
+              <a class="if-boton" href="https://play.google.com/console" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon> Play Console</a>
+            </div>
+          </section>
+
+          <section class="if-tarjeta">
+            <h3><mat-icon>phone_iphone</mat-icon> App Store (iPhone)</h3>
+            @for (i of d.integraciones; track i.clave) {
+              @if (i.grupo === 'iPhone') {
+                <div class="if-aviso" [class]="'if-aviso ' + tonoEstado(i.estado)"><mat-icon>{{ iconoTono(tonoEstado(i.estado)) }}</mat-icon>
+                  <div><b>{{ i.nombre }}.</b> {{ i.detalle }}</div></div>
+              }
+            }
+            <p class="if-nota">
+              Para publicar en iPhone hace falta una cuenta de Apple Developer (99 USD/año), el certificado de distribución, el
+              perfil de aprovisionamiento y una llave de API de App Store Connect, todos como secretos del repositorio. Sin ellos,
+              la orden de iPhone solo compila para simulador y sirve para comprobar que la app compila en iOS.
+            </p>
+            <div class="if-fila">
+              <a class="if-boton" href="https://appstoreconnect.apple.com" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon> App Store Connect</a>
+              <a class="if-boton" href="https://developer.apple.com/account" target="_blank" rel="noopener"><mat-icon>open_in_new</mat-icon> Apple Developer</a>
+            </div>
+          </section>
+        </div>
+      }
+    }
+
+    <!-- ═════════════════════════ INTEGRIDAD ═════════════════════════ -->
+    @case ('integridad') {
+      @if (integridad(); as i) {
+        @if (i.chequeos.length) {
+          <div class="if-lecturas">
+            <div class="if-lectura"><span class="et">Versión</span><span class="va">{{ i.version }}</span><span class="ay">código {{ i.version_code }}</span></div>
+            <div class="if-lectura"><span class="et">targetSdk</span><span class="va">{{ dato('target_sdk') }}</span><span class="ay">minSdk {{ dato('min_sdk') }}</span></div>
+            <div class="if-lectura"><span class="et">Tamaño</span><span class="va">{{ dato('aab_mb') }}<small>MB</small></span><span class="ay">.aab · APK {{ dato('apk_mb') }} MB</span></div>
+            <div class="if-lectura"><span class="et">Verificado</span><span class="va">{{ f.hace(ts(i.fecha)) }}</span><span class="ay">{{ i.origen }}</span></div>
+          </div>
+          <section class="if-tarjeta">
+            <h3><mat-icon>verified_user</mat-icon> Chequeos de Google Play</h3>
+            <ul class="if-lista">
+              @for (c of i.chequeos; track c.clave) {
+                <li>
+                  <mat-icon [class]="'tono-' + tonoEstado(c.estado)">{{ iconoTono(tonoEstado(c.estado)) }}</mat-icon>
+                  <div class="cuerpo"><div class="t">{{ c.nombre }}</div><div class="d">{{ c.detalle }}</div></div>
+                  <span class="if-chip" [class]="'if-chip ' + tonoEstado(c.estado)">{{ textoEstado(c.estado) }}</span>
+                </li>
+              }
+            </ul>
+          </section>
+          <div class="if-rejilla--2">
+            <section class="if-tarjeta">
+              <h3><mat-icon>badge</mat-icon> Identidad del build</h3>
+              <table class="if-tabla-simple">
+                <tr><th>Paquete</th><td class="if-mono">{{ dato('paquete') }}</td></tr>
+                <tr><th>Certificado SHA-256</th><td class="if-mono corta">{{ dato('certificado_sha256') }}</td></tr>
+                <tr><th>Commit</th><td class="if-mono">{{ dato('commit').slice(0, 12) }}</td></tr>
+                <tr><th>Rama</th><td class="if-mono">{{ dato('rama') }}</td></tr>
+              </table>
+            </section>
+            <section class="if-tarjeta">
+              <h3><mat-icon>shield</mat-icon> Permisos declarados <span class="if-sub">{{ permisos().length }}</span></h3>
+              <div class="permisos">@for (p of permisos(); track p) { <span class="if-chip neutro">{{ p }}</span> }</div>
+            </section>
+          </div>
+        } @else {
+          <div class="if-aviso info"><mat-icon>info</mat-icon>
+            <div>Todavía no hay un build con verificación. El paso «Verificar integridad» se añadió a android.yml: la próxima
+              compilación de Android dejará aquí el informe (firma, targetSdk, páginas de 16 KB, permisos y origen).</div></div>
+        }
+      } @else {
+        <p class="if-nota">Buscando la última verificación…</p>
+      }
+    }
+
+    <!-- ═════════════════════════ INTEGRACIONES ═════════════════════════ -->
+    @case ('integraciones') {
+      @for (g of integracionesPorGrupo(); track g.grupo) {
+        <section class="if-tarjeta">
+          <h3><mat-icon>{{ g.grupo === 'Android' ? 'android' : g.grupo === 'iPhone' ? 'phone_iphone' : g.grupo === 'GitHub' ? 'code' : g.grupo === 'Escritorio' ? 'desktop_windows' : g.grupo === 'Tiendas' ? 'policy' : 'dns' }}</mat-icon> {{ g.grupo }}</h3>
+          <ul class="if-lista">
+            @for (i of g.items; track i.clave) {
+              <li>
+                <mat-icon [class]="'tono-' + tonoEstado(i.estado)">{{ iconoTono(tonoEstado(i.estado)) }}</mat-icon>
+                <div class="cuerpo"><div class="t">{{ i.nombre }}</div><div class="d">{{ i.detalle }}</div></div>
+                <span class="if-chip" [class]="'if-chip ' + tonoEstado(i.estado)">{{ textoEstado(i.estado) }}</span>
+                @if (i.url) { <a class="if-boton" [href]="i.url" target="_blank" rel="noopener">{{ i.accion || 'Abrir' }}</a> }
+              </li>
+            }
+          </ul>
+        </section>
+      } @empty {
+        <p class="if-nota">Cargando integraciones…</p>
+      }
+    }
+
+    <!-- ═════════════════════════ SERVIDOR ═════════════════════════ -->
+    @case ('servidor') {
+      @if (datos(); as d) {
+        <div class="if-lecturas">
+          <div class="if-lectura"><span class="et">Web</span><span class="va">{{ textoEstado(d.servidor.web_salud ? 'EN_LINEA' : 'ERROR') }}</span>
+            <span class="ay">desde {{ f.hace(d.servidor.web_iniciada ? d.servidor.web_iniciada * 1000 : null) }}</span></div>
+          <div class="if-lectura"><span class="et">APK del login</span><span class="va">{{ latest('version') }}</span><span class="ay">{{ latest('releaseDate') }}</span></div>
+          <div class="if-lectura"><span class="et">Descargas</span><span class="va">{{ d.servidor.descargas.length }}</span><span class="ay">ficheros publicados</span></div>
+        </div>
+      }
+      @if (trabajoAbierto(); as t) {
+        <section class="if-tarjeta">
+          <h3><mat-icon>terminal</mat-icon> {{ nombreTipo(t.tipo) }} · {{ textoEstado(t.estado) }}
+            <span class="if-sub">{{ duracionTrabajo(t) }}@if (t.codigo != null) { · código {{ t.codigo }} }</span></h3>
+          <pre class="log" aria-live="polite">{{ t.log || 'Esperando salida…' }}</pre>
+          <div class="if-fila"><button type="button" class="if-boton" (click)="cerrarTrabajo()">Cerrar</button></div>
+        </section>
+      }
+      <div class="if-rejilla--2">
+        <section class="if-tarjeta">
+          <h3><mat-icon>history</mat-icon> Publicaciones</h3>
+          <ul class="if-lista">
+            @for (t of trabajos(); track t.id) {
+              <li class="clic" tabindex="0" role="button" (click)="verTrabajo(t)" (keydown.enter)="verTrabajo(t)">
+                <mat-icon [class]="'tono-' + tonoEstado(t.estado)" [class.gira]="t.estado === 'EN_CURSO'">{{ iconoTono(tonoEstado(t.estado)) }}</mat-icon>
+                <div class="cuerpo"><div class="t">{{ nombreTipo(t.tipo) }} · {{ textoEstado(t.estado) }}</div>
+                  <div class="d">{{ t.usuario }} · duró {{ duracionTrabajo(t) }}</div></div>
+                <span class="cuando">{{ f.hace(ts(t.creado)) }}</span>
+              </li>
+            } @empty { <li><div class="cuerpo"><div class="d">Sin publicaciones desde aquí.</div></div></li> }
+          </ul>
+        </section>
+        <section class="if-tarjeta">
+          <h3><mat-icon>download</mat-icon> Descargas del login</h3>
+          <table class="if-tabla-simple">
+            <thead><tr><th>Fichero</th><th class="num">Tamaño</th><th>Fecha</th></tr></thead>
+            <tbody>
+              @for (x of datos()?.servidor?.descargas ?? []; track x.nombre) {
+                <tr><td class="if-mono">{{ x.nombre }}</td><td class="num">{{ f.bytes(x.bytes) }}</td><td>{{ f.fecha(x.modificado) }}</td></tr>
+              }
+            </tbody>
+          </table>
+        </section>
+      </div>
+    }
+  }
+</div>
