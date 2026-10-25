@@ -52,6 +52,11 @@ minimo = int(m(r"(?:minSdkVersion|sdkVersion):'(\d+)'") or 0)
 permisos = sorted(set(re.findall(r"uses-permission: name='([^']+)'", badging)))
 depurable = "application-debuggable" in badging
 
+vp = [int(x) for x in re.findall(r"\d+", version or "")[:3]]
+if len(vp) == 3:
+    esperado = (vp[0] * 10000 + vp[1] * 100 + vp[2]) * 1000
+    chequeo("version_code", "versionCode", esperado <= code < esperado + 1000,
+            f"versionCode {code} para {version} (esperado {esperado}…{esperado + 999})", aviso=True)
 chequeo("target_sdk", "targetSdk", target >= TARGET_MIN, f"targetSdk {target} (Play exige ≥ {TARGET_MIN})")
 chequeo("min_sdk", "minSdk", minimo >= 24, f"minSdk {minimo}")
 chequeo("depurable", "Compilación de release", not depurable, "android:debuggable desactivado" if not depurable else "¡La app es depurable!")

@@ -1,5 +1,11 @@
 apply plugin: 'com.android.application'
 
+// Versión de package.json (la sincronizan el workflow android.yml y build-android.sh).
+// versionCode = (M·10000 + m·100 + p)·1000 + n, n = APP_BUILD_NUMBER % 1000 (run_number en CI, 0 en local).
+def verName = "12.2.4"
+def vp = verName.tokenize('.')*.toInteger()
+def verCode = (vp[0] * 10000 + vp[1] * 100 + vp[2]) * 1000 + ((System.getenv("APP_BUILD_NUMBER") ?: "0").toInteger() % 1000)
+
 android {
     namespace "com.apoyolaboral.gestiontesoreria"
     compileSdk rootProject.ext.compileSdkVersion
@@ -7,8 +13,8 @@ android {
         applicationId "com.apoyolaboral.gestiontesoreria"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 120202
-        versionName "12.2.2"
+        versionCode verCode
+        versionName verName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
