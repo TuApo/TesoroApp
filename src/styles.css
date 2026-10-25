@@ -1263,3 +1263,27 @@ body:has(app-ai-tutor .tutor) app-chat-dock nav.pestanas { bottom: 84px; }
 .ficha-contratacion-panel .mat-mdc-dialog-surface { border-radius: 20px 0 0 20px !important; overflow: hidden; }
 .ficha-contratacion-panel .mat-mdc-dialog-container { --mat-dialog-container-max-height: 100vh; }
 @media (max-width: 600px) { .ficha-contratacion-panel .mat-mdc-dialog-surface { border-radius: 0 !important; } }
+
+/* ── Entrevista ↔ cédula (form-entrevista/cotejo-cedula.ts) ─────────────────
+   Amarillo = campo sin llenar; rojo = no cuadra con lo leído en la cédula.
+   El borde va en el contorno del outline y la sombra DENTRO del input. */
+.mat-mdc-form-field.fe-vacio .mdc-notched-outline > * {
+  border-color: #e3a600 !important;
+  border-width: 2px !important;
+}
+.mat-mdc-form-field.fe-vacio .mdc-text-field--outlined {
+  box-shadow: inset 0 0 10px 2px rgba(240, 180, 0, 0.45);
+  border-radius: var(--mdc-outlined-text-field-container-shape, 4px);
+}
+.mat-mdc-form-field.fe-difiere .mdc-notched-outline > * {
+  border-color: #d32f2f !important;
+  border-width: 2px !important;
+}
+.mat-mdc-form-field.fe-difiere .mdc-text-field--outlined {
+  box-shadow: inset 0 0 10px 2px rgba(211, 47, 47, 0.40);
+  border-radius: var(--mdc-outlined-text-field-container-shape, 4px);
+}
+.mat-mdc-form-field.fe-difiere .mat-mdc-floating-label,
+.mat-mdc-form-field.fe-difiere .mdc-floating-label {
+  color: #c62828 !important;
+}

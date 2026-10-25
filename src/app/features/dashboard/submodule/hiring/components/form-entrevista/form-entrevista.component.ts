@@ -28,7 +28,7 @@ import {
 import { MatAutocompleteSelectedEvent } from '@angular/material/autocomplete';
 import { DateAdapter } from '@angular/material/core';
 import { ActivatedRoute } from '@angular/router';
-import { Observable, combineLatest, firstValueFrom, map, merge, startWith, take, filter, of, catchError, shareReplay } from 'rxjs';
+import { Observable, combineLatest, firstValueFrom, map, merge, startWith, take, filter, of, catchError, shareReplay, debounceTime } from 'rxjs';
 import { MatIconModule } from '@angular/material/icon';
 import { MatDialog } from '@angular/material/dialog';
 import Swal from 'sweetalert2';
@@ -56,7 +56,10 @@ import { SedesSeleccionService } from '@/app/shared/services/sedes-seleccion/sed
 import { RobotsService } from '../../service/robots/robots.service';
 import { SaludAdres, saludAdresDe } from '../../shared/salud-adres.util';
 import { docParaEnviar } from '@/app/shared/utils/tipo-doc.util';
-import { RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import { LecturaCedula, RegistroProcesoContratacion } from '../../service/registro-proceso-contratacion/registro-proceso-contratacion';
+import {
+  CampoCotejoCedulaDirective, CotejoCedulaEstado, DiferenciaCedula, compararConCedula, normalizarTexto,
+} from './cotejo-cedula';
 import { SeleccionEstadoService } from '../../service/seleccion/seleccion-estado.service';
 import { AnalisisIaService, AnalisisCandidato, PuntoAnalisis } from '../../service/analisis-ia/analisis-ia.service';
 import { graficasAnalisisMd, informeAnalisisMd } from '../../service/analisis-ia/analisis-informe';
@@ -101,7 +104,11 @@ export const anioFinalizacionValidator: ValidatorFn = (c: AbstractControl): Vali
     MarkdownMessageComponent,
     // `cdkTextareaAutosize` de los motivos de NO APLICA / EN ESPERA.
     TextFieldModule,
+    // Amarillo = falta llenar, rojo = no cuadra con la cédula (ver cotejo-cedula.ts).
+    CampoCotejoCedulaDirective,
   ],
+  // La ficha (hija) lo inyecta para pintar sus campos con el mismo cotejo.
+  providers: [CotejoCedulaEstado],
   templateUrl: './form-entrevista.component.html',
   styleUrls: ['./form-entrevista.component.css'],
   changeDetection: ChangeDetectionStrategy.OnPush,
@@ -407,6 +414,71 @@ export class FormEntrevistaComponent implements OnInit {
    */
   private readonly analisisIa = inject(AnalisisIaService);
   private readonly router = inject(Router);
+
+  // ── Cotejo con la cédula ─────────────────────────────────────────────────
+  /** Estado compartido con la ficha: qué campos no cuadran con la cédula. */
+  private readonly cotejoCedula = inject(CotejoCedulaEstado);
+  /** Lo que ms-hr leyó con IA en la cédula cargada; null = aún no se pidió. */
+  readonly lecturaCedula = signal<LecturaCedula | null>(null);
+  readonly leyendoCedula = signal(false);
+  /** Diferencias en orden de la ficha, para el resumen. */
+  readonly diferenciasCedula = computed(() => Object.values(this.cotejoCedula.diferencias()));
+  /** Cédula de la última lectura pedida: una respuesta tardía de otra persona se descarta. */
+  private cedulaLeida: string | null = null;
+
+  /** Pide la lectura de la cédula del candidato (ms-hr la recuerda por versión). */
+  leerCedula(forzar = false): void {
+    const doc = String(this.formVacante.get('numero_documento')?.value ?? '').trim();
+    this.cedulaLeida = doc || null;
+    if (!doc) { this.lecturaCedula.set(null); this.recalcularCotejoCedula(); return; }
+    this.leyendoCedula.set(true);
+    this.candidateService.leerCedula(doc, forzar).pipe(take(1)).subscribe({
+      next: (l) => {
+        if (this.cedulaLeida !== doc) return;
+        this.lecturaCedula.set(l);
+        this.leyendoCedula.set(false);
+        this.recalcularCotejoCedula();
+      },
+      error: () => {
+        if (this.cedulaLeida !== doc) return;
+        this.lecturaCedula.set({ estado: 'IA_NO_DISPONIBLE', mensaje: 'No se pudo consultar la lectura de la cédula' });
+        this.leyendoCedula.set(false);
+        this.recalcularCotejoCedula();
+      },
+    });
+  }
+
+  private recalcularCotejoCedula(): void {
+    const l = this.lecturaCedula();
+    const difs = l?.estado === 'LEIDA' && l.campos ? compararConCedula(this.formVacante, l.campos) : [];
+    const mapa: Record<string, DiferenciaCedula> = {};
+    for (const d of difs) mapa[d.control] = d;
+    this.cotejoCedula.diferencias.set(mapa);
+    this.cotejoCedula.refrescar();
+  }
+
+  /** Valor actual del formulario, como se muestra en el resumen. */
+  valorEntrevista(control: string): string {
+    const v = this.formVacante.get(control)?.value;
+    if (v instanceof Date) return v.toLocaleDateString('es-CO');
+    if (v && typeof v?.format === 'function') return v.format('DD/MM/YYYY');
+    if (control === 'sexo') return v === 'F' ? 'Femenino' : v === 'M' ? 'Masculino' : String(v ?? '');
+    return String(v ?? '');
+  }
+
+  /** Reemplaza el valor de la entrevista por el de la cédula. */
+  usarDatoCedula(d: DiferenciaCedula): void {
+    const ctrl = this.formVacante.get(d.control);
+    if (!ctrl) return;
+    let valor = d.valor;
+    // Municipios: el autocompletar usa el nombre del catálogo, no las mayúsculas de la cédula.
+    if (d.control.startsWith('mpio_') && typeof valor === 'string') {
+      valor = this.allCities.find((c) => normalizarTexto(c) === normalizarTexto(valor)) ?? valor;
+    }
+    ctrl.setValue(valor);
+    ctrl.markAsDirty();
+    this.recalcularCotejoCedula();
+  }
 
   readonly analisis = signal<AnalisisCandidato | null>(null);
   readonly analizando = signal(false);
@@ -1277,6 +1349,14 @@ export class FormEntrevistaComponent implements OnInit {
       });
 
     // Cuando cambie el candidato seleccionado, rellenamos el form
+    // Cotejo con la cédula: la ficha lee el formulario desde el estado compartido
+    // y cada cambio vuelve a comparar (un amarillo se apaga al escribir, un rojo
+    // al corregir).
+    this.cotejoCedula.form = this.formVacante;
+    this.formVacante.valueChanges
+      .pipe(debounceTime(250), takeUntilDestroyed(this.destroyRef))
+      .subscribe(() => this.recalcularCotejoCedula());
+
     effect(() => {
       const cand = this.candidatoSeleccionado();
       // Solo se rellena al CAMBIAR de persona. El padre recarga el candidato
@@ -1301,6 +1381,9 @@ export class FormEntrevistaComponent implements OnInit {
       // no tienen por qué seguir abiertas.
       this.seccionesExtra.set([]);
       this.rellenarForm(cand);
+      // El relleno va sin eventos: la ficha (OnPush) no se entera sola.
+      this.cotejoCedula.refrescar();
+      untracked(() => this.leerCedula());
       // HTTP fuera del contexto reactivo: si no, el effect queda suscrito a las
       // señales que lean los interceptores (ver tormenta de 429).
       untracked(() => this.cargarSaludAdres(cand));

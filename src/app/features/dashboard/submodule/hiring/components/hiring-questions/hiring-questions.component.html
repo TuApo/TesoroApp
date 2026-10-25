@@ -707,7 +707,7 @@
                               <div class="bio-card" [class.bio-lista]="!!nav.biometria().firma">
                                 <span class="bio-icono"><mat-icon>draw</mat-icon></span>
                                 <span class="bio-txt">
-                                  <strong>Firma</strong>
+                                  <strong>Firma <span class="bio-opcional">Opcional</span></strong>
                                   <small>{{ nav.biometria().firma ? 'Registrada' : 'Sin registrar' }}</small>
                                 </span>
                                 @if (nav.biometria().firma; as u) {
@@ -791,12 +791,22 @@
                                     </small>
                                   }
                                 </span>
-                                <button type="button" class="bio-btn"
-                                        [disabled]="!correoDe()"
-                                        (click)="nav.pedirComprobarCorreo()">
-                                  <mat-icon>send</mat-icon>
-                                  {{ correoConfirmado() ? 'Volver a enviar' : 'Comprobar correo' }}
-                                </button>
+                                <span class="bio-acciones">
+                                  <button type="button" class="bio-btn"
+                                          [disabled]="!correoDe()"
+                                          (click)="nav.pedirComprobarCorreo()">
+                                    <mat-icon>send</mat-icon>
+                                    {{ correoConfirmado() ? 'Volver a enviar' : 'Comprobar correo' }}
+                                  </button>
+                                  <!-- El correo se edita en la Entrevista, que está cerrada hasta
+                                       comprobarlo: sin esto un correo mal escrito no tenía arreglo. -->
+                                  <button type="button" class="bio-btn bio-btn-sec"
+                                          [disabled]="guardandoCorreo()"
+                                          (click)="editarCorreo()">
+                                    <mat-icon>edit</mat-icon>
+                                    {{ correoDe() ? 'Corregir correo' : 'Agregar correo' }}
+                                  </button>
+                                </span>
                               </div>
 
                               <div class="bio-card" [class.bio-lista]="whatsappConfirmado()">
@@ -804,7 +814,7 @@
                                   <mat-icon>{{ whatsappConfirmado() ? 'verified' : 'chat' }}</mat-icon>
                                 </span>
                                 <span class="bio-txt">
-                                  <strong>WhatsApp</strong>
+                                  <strong>WhatsApp <span class="bio-opcional">Opcional</span></strong>
                                   <small>{{ whatsappDe() || 'Sin número registrado' }}</small>
                                   <small class="bio-estado">
                                     {{ whatsappConfirmado() ? 'Comprobado' : 'Sin comprobar' }}

@@ -180,6 +180,54 @@
                 </div>
               </div>
 
+              <!-- ═══ Cotejo con la cédula ═══
+                   La IA lee la cédula cargada (ms-hr /cedula-lectura) y aquí se
+                   compara con lo digitado. En la ficha, amarillo = falta llenar y
+                   rojo = no cuadra con la cédula. Es un aviso: no bloquea. -->
+              <div class="cc-card" [class.cc-card--alerta]="diferenciasCedula().length > 0"
+                   [class.cc-card--ok]="lecturaCedula()?.estado === 'LEIDA' && diferenciasCedula().length === 0">
+                <div class="cc-head">
+                  <mat-icon>badge</mat-icon>
+                  <strong>Cotejo con la cédula</strong>
+                  @if (leyendoCedula()) {
+                    <span class="cc-estado">Leyendo la cédula…</span>
+                  } @else if (lecturaCedula(); as l) {
+                    @if (l.estado === 'LEIDA') {
+                      @if (diferenciasCedula().length) {
+                        <span class="cc-estado">{{ diferenciasCedula().length }} {{ diferenciasCedula().length === 1 ? 'dato no coincide' : 'datos no coinciden' }} con la cédula</span>
+                      } @else {
+                        <span class="cc-estado">Lo digitado coincide con la cédula</span>
+                      }
+                    } @else {
+                      <span class="cc-estado">{{ l.mensaje || 'No se pudo leer la cédula' }}</span>
+                    }
+                  }
+                  <span class="cc-leyenda">
+                    <span class="cc-muestra cc-muestra--vacio"></span> Falta llenar
+                    <span class="cc-muestra cc-muestra--difiere"></span> No coincide con la cédula
+                  </span>
+                  <button mat-stroked-button type="button" class="cc-releer"
+                          [disabled]="leyendoCedula() || !texto('numero_documento')"
+                          (click)="leerCedula(true)">
+                    <mat-icon>refresh</mat-icon> Volver a leer
+                  </button>
+                </div>
+                @if (!leyendoCedula() && diferenciasCedula().length) {
+                  <ul class="cc-lista">
+                    @for (d of diferenciasCedula(); track d.control) {
+                      <li>
+                        <span class="cc-campo">{{ d.etiqueta }}</span>
+                        <span class="cc-val">Entrevista: <b>{{ valorEntrevista(d.control) || '—' }}</b></span>
+                        <span class="cc-val">Cédula: <b>{{ d.cedula }}</b></span>
+                        <button mat-button type="button" color="primary" (click)="usarDatoCedula(d)">
+                          Usar el de la cédula
+                        </button>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+
               <!-- ═══ Cómo llegó ═══
                    Primera pregunta de la hoja de entrevista, y por eso va
                    primero: es lo que se registra antes de abrir la cédula. -->

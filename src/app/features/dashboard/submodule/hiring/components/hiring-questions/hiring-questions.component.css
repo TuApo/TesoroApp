@@ -243,23 +243,33 @@ button {
   background: var(--surface);
 }
 
+/* Cabecera en una fila (icono + título): la versión apilada gastaba casi un
+   tercio de la pantalla antes del texto. */
 ::ng-deep .consent-dialog-header {
   background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); background: linear-gradient(135deg, light-dark(#f0fdf4, #143a33) 0%, light-dark(#dcfce7, #123b33) 100%);
-  padding: 36px 24px 28px;
+  padding: 16px 24px;
   position: relative;
   border-bottom: 1px solid #bbf7d0; border-bottom: 1px solid light-dark(#bbf7d0, #156740);
-  text-align: center;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  text-align: left;
+}
+
+::ng-deep .consent-dialog-heading {
+  min-width: 0;
 }
 
 ::ng-deep .consent-dialog-icon {
-  width: 72px;
-  height: 72px;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 52px;
   background: var(--surface);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  margin: 0 auto 20px;
+  margin: 0;
   box-shadow: 0 8px 16px rgba(34, 197, 94, 0.15);
   border: 1px solid #bbf7d0; border: 1px solid light-dark(#bbf7d0, #156740);
 }
@@ -269,8 +279,8 @@ button {
 }
 
 ::ng-deep .consent-dialog-title {
-  margin: 0 0 16px;
-  font-size: 1.35rem;
+  margin: 0 0 8px;
+  font-size: 1.15rem;
   font-weight: 800;
   color: #14532d; color: light-dark(#14532d, #a5e9c0);
   line-height: 1.3;
@@ -279,7 +289,7 @@ button {
 
 ::ng-deep .consent-dialog-badges {
   display: flex;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -302,7 +312,7 @@ button {
 }
 
 ::ng-deep .consent-dialog-body-inner {
-  padding: 28px 24px;
+  padding: 16px 24px;
 }
 
 ::ng-deep .consent-dialog-text {
@@ -311,11 +321,15 @@ button {
   line-height: 1.6;
   text-align: justify;
   background: var(--surface-2);
-  padding: 20px;
+  padding: 16px 20px;
   border-radius: 12px;
   border: 1px solid var(--border);
-  margin-bottom: 24px;
+  margin-bottom: 14px;
   box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.02);
+  /* Una sola columna a lo ancho de la ventana. Si aun así no cabe, se desplaza
+     el texto y no la ventana: casilla y botones siguen a la vista. */
+  max-height: 46vh;
+  overflow-y: auto;
 }
 
 ::ng-deep .consent-dialog-check {
@@ -352,7 +366,7 @@ button {
 }
 
 ::ng-deep .consent-dialog-version {
-  margin: 16px 0 0;
+  margin: 8px 0 0;
   font-size: 0.75rem;
   color: var(--text-faint);
   text-align: center;
@@ -1284,3 +1298,15 @@ button {
   border-radius: 4px;
 }
 .cotejo-cedula__par figcaption { font-size: 11.5px; color: var(--muted); margin-top: 2px; }
+
+/* Firma y WhatsApp no cuentan para el 100 % del paso ni bloquean la Entrevista. */
+.bio-opcional {
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  font-size: 10px;
+  font-weight: 500;
+  vertical-align: middle;
+  background: #eceff1; background: light-dark(#eceff1, #37474f);
+  color: #546e7a; color: light-dark(#546e7a, #cfd8dc);
+}

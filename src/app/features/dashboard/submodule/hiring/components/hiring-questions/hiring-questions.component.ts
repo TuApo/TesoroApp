@@ -110,6 +110,13 @@ export class HiringQuestionsComponent implements OnInit {
 
   /** La cédula ya está en el expediente (tipo 29, CEDULA). */
   readonly cedulaSubida = signal<boolean>(false);
+  /**
+   * Cédula para la que ya respondió el servidor (la de la cédula subida y la
+   * del mapa de huellas). Mientras no coincidan con la persona en pantalla, el
+   * bloqueo de la Entrevista no se decide: se está preguntando.
+   */
+  private readonly cedulaConsultada = signal<string | null>(null);
+  private readonly huellasConsultadas = signal<string | null>(null);
   /** Id del documento vigente en el tipo 29, para previsualizarlo. */
   readonly cedulaDocumentoId = signal<number | null>(null);
   /** Miniatura pintable del documento de identidad (imagen o 1ª página del PDF). */
@@ -614,6 +621,9 @@ export class HiringQuestionsComponent implements OnInit {
       const cand = this.candidatoSeleccionado();
       this.nav.biometria();
       this.cedulaSubida();
+      this.huellasGuardadas();
+      this.cedulaConsultada();
+      this.huellasConsultadas();
       this.publicarAvances();
 
       // ¿La cédula ya está en el expediente? Sin preguntarlo, la tarjeta decía
@@ -629,12 +639,14 @@ export class HiringQuestionsComponent implements OnInit {
           next: (r: any) => {
             const lista = Array.isArray(r) ? r : (r?.results ?? []);
             if (lista.length > 0) this.marcarCedula(lista[0]?.id);
+            this.cedulaConsultada.set(ced);
             // Se pregunta SIEMPRE, no solo con el tipo vacío: si las caras del
             // formulario son más nuevas que lo que hay, el backend lo rehace; si
             // no, devuelve el vigente sin tocar nada.
             this.armarCedulaAmpliada(ced);
           },
-          error: () => { /* si falla, se queda en "sin subir": no se inventa */ },
+          // Si falla, se queda en "sin subir": no se inventa.
+          error: () => this.cedulaConsultada.set(ced),
         });
     });
   }
@@ -829,6 +841,69 @@ export class HiringQuestionsComponent implements OnInit {
     return (c.email ?? c.correo_electronico ?? '').toString().trim() || null;
   }
 
+  /** Guardando el correo corregido: apaga el botón mientras tanto. */
+  readonly guardandoCorreo = signal<boolean>(false);
+
+  /**
+   * Corregir el correo desde Cédula & Huella.
+   *
+   * El correo se edita en la Entrevista (sección Contacto), que está cerrada
+   * hasta comprobarlo: con un correo mal escrito no había forma de salir de ahí.
+   * Un correo nuevo vuelve a quedar SIN comprobar, porque lo comprobado era el
+   * anterior; al guardar se ofrece enviarle el código de una vez.
+   */
+  async editarCorreo(): Promise<void> {
+    const cand = this.candidatoSeleccionado();
+    const doc = cand?.numero_documento ? String(cand.numero_documento).trim() : '';
+    if (!cand?.id || !doc) return;
+    const actual = this.correoDe() ?? '';
+
+    const { value, isConfirmed } = await Swal.fire({
+      title: actual ? 'Corregir el correo' : 'Registrar el correo',
+      input: 'email',
+      inputValue: actual,
+      inputPlaceholder: 'correo@ejemplo.com',
+      inputLabel: 'Correo de la persona',
+      validationMessage: 'Escribe un correo válido',
+      showCancelButton: true,
+      confirmButtonText: 'Guardar',
+      cancelButtonText: 'Cancelar',
+    });
+    const nuevo = String(value ?? '').trim().toLowerCase();
+    if (!isConfirmed || !nuevo || nuevo === actual.toLowerCase()) return;
+
+    this.guardandoCorreo.set(true);
+    try {
+      await firstValueFrom(this.procesosService.upsertCandidatoByDocumento({
+        tipo_doc: cand.tipo_doc || 'CC',
+        numero_documento: doc,
+        contacto: { email: nuevo },
+      }));
+      // El backend no reinicia la comprobación al cambiar la dirección.
+      if (this.correoConfirmado()) {
+        await firstValueFrom(this.procesosService.confirmarContacto(cand.id, { correo_confirmado: false }));
+      }
+    } catch (err: any) {
+      this.alert('error', 'No se guardó el correo', err?.error?.error || err?.error?.detail || 'Inténtalo de nuevo.');
+      return;
+    } finally {
+      this.guardandoCorreo.set(false);
+    }
+    // El pipeline relee a la persona: la tarjeta y el formulario de la
+    // Entrevista quedan con el correo nuevo (si no, su autoguardado lo pisaría).
+    this.guardado.emit();
+
+    const { isConfirmed: enviar } = await Swal.fire({
+      icon: 'success',
+      title: 'Correo guardado',
+      text: `Queda sin comprobar. ¿Enviar ya el código a ${nuevo}?`,
+      showCancelButton: true,
+      confirmButtonText: 'Enviar código',
+      cancelButtonText: 'Después',
+    });
+    if (enviar) this.nav.pedirComprobarCorreo();
+  }
+
   whatsappDe(): string | null {
     const c = this.candidatoSeleccionado()?.contacto ?? {};
     return (c.whatsapp ?? c.celular ?? '').toString().trim() || null;
@@ -894,8 +969,7 @@ export class HiringQuestionsComponent implements OnInit {
    * Cuánto lleva llenado cada sub-paso de Contratación.
    *
    * Pago y Datos de obra se miden solos desde su formulario. Cédula & Huella no:
-   * no es un campo sino dos capturas del lector, la foto, la firma y que el
-   * correo y el WhatsApp existan.
+   * no es un campo sino la cédula, el correo comprobado, la huella y la foto.
    */
   private publicarAvances(): void {
     // `vigilarIdentidad` puede dispararlo antes de `initForms()` si algún día
@@ -907,19 +981,38 @@ export class HiringQuestionsComponent implements OnInit {
     // se publican porque nadie los agrega. Sus formularios siguen vivos y se
     // siguen guardando; lo que se quitó es su peso en el porcentaje del paso.
 
-    // Todo lo que identifica a la persona y permite avisarle: las dos huellas,
-    // la foto, la firma, la cédula y que el correo y el WhatsApp EXISTAN. Un
-    // contrato con un correo que no existe es un contrato sin forma de avisarle
-    // nada a la persona, así que cuenta como pendiente igual que una huella.
-    this.nav.publicar('huella', avanceDeBanderas([
-      !!this.fingerprintImageApoyo,
-      !!this.fingerprintImageTuAlianza,
-      !!this.nav.biometria().foto,
-      !!this.nav.biometria().firma,
-      this.cedulaSubida(),
-      this.correoConfirmado(),
-      this.whatsappConfirmado(),
-    ]));
+    // El 100 % del paso son los cuatro requisitos de la Entrevista: cédula,
+    // correo comprobado, huella y foto. Firma y WhatsApp siguen en pantalla
+    // pero son opcionales: no suman ni bloquean.
+    const requisitos = this.requisitosEntrevista();
+    this.nav.publicar('huella', avanceDeBanderas(requisitos.map((r) => r.ok)));
+
+    const ced = this.candidatoSeleccionado()?.numero_documento;
+    const cedula = ced ? String(ced) : null;
+    this.nav.requisitosIdentidad.set({
+      resuelto: !!cedula
+        && this.cedulaConsultada() === cedula
+        && this.huellasConsultadas() === cedula,
+      faltantes: requisitos.filter((r) => !r.ok).map((r) => r.etiqueta),
+    });
+  }
+
+  /**
+   * Lo que hay que tener antes de entrevistar. Basta UNA huella —la de
+   * cualquiera de las dos temporales, recién capturada o ya guardada—: en
+   * Selección todavía no se sabe por cuál se va a contratar.
+   */
+  private requisitosEntrevista(): { etiqueta: string; ok: boolean }[] {
+    const huella = !!this.fingerprintImageApoyo
+      || !!this.fingerprintImageTuAlianza
+      || Object.keys(this.huellasGuardadas()).length > 0
+      || !!this.nav.biometria().huella;
+    return [
+      { etiqueta: 'Cédula cargada', ok: this.cedulaSubida() },
+      { etiqueta: 'Correo comprobado', ok: this.correoConfirmado() },
+      { etiqueta: 'Huella', ok: huella },
+      { etiqueta: 'Foto', ok: !!this.nav.biometria().foto },
+    ];
   }
 
   /** True cuando la lista de tarjetas YA respondió (aunque venga vacía). */
@@ -2793,7 +2886,7 @@ export class HiringQuestionsComponent implements OnInit {
   private async cargarHuellasGuardadas(): Promise<void> {
     const cedula = this.candidatoSeleccionado()?.numero_documento;
     if (cedula !== this.cedulaDeCotejos) { this.cotejos.set({}); this.cedulaDeCotejos = cedula ?? null; }
-    if (!cedula) { this.huellasGuardadas.set({}); return; }
+    if (!cedula) { this.huellasGuardadas.set({}); this.huellasConsultadas.set(null); return; }
     try {
       const bio: any = await firstValueFrom(this.procesosService.getBiometriaPorCedula(cedula));
       const mapa: Record<string, string> = {};
@@ -2807,11 +2900,13 @@ export class HiringQuestionsComponent implements OnInit {
         }
       }
       this.huellasGuardadas.set(mapa);
+      this.huellasConsultadas.set(String(cedula));
       void this.cargarCotejosGuardados(String(cedula), Object.keys(mapa));
     } catch {
       // Que falle la relectura no puede romper la pantalla: como mucho, la
       // tarjeta se queda sin la previa de lo ya guardado.
       this.huellasGuardadas.set({});
+      this.huellasConsultadas.set(String(cedula));
     }
   }
 
@@ -2866,13 +2961,17 @@ export class HiringQuestionsComponent implements OnInit {
         <div class="consent-dialog-content">
           <div class="consent-dialog-header">
             <div class="consent-dialog-icon">
-              <svg viewBox="0 0 24 24" width="32" height="32" fill="none" stroke="#2e7d32" stroke-width="2">
+              <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="#2e7d32" stroke-width="2">
                 <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/>
               </svg>
             </div>
-            <h2 class="consent-dialog-title">Autorización de Tratamiento de Datos Biométricos — Huella Dactilar</h2>
-            <span class="consent-dialog-badge">Ley 1581 de 2012</span>
-            <span class="consent-dialog-badge" style="background:#e8f5e9;color:#2e7d32">${cfg.nombre}</span>
+            <div class="consent-dialog-heading">
+              <h2 class="consent-dialog-title">Autorización de Tratamiento de Datos Biométricos — Huella Dactilar</h2>
+              <div class="consent-dialog-badges">
+                <span class="consent-dialog-badge">Ley 1581 de 2012</span>
+                <span class="consent-dialog-badge" style="background:#e8f5e9;color:#2e7d32">${cfg.nombre}</span>
+              </div>
+            </div>
           </div>
           <div class="consent-dialog-body-inner">
             <div class="consent-dialog-text">${texto}</div>
@@ -2884,7 +2983,9 @@ export class HiringQuestionsComponent implements OnInit {
           </div>
         </div>
       `,
-      width: '540px',
+      // Más ancho que alto: a 540 px el texto legal hacía la ventana más alta que
+      // la pantalla y los botones quedaban fuera de vista.
+      width: 'min(1000px, 94vw)',
       showCancelButton: true,
       confirmButtonText: '🔒 Autorizar y Capturar',
       cancelButtonText: 'Cancelar',
@@ -3144,10 +3245,17 @@ export class HiringQuestionsComponent implements OnInit {
           this.alert('success', '¡Listo!', `La huella (Índice Derecho — ${cfg.nombre}) se guardó correctamente.`);
           // Cotejo con la cédula del expediente: solo informa, no frena el flujo.
           if (empresaSlug) void this.cotejarHuella(empresaSlug);
-        } catch (e) {
+        } catch (e: any) {
           Swal.close();
-          setMsg('Huella capturada, pero no se pudo guardar.');
-          this.alert('error', 'Error al guardar la huella', 'Intenta nuevamente.');
+          // 422 HUELLA_NO_VALIDA: ms-hr miró la imagen y no parece una huella (vacía, en color...).
+          // El motivo dice qué hacer; un "Intenta nuevamente" a secas hacía repetir la misma imagen.
+          if (e?.status === 422 && e?.error?.codigo === 'HUELLA_NO_VALIDA') {
+            setMsg('La imagen no parece una huella: no se guardó.');
+            this.alert('warning', 'Esa imagen no parece una huella', e.error.error || 'Vuelve a capturarla con el lector.');
+          } else {
+            setMsg('Huella capturada, pero no se pudo guardar.');
+            this.alert('error', 'Error al guardar la huella', 'Intenta nuevamente.');
+          }
         }
       }
     } catch {

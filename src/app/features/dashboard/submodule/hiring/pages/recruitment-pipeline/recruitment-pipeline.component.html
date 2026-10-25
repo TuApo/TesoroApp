@@ -317,11 +317,15 @@
                  invita a pulsarlo para averiguar por qué no deja. -->
             @for (s of subSeleccionVisible(); track s.id) {
               @let pctS = pctSub(s.clave);
+              <!-- Entrevista sin la identidad completa no se apaga: lleva candado,
+                   el tooltip dice qué falta y el clic abre Cédula & Huella. -->
+              @let candadoIdentidad = s.id === 'entrevista' && entrevistaBloqueadaPorIdentidad();
               <button type="button" class="sub" role="tab"
                       [class.sub-activo]="subSeleccionActivo() === s.id"
                       [class.sub-completo]="pctS === 100"
+                      [class.sub-candado]="candadoIdentidad"
                       [attr.aria-selected]="subSeleccionActivo() === s.id"
-                      [disabled]="!esPasoLibre(s) && (bloqueoContratoTabs() || subBloqueadoPorPrueba(s))"
+                      [disabled]="!esPasoLibre(s) && (bloqueoContratoTabs() || (subBloqueadoPorPrueba(s) && !candadoIdentidad))"
                       [matTooltip]="bloqueoContratoTabs() && !esPasoLibre(s)
                         ? MOTIVO_BLOQUEO
                         : (motivoSubCerrado(s) ?? detalleAvance(s.label, s.clave))"
@@ -333,7 +337,7 @@
                 <span class="sub-anillo" [class.anillo-lleno]="pctS === 100"
                       [style.background]="fondoAnillo(pctS)">
                   <span class="sub-anillo-centro">
-                    <mat-icon>{{ pctS === 100 ? 'check' : s.icon }}</mat-icon>
+                    <mat-icon>{{ candadoIdentidad ? 'lock' : (pctS === 100 ? 'check' : s.icon) }}</mat-icon>
                   </span>
                 </span>
                 <span class="sub-txt">{{ s.label }}</span>
@@ -666,11 +670,11 @@
       </mat-tab>
 
       <!-- ─────────── TAB 3 • EXAMEN DE SALUD OCUPACIONAL ─────────── -->
-      <mat-tab [disabled]="bloqueoContratoTabs() || examenesBloqueadosPorPrueba()">
+      <mat-tab [disabled]="bloqueoContratoTabs() || examenesCerrados()">
         <ng-template mat-tab-label>
           <div class="tab" [matTooltip]="bloqueoContratoTabs()
                  ? 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar'
-                 : (examenesBloqueadosPorPrueba() ? MOTIVO_PRUEBA_PENDIENTE : null)">
+                 : motivoExamenesCerrados()">
             @if (examenesYaCargados()) {
               <mat-icon style="color:#2E7D32">check_circle</mat-icon>
             } @else {
@@ -706,9 +710,22 @@
           </div>
         }
 
+        <!-- Bloqueo: la Remisión no tiene todos sus datos (vacante, tipo y los
+             de ese tipo). Mismo caso: se llega por el índice guardado del tab. -->
+        @if (!examenesBloqueadosPorPrueba() && remisionIncompleta()) {
+          <div class="bloqueo-espera-banner">
+            <mat-icon>work</mat-icon>
+            <div>
+              <strong>Remisión incompleta.</strong>
+              No se pueden registrar exámenes de ingreso hasta llenar todos los datos de la
+              remisión (pestaña <em>Selección → Remisión</em>).
+            </div>
+          </div>
+        }
+
         <div class="tab-content-scrollable" [formGroup]="formGroup3"
              (focusout)="autoSalud.alSalirDeCampo()"
-             [class.bloqueado-espera]="bloqueado() || examenesBloqueadosPorPrueba()">
+             [class.bloqueado-espera]="bloqueado() || examenesCerrados()">
           <!-- Header del tab -->
           <header class="med-header">
             <div class="med-header-icon">
@@ -993,7 +1010,7 @@
               <button type="button" mat-flat-button color="primary" class="med-cargar-btn"
                       (click)="cargarExamen()"
                       [disabled]="!puedeAdjuntarExamen() || !examFilesAdjuntos() || subiendoExamen()
-                                  || bloqueado() || examenesBloqueadosPorPrueba()"
+                                  || bloqueado() || examenesCerrados()"
                       [matTooltip]="!puedeAdjuntarExamen() ? textoFaltantesCargaExamen()
                                     : (!examFilesAdjuntos() ? 'Adjunta al menos un PDF en la tarjeta del examen' : null)">
                 <mat-icon>{{ subiendoExamen() ? 'hourglass_top' : 'cloud_upload' }}</mat-icon>
@@ -1062,7 +1079,7 @@
 
             <div class="med-grid-2 med-concepto-campo">
               <mat-form-field appearance="outline">
-                <mat-label>Fecha realización del examen</mat-label>
+                <mat-label>Fecha realización del examen *</mat-label>
                 <!-- Calendario desplegable. El control `fechaExamen` sigue guardando 'AAAA-MM-DD'
                      (es lo que manda el guardado a ms-hr); el adaptador Moment lee ese texto ISO.
                      Primero dirty y luego el valor: el guardado solo envía la fecha si cambió. -->
@@ -1074,6 +1091,9 @@
                                      formGroup3.get('fechaExamen')?.setValue($event.value ? $event.value.format('YYYY-MM-DD') : '')">
                 <mat-datepicker-toggle matIconSuffix [for]="pickerFechaExamen"></mat-datepicker-toggle>
                 <mat-datepicker #pickerFechaExamen></mat-datepicker>
+                @if (!formGroup3.get('fechaExamen')?.value) {
+                  <mat-hint class="med-field-error">Obligatoria: sin ella no se abre la ARL.</mat-hint>
+                }
               </mat-form-field>
 
               <div class="med-requisitos" aria-live="polite">

@@ -95,6 +95,8 @@ export class ArlAfiliacionComponent {
   readonly claseRiesgo = signal<number | null>(null);
   readonly porcentaje = signal<number | null>(null);
   readonly CLASES_RIESGO = [1, 2, 3, 4, 5];
+  /** Tarifa por clase (Decreto 1772 de 1994). ms-hr rechaza un porcentaje que no case con la clase. */
+  private static readonly PORCENTAJE_POR_CLASE: Record<number, number> = { 1: 0.522, 2: 1.044, 3: 2.436, 4: 4.35, 5: 6.96 };
 
   /** PDF elegido y aún sin cargar. */
   readonly archivo = signal<File | null>(null);
@@ -196,14 +198,25 @@ export class ArlAfiliacionComponent {
 
   async alCambiarClase(valor: number | null): Promise<void> {
     this.claseRiesgo.set(valor);
-    if (this.certificadoCargado()) await this.guardar({ clase_riesgo: valor });
+    // La clase fija el porcentaje: se propone la tarifa (ms-hr hace lo mismo al guardar solo la clase).
+    const tarifa = valor != null ? ArlAfiliacionComponent.PORCENTAJE_POR_CLASE[valor] : undefined;
+    if (tarifa != null) this.porcentaje.set(tarifa);
+    if (this.certificadoCargado() && !(await this.guardar({ clase_riesgo: valor }))) this.volverAGuardado();
   }
 
   async alCambiarPorcentaje(valor: unknown): Promise<void> {
     const n = Number(String(valor ?? '').replace('%', '').replace(',', '.').trim());
     const v = String(valor ?? '').trim() && Number.isFinite(n) && n > 0 && n < 100 ? n : null;
     this.porcentaje.set(v);
-    if (this.certificadoCargado()) await this.guardar({ porcentaje_cotizacion: v });
+    if (this.certificadoCargado() && !(await this.guardar({ porcentaje_cotizacion: v }))) this.volverAGuardado();
+  }
+
+  /** Tras un rechazo (p. ej. porcentaje que no corresponde a la clase), los campos vuelven a lo guardado. */
+  private volverAGuardado(): void {
+    const a = this.estado()?.arl;
+    this.claseRiesgo.set(a?.clase_riesgo != null ? Number(a.clase_riesgo) : null);
+    const pct = a?.porcentaje_cotizacion != null ? Number(a.porcentaje_cotizacion) : NaN;
+    this.porcentaje.set(Number.isFinite(pct) ? pct : null);
   }
 
   private async guardar(cambios: Partial<AfiliacionArl>): Promise<boolean> {

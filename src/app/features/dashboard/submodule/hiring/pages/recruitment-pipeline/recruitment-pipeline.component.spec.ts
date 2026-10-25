@@ -242,6 +242,36 @@ describe('RecruitmentPipelineComponent', () => {
   });
 
   // ─────────────────────────────────────────────────────────────
+  describe('Entrevista cerrada sin la identidad completa', () => {
+    const entrevista = () => comp.subSeleccion.find((x) => x.id === 'entrevista')!;
+    const nav = () => (comp as any).nav;
+
+    it('mientras se consulta no se cierra (sin parpadeo)', () => {
+      nav().requisitosIdentidad.set({ resuelto: false, faltantes: ['Huella'] });
+      expect(comp.entrevistaBloqueadaPorIdentidad()).toBeFalse();
+      expect(comp.motivoSubCerrado(entrevista())).toBeNull();
+    });
+
+    it('resuelto con faltantes: candado, motivo y redirección a Cédula & Huella', () => {
+      nav().requisitosIdentidad.set({ resuelto: true, faltantes: ['Correo comprobado', 'Foto'] });
+      expect(comp.entrevistaBloqueadaPorIdentidad()).toBeTrue();
+      expect(comp.subBloqueadoPorPrueba(entrevista())).toBeTrue();
+      expect(comp.motivoSubCerrado(entrevista())).toContain('Correo comprobado, Foto');
+
+      comp.abrirSubSeleccion(entrevista());
+      expect(comp.tabIndex()).toBe(4);
+      expect(nav().subContratacion()).toBe(comp.IDX_HUELLA);
+    });
+
+    it('con la identidad completa abre la Entrevista', () => {
+      nav().requisitosIdentidad.set({ resuelto: true, faltantes: [] });
+      comp.abrirSubSeleccion(entrevista());
+      expect(comp.tabIndex()).toBe(2);
+      expect(nav().panelSeleccion()).toBe('entrevista');
+    });
+  });
+
+  // ─────────────────────────────────────────────────────────────
   // Pedido #10: la pestaña Contratación espera el examen médico (PDF de este
   // proceso + concepto apto), solo en procesos desde la fecha de corte.
   describe('examen médico requerido para contratar', () => {

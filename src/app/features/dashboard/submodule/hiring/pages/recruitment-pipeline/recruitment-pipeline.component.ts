@@ -89,6 +89,8 @@ import {
   motivoConceptoBloqueado as motivoConceptoBloqueadoRegla,
   normalizarConcepto,
   textoBloqueoExamen,
+  faltantesExamenParaArl,
+  textoFaltantesArl,
   textoFaltantesCarga,
 } from './examen-medico.rules';
 import { ExamenMedicoApi } from './examen-medico.api';
@@ -748,16 +750,61 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   readonly MOTIVO_PRUEBA_PENDIENTE =
     'Primero registra que pasó la prueba técnica (Selección → Remisión)';
 
-  /** ¿Este sub-paso del rail está cerrado por prueba técnica pendiente? */
+  /**
+   * Exámenes de ingreso tampoco se abre con la Remisión a medias: vacante,
+   * tipo y los datos que pide ese tipo (ver `publicarAvanceRemision` en
+   * help-information). Se lee del avance que publica la pestaña; mientras no
+   * lo ha publicado no se cierra, para no parpadear al cambiar de persona.
+   */
+  readonly remisionIncompleta = computed<boolean>(() => {
+    const a = this.nav.avance('remision');
+    return !!a && a.total > 0 && a.hechos < a.total;
+  });
+
+  readonly motivoRemisionIncompleta = computed<string>(() => {
+    const a = this.nav.avance('remision');
+    const faltan = a ? a.total - a.hechos : 0;
+    return `Primero completa la Remisión: ${faltan === 1 ? 'falta 1 dato' : `faltan ${faltan} datos`}`
+      + ' (Selección → Remisión)';
+  });
+
+  /** Por qué Exámenes de ingreso está cerrado (prueba técnica o remisión), o null. */
+  readonly motivoExamenesCerrados = computed<string | null>(() => {
+    if (this.examenesBloqueadosPorPrueba()) return this.MOTIVO_PRUEBA_PENDIENTE;
+    if (this.remisionIncompleta()) return this.motivoRemisionIncompleta();
+    return null;
+  });
+
+  readonly examenesCerrados = computed<boolean>(() => this.motivoExamenesCerrados() !== null);
+
+  /**
+   * La Entrevista no se abre sin la identidad completa: cédula cargada, correo
+   * comprobado, huella y foto (el 100 % de Cédula & Huella). Mientras el paso
+   * aún pregunta al servidor no se cierra, para no parpadear con cada persona.
+   */
+  readonly entrevistaBloqueadaPorIdentidad = computed<boolean>(() => {
+    const r = this.nav.requisitosIdentidad();
+    return r.resuelto && r.faltantes.length > 0;
+  });
+
+  readonly motivoEntrevistaCerrada = computed<string>(() =>
+    `Para abrir la Entrevista falta: ${this.nav.requisitosIdentidad().faltantes.join(', ')}`
+    + ' (Selección → Cédula & Huella)');
+
+  /** ¿Este sub-paso del rail está cerrado (prueba técnica, ARL o identidad)? */
   subBloqueadoPorPrueba(sub: SubPasoSeleccion): boolean {
+    if (sub.id === 'entrevista') return this.entrevistaBloqueadaPorIdentidad();
     if (sub.id === 'arl') return this.motivoArlCerrado() !== null;
-    return sub.id === 'examenes' && this.examenesBloqueadosPorPrueba();
+    return sub.id === 'examenes' && this.examenesCerrados();
   }
 
   /** Tooltip del paso cerrado en el rail. */
   motivoSubCerrado(sub: SubPasoSeleccion): string | null {
     if (sub.id === 'arl') return this.motivoArlCerrado();
-    return this.subBloqueadoPorPrueba(sub) ? this.MOTIVO_PRUEBA_PENDIENTE : null;
+    if (sub.id === 'entrevista') {
+      return this.entrevistaBloqueadaPorIdentidad() ? this.motivoEntrevistaCerrada() : null;
+    }
+    return sub.id === 'examenes' ? this.motivoExamenesCerrados() : null;
   }
 
   readonly etiquetaPrueba = computed<string>(() => etiquetaPruebaTecnica(this._proceso()));
@@ -875,11 +922,12 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   readonly motivoArlCerrado = computed<string | null>(() => {
     if (this.bloqueoContratoTabs()) return 'Dé de baja el contrato activo o usa Modificar de todas formas para continuar';
     if (this.bloqueado()) return `Candidato ${this.motivoBloqueo()}: no se registra la ARL.`;
-    if (this.examenesBloqueadosPorPrueba()) return this.MOTIVO_PRUEBA_PENDIENTE;
+    const examenesCerrados = this.motivoExamenesCerrados();
+    if (examenesCerrados) return examenesCerrados;
     if (this.estadoExamen().bloquea) {
       return 'Primero el examen médico: PDF cargado y concepto APTO o APTO CON RESTRICCIONES.';
     }
-    return null;
+    return this.motivoArlPorExamen();
   });
 
   /** Por qué Contratación está cerrada (examen y/o ARL), para tooltips. */
@@ -968,14 +1016,35 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   // sin tocar el concepto) → 3) concepto. Ver examen-medico.rules.ts.
 
   /** IPS y lista de exámenes en pantalla (el formulario no es una señal). */
-  private readonly saludValores = signal<{ ips: unknown; exams: unknown }>({ ips: '', exams: [] });
+  private readonly saludValores = signal<{ ips: unknown; exams: unknown; restricciones: unknown; fecha: unknown }>(
+    { ips: '', exams: [], restricciones: '', fecha: '' });
 
   private syncSaludValores(): void {
     this.saludValores.set({
       ips: this.formGroup3?.get('ips')?.value ?? '',
       exams: this.formGroup3?.get('selectedExams')?.value ?? [],
+      restricciones: this.formGroup3?.get('restricciones')?.value ?? '',
+      fecha: this.formGroup3?.get('fechaExamen')?.value ?? '',
     });
   }
+
+  /**
+   * Por qué el examen no deja abrir la ARL (null si está completo): IPS, lista,
+   * PDF, concepto que deja contratar, restricciones y fecha de realización. Lo
+   * salta un ADMIN con el mismo salto del bloqueo del examen.
+   */
+  readonly motivoArlPorExamen = computed<string | null>(() => {
+    if (this.estadoExamen().salto) return null;
+    const v = this.saludValores();
+    return textoFaltantesArl(faltantesExamenParaArl({
+      ips: v.ips,
+      examenes: v.exams,
+      pdfCargado: this.pdfExamenDelProceso(),
+      concepto: this.conceptoForm(),
+      restricciones: v.restricciones,
+      fechaExamen: v.fecha,
+    }));
+  });
 
   /** Obligatorios que faltan para poder cargar el PDF del examen. */
   readonly faltantesCargaExamen = computed<string[]>(() => {
@@ -1784,6 +1853,14 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
   abrirSubSeleccion(sub: SubPasoSeleccion): void {
     if (!this.esPasoLibre(sub)) {
       if (this.bloqueoContratoTabs()) return;
+      // Entrevista cerrada por identidad: se va a donde se completa, en vez de
+      // no hacer nada (es también el paso por defecto al abrir Selección).
+      if (sub.id === 'entrevista' && this.entrevistaBloqueadaPorIdentidad()) {
+        this.snack.open(this.motivoEntrevistaCerrada(), 'OK', { duration: 5000 });
+        const huella = this.subSeleccion.find((s) => this.esPasoLibre(s));
+        if (huella) this.abrirSubSeleccion(huella);
+        return;
+      }
       if (this.subBloqueadoPorPrueba(sub)) return;
     }
     this.accesosAbiertos.set(false);
@@ -1915,7 +1992,9 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       || !!String(this.formGroup3.get('restricciones')?.value ?? '').trim();
     const decision: Avance = { hechos: concepto && restriccionesOk ? 1 : 0, total: 1 };
     const pdf: Avance = { hechos: this.estadoExamen().pdfCargado ? 1 : 0, total: 1 };
-    this.nav.publicar('examenes', sumarAvances([base, decision, pdf]));
+    // La fecha de realización es obligatoria para abrir la ARL.
+    const fecha: Avance = { hechos: String(this.formGroup3.get('fechaExamen')?.value ?? '').trim() ? 1 : 0, total: 1 };
+    this.nav.publicar('examenes', sumarAvances([base, decision, pdf, fecha]));
   }
 
   /**
@@ -2512,6 +2591,19 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
       this.nav.generacion.set({
         puede: this.puedeGenerarDocumentacion(),
         motivo: this.tooltipGenerarDocumentacion(),
+      });
+    });
+
+    // 5.89) Entrevista cerrada por identidad incompleta y abierta en pantalla
+    //       (es el panel por defecto de cada persona): se lleva a Cédula &
+    //       Huella, que es lo que hay que llenar primero.
+    effect(() => {
+      if (!this.entrevistaBloqueadaPorIdentidad()) return;
+      if (this.accesosAbiertos()) return;
+      if (this.tabIndex() !== 2 || this.nav.panelSeleccion() !== 'entrevista') return;
+      untracked(() => {
+        const entrevista = this.subSeleccion.find((s) => s.id === 'entrevista');
+        if (entrevista) this.abrirSubSeleccion(entrevista);
       });
     });
 
@@ -3395,7 +3487,7 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
     if (opts.silencioso) {
       // Guardado automático: sin cargador ni avisos; si falla, lanza y lo
       // muestra el indicador.
-      if (this.bloqueado() || this.examenesBloqueadosPorPrueba()) return;
+      if (this.bloqueado() || this.examenesCerrados()) return;
       if (!this.candidatoSeleccionado()?.numero_documento) return;
       this.isSavingMedical.set(true);
       try {
@@ -3622,11 +3714,15 @@ export class RecruitmentPipelineComponent implements AfterViewInit {
    */
   async cargarExamen(): Promise<void> {
     if (this.subiendoExamen()) return;
-    if (this.bloqueado() || this.examenesBloqueadosPorPrueba()) {
+    if (this.bloqueado() || this.examenesCerrados()) {
       await Swal.fire({
         icon: 'info', toast: true, position: 'top-end', showConfirmButton: false, timer: 3500,
-        title: this.bloqueado() ? `Candidato ${this.motivoBloqueo()}` : 'Prueba técnica pendiente',
-        text: 'No se pueden cargar exámenes de ingreso en este estado.',
+        title: this.bloqueado()
+          ? `Candidato ${this.motivoBloqueo()}`
+          : (this.examenesBloqueadosPorPrueba() ? 'Prueba técnica pendiente' : 'Remisión incompleta'),
+        text: this.bloqueado()
+          ? 'No se pueden cargar exámenes de ingreso en este estado.'
+          : (this.motivoExamenesCerrados() ?? ''),
       });
       return;
     }
