@@ -63,7 +63,7 @@ import { anioAuxilio, auxilioTransporteDelAnio, esSi, textoAuxilio } from './aux
 import { AutoGuardadoEstadoComponent } from '../auto-guardado-estado/auto-guardado-estado.component';
 import { HuellaCapturaService } from '../../service/huella/huella-captura.service';
 import { ArchivosBackendService } from '../../service/archivos/archivos-backend.service';
-import { HuellaError, OrigenHuella } from '../../service/huella/huella.model';
+import { HuellaError, MotivoNoDisponible, OrigenHuella } from '../../service/huella/huella.model';
 import { CedulaCamaraComponent } from '../cedula-camara/cedula-camara.component';
 import { CedulaCamaraService } from '../cedula-camara/cedula-camara.service';
 import { CedulaArmada } from '../cedula-camara/cedula-camara.util';
@@ -2927,9 +2927,20 @@ export class HiringQuestionsComponent implements OnInit {
     // loopback, lector desconectado) y sin el error concreto no hay forma de
     // saber cuál es sin abrir las herramientas del navegador.
     const detalle = this.huellaSvc.detalleAgente();
-    this.formaCaptura.set(this.enMovil
-      ? 'Sin lector: adjunta la imagen de la huella'
-      : `Sin lector detectado${detalle ? ' — ' + detalle : ''}`);
+    const motivo = this.huellaSvc.motivoAgente();
+    let texto: string;
+    if (this.enMovil) {
+      texto = 'Sin lector: adjunta la imagen de la huella';
+    } else if (this.huellaSvc.esNavegador() && motivo === 'sin-permiso') {
+      texto = 'Chrome bloqueó el acceso al lector de este equipo. Pulsa «Capturar Huella» para ver cómo habilitarlo.';
+    } else if (this.huellaSvc.esNavegador() && motivo === 'sin-agente') {
+      texto = 'El agente del lector no responde. Ábrelo o reinícialo, revisa el USB y pulsa «Reintentar detección».';
+    } else if (motivo === 'sin-lector') {
+      texto = 'El agente del lector funciona, pero no ve ningún lector: revisa el cable USB.';
+    } else {
+      texto = `Sin lector detectado${detalle ? ' — ' + detalle : ''}`;
+    }
+    this.formaCaptura.set(texto);
   }
 
   // ── SHA-256 genérico ──
@@ -3133,31 +3144,71 @@ export class HiringQuestionsComponent implements OnInit {
     // pasar por el consentimiento ni por el botón.
     let captura;
     let intento = 0;
+    // La forma de captura puede cambiar a mitad del bucle: cuando no hay
+    // lector, cada diálogo ofrece "Adjuntar imagen" y a partir de ahí se
+    // sigue por `archivo`.
+    let forma: OrigenHuella | undefined = origen;
+    // Ya se pulsó "Ya lo habilité, reintentar" y Chrome sigue en bloqueado:
+    // el ajuste del sitio solo entra al recargar, y la segunda vez se ofrece eso.
+    let insistioPermiso = false;
+
+    /** Qué hacer con lo que decidió el diálogo de "no hay lector". */
+    const aplicar = async (decision: 'reintentar' | 'archivo' | 'recargar' | null): Promise<'seguir' | 'salir'> => {
+      if (decision === 'archivo') { forma = 'archivo'; return 'seguir'; }
+      if (decision === 'recargar') { location.reload(); return 'salir'; }
+      if (decision === 'reintentar') {
+        if (this.huellaSvc.motivoAgente() === 'sin-permiso') insistioPermiso = true;
+        this.huellaSvc.olvidarSondeo();
+        return 'seguir';
+      }
+      return 'salir';
+    };
+
     while (true) {
       intento++;
       try {
-        captura = origen
-          ? (origen === 'archivo'
-              ? await this.huellaSvc.capturar(origen)
-              : await conAvisoDeLector(() => this.huellaSvc.capturar(origen)))
-          : (await this.huellaSvc.hayLectorTrasReintento())
-            ? await conAvisoDeLector(() => this.huellaSvc.capturar())
-            : await this.ofrecerAdjuntarHuella(setMsg);
+        if (forma) {
+          captura = forma === 'archivo'
+            ? await this.huellaSvc.capturar(forma)
+            : await conAvisoDeLector(() => this.huellaSvc.capturar(forma));
+        } else if (await this.huellaSvc.hayLectorTrasReintento()) {
+          captura = await conAvisoDeLector(() => this.huellaSvc.capturar());
+        } else {
+          const decision = await this.dialogoSinLector(
+            this.huellaSvc.motivoAgente(), this.huellaSvc.detalleAgente(), insistioPermiso,
+          );
+          if (await aplicar(decision) === 'salir') { setMsg(await this.huellaSvc.motivoSinLector()); return; }
+          continue;
+        }
         if (!captura) return;
       } catch (e) {
         const err = e as HuellaError;
         if (err?.cancelado) { setMsg('Captura cancelada.'); return; }
         const detalle = err?.message || 'No se pudo capturar la huella.';
         setMsg(detalle);
-        const { isConfirmed } = await Swal.fire({
+
+        // Falló HABLAR con el agente (permiso de Chrome, programa cerrado,
+        // USB), no la captura en sí: mismo diálogo que cuando no se detecta,
+        // con los pasos concretos de cada causa.
+        if (err?.motivo && this.huellaSvc.esNavegador()) {
+          const decision = await this.dialogoSinLector(err.motivo, detalle, insistioPermiso);
+          if (await aplicar(decision) === 'salir') return;
+          continue;
+        }
+
+        // Lector presente pero sin captura (dedo ausente, tiempo agotado…).
+        const { isConfirmed, isDenied } = await Swal.fire({
           icon: 'error',
           title: 'No se pudo capturar la huella',
           text: detalle,
+          showDenyButton: true,
           showCancelButton: true,
           confirmButtonText: 'Reintentar',
+          denyButtonText: 'Adjuntar imagen',
           cancelButtonText: 'Cancelar',
         });
         if (isConfirmed) continue;   // fallar no debe costar empezar de cero
+        if (isDenied) { forma = 'archivo'; continue; }
         return;
       }
 
@@ -3264,23 +3315,131 @@ export class HiringQuestionsComponent implements OnInit {
   }
 
   /**
-   * No hay lector: se le pregunta a quien contrata antes de aceptar una imagen
-   * suelta. Adjuntar es una excepción trazable (queda como origen `archivo`),
-   * no un respaldo que ocurra solo.
+   * No hay lector ahora mismo. Qué hacer depende de POR QUÉ, y las tres
+   * causas se arreglan en sitios distintos, así que no se mezclan en un
+   * "sin lector" genérico:
+   *
+   *   - `sin-permiso`: Chrome tiene bloqueado el acceso de tesoro.tuapo.co a
+   *     la red local (Local Network Access, Chrome 142+). Se arregla en los
+   *     ajustes del sitio y hay que decir exactamente dónde. Si el permiso
+   *     está en `prompt`, basta aceptar el aviso que Chrome muestra al reintentar.
+   *   - `sin-agente`: el navegador no estorba pero nadie contesta en
+   *     127.0.0.1: el programa del lector está cerrado o colgado.
+   *   - `sin-lector`: el agente contesta y no ve el lector: es el USB.
+   *   - cualquier otra cosa (Electron, celular): el texto de siempre.
+   *
+   * En todos los casos se puede adjuntar la imagen. Es una excepción trazable
+   * (queda como origen `archivo`), no un respaldo que ocurra solo.
    */
-  private async ofrecerAdjuntarHuella(setMsg: (t: string) => void) {
-    const motivo = await this.huellaSvc.motivoSinLector();
+  private async dialogoSinLector(
+    motivo: MotivoNoDisponible | undefined,
+    detalle: string | undefined,
+    insistioPermiso: boolean,
+  ): Promise<'reintentar' | 'archivo' | 'recargar' | null> {
+    const tecnico = detalle
+      ? `<p style="margin:10px 0 0;font-size:12px;opacity:.6">${detalle}</p>` : '';
+    const comunes = {
+      showDenyButton: true,
+      showCancelButton: true,
+      denyButtonText: 'Adjuntar imagen',
+      cancelButtonText: 'Cancelar',
+      reverseButtons: true,
+    } as const;
+    const decidir = (r: { isConfirmed: boolean; isDenied: boolean }, confirmar: 'reintentar' | 'recargar') =>
+      r.isConfirmed ? confirmar : (r.isDenied ? 'archivo' : null);
 
+    if (this.huellaSvc.esNavegador() && motivo === 'sin-permiso') {
+      const permiso = await this.huellaSvc.permisoRedLocal();
+
+      if (permiso === 'prompt') {
+        return decidir(await Swal.fire({
+          icon: 'info',
+          title: 'Chrome necesita tu permiso para usar el lector',
+          html: '<p style="margin:0 0 8px">Al reintentar, Chrome mostrará un aviso junto a la barra de '
+            + 'direcciones preguntando si este sitio puede acceder a la red local (o a las aplicaciones '
+            + 'de este equipo).</p><p style="margin:0">Pulsa <strong>Permitir</strong>.</p>',
+          ...comunes,
+          confirmButtonText: 'Reintentar',
+        }), 'reintentar');
+      }
+
+      if (insistioPermiso) {
+        return decidir(await Swal.fire({
+          icon: 'warning',
+          title: 'Chrome sigue mostrando el acceso bloqueado',
+          html: '<p style="margin:0 0 8px">El cambio en la configuración del sitio solo se aplica al '
+            + 'recargar la página. Si ya pusiste <strong>Acceso a la red local</strong> en '
+            + '<strong>Permitir</strong>, recarga y vuelve a capturar.</p>'
+            + '<p style="margin:0;font-size:13px;opacity:.75">Si no encuentras la opción, pide al '
+            + 'administrador que permita <code>https://tesoro.tuapo.co</code> en la política '
+            + '<code>LocalNetworkAccessAllowedForUrls</code> de Chrome.</p>',
+          ...comunes,
+          confirmButtonText: 'Recargar la página',
+        }), 'recargar');
+      }
+
+      return decidir(await Swal.fire({
+        icon: 'warning',
+        title: 'Chrome bloqueó el acceso al lector',
+        html: '<p style="margin:0 0 8px;text-align:left">El navegador tiene bloqueado el acceso de este '
+          + 'sitio a la red local, y por ahí se habla con el lector de huella. Para habilitarlo:</p>'
+          + '<ol style="margin:0;padding-left:22px;text-align:left;line-height:1.5">'
+          + '<li>Haz clic en el <strong>ícono de ajustes</strong> (⚙ o candado) a la izquierda de la '
+          + 'dirección <strong>tesoro.tuapo.co</strong>.</li>'
+          + '<li>Entra en <strong>Configuración del sitio</strong>.</li>'
+          + '<li>Busca <strong>Acceso a la red local</strong> (en Chrome 145 o superior se llama '
+          + '<strong>Aplicaciones en el dispositivo</strong> / «Apps on device») y cámbialo a '
+          + '<strong>Permitir</strong>.</li>'
+          + '<li>Vuelve a esta pestaña y <strong>recárgala</strong> (F5).</li>'
+          + '</ol>' + tecnico,
+        ...comunes,
+        confirmButtonText: 'Ya lo habilité, reintentar',
+      }), 'reintentar');
+    }
+
+    if (this.huellaSvc.esNavegador() && motivo === 'sin-agente') {
+      const permiso = await this.huellaSvc.permisoRedLocal();
+      const aviso = permiso === 'prompt'
+        ? '<p style="margin:8px 0 0;text-align:left">Si al reintentar Chrome muestra un aviso pidiendo '
+          + 'acceso a la red local, pulsa <strong>Permitir</strong>.</p>'
+        : '';
+      return decidir(await Swal.fire({
+        icon: 'warning',
+        title: 'El agente del lector no responde',
+        html: '<p style="margin:0 0 8px;text-align:left">El navegador no está bloqueando nada, pero el '
+          + 'programa del lector no contesta en este equipo.</p>'
+          + '<ol style="margin:0;padding-left:22px;text-align:left;line-height:1.5">'
+          + '<li>Abre el programa <strong>Agente de huella</strong>, o reinícialo si ya está abierto.</li>'
+          + '<li>Revisa que el lector esté conectado por <strong>USB</strong>.</li>'
+          + '<li>Pulsa <strong>Reintentar</strong>.</li>'
+          + '</ol>' + aviso + tecnico,
+        ...comunes,
+        confirmButtonText: 'Reintentar',
+      }), 'reintentar');
+    }
+
+    if (motivo === 'sin-lector') {
+      return decidir(await Swal.fire({
+        icon: 'warning',
+        title: 'Sin lector conectado',
+        text: 'El agente del lector está funcionando, pero no ve ningún lector. '
+          + 'Revisa el cable USB y vuelve a intentar.',
+        ...comunes,
+        confirmButtonText: 'Reintentar',
+      }), 'reintentar');
+    }
+
+    // Electron, celular, o un fallo sin causa conocida: como siempre.
+    const texto = await this.huellaSvc.motivoSinLector();
     const { isConfirmed } = await Swal.fire({
       icon: 'warning',
       title: 'Sin lector de huella',
-      text: `${motivo} ¿Quieres adjuntar una imagen de la huella?`,
+      text: `${texto} ¿Quieres adjuntar una imagen de la huella?`,
       showCancelButton: true,
       confirmButtonText: 'Adjuntar imagen',
       cancelButtonText: 'Cancelar',
     });
-    if (!isConfirmed) { setMsg(motivo); return null; }
-    return this.huellaSvc.capturar('archivo');
+    return isConfirmed ? 'archivo' : null;
   }
 
   // Helper: DataURL → File
