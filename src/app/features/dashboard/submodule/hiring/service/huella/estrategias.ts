@@ -13,6 +13,49 @@ const NO: (m: MotivoNoDisponible) => { disponible: false; motivo: MotivoNoDispon
 const SI = { disponible: true as const };
 
 // ───────────────────────────────────────────────────────────────────────────
+// Permiso "Local Network Access" de Chrome
+// ───────────────────────────────────────────────────────────────────────────
+
+/** Qué dice el navegador del permiso para hablar con 127.0.0.1. */
+export type PermisoRedLocal = 'granted' | 'prompt' | 'denied' | 'desconocido';
+
+/**
+ * NOMBRES DEL PERMISO, por versión de Chrome (verificado 2026-10-26 contra
+ * developer.chrome.com, MDN y la especificación WICG de Local Network Access):
+ *
+ *   - Chrome 142-144: un solo permiso, `local-network-access`.
+ *   - Chrome 145+: se parte en dos, `local-network` (la red de la oficina) y
+ *     `loopback-network` (este mismo equipo: 127.0.0.1). El nombre viejo se
+ *     conserva como alias que agrega los dos: basta que uno esté `denied`
+ *     para que el alias diga `denied`.
+ *
+ * Al agente solo le importa loopback, así que se pregunta primero por
+ * `loopback-network` y, si esa versión de Chrome no lo conoce (`query` lanza
+ * TypeError), por el alias. Un navegador sin ninguno de los dos —Firefox,
+ * Safari, un Chrome anterior a 142— devuelve `desconocido` y se sigue como
+ * siempre: ahí este bloqueo no existe.
+ *
+ * NO HAY `permissions.request()`: Chrome muestra su aviso en la primera
+ * petición `fetch` hacia loopback con el permiso en `prompt` (y solo después
+ * de haber abierto la conexión: con el agente apagado no hay aviso). Por eso
+ * la forma de "pedir el permiso" es hacer la petición, con un plazo largo
+ * para que la persona alcance a leer y contestar.
+ */
+export async function permisoRedLocal(): Promise<PermisoRedLocal> {
+  const permisos = typeof navigator !== 'undefined' ? navigator.permissions : undefined;
+  if (!permisos?.query) return 'desconocido';
+  for (const name of ['loopback-network', 'local-network-access']) {
+    try {
+      const estado = await permisos.query({ name: name as PermissionName });
+      return estado.state as PermisoRedLocal;
+    } catch {
+      // Esta versión no conoce ese nombre: se prueba el siguiente.
+    }
+  }
+  return 'desconocido';
+}
+
+// ───────────────────────────────────────────────────────────────────────────
 // 1. Electron — lo que ya funciona en las oficinas
 // ───────────────────────────────────────────────────────────────────────────
 
@@ -109,6 +152,18 @@ export class EstrategiaAgenteLocal implements EstrategiaHuella {
    */
   detalleFallo?: string;
 
+  /**
+   * Último estado conocido del permiso de Chrome para loopback. Se consulta
+   * antes de CADA petición: con `denied` no se intenta nada, porque Chrome
+   * rechazaría la petición sin enviarla y el error sería el mismo
+   * `TypeError: Failed to fetch` de un agente apagado.
+   */
+  permiso: PermisoRedLocal = 'desconocido';
+
+  static readonly TEXTO_BLOQUEADO =
+    'Chrome tiene bloqueado el acceso de este sitio a la red local, y por ahí se habla con el lector. '
+    + 'Habilítalo en la configuración del sitio y vuelve a intentar.';
+
   constructor(
     private readonly base: string,
     // 4 s, no 1,5: la primera consulta de dispositivos del agente carga su
@@ -116,6 +171,10 @@ export class EstrategiaAgenteLocal implements EstrategiaHuella {
     // sano se veía como "no hay agente" y la pantalla mandaba a adjuntar.
     private readonly msSondeo = 4000,
     private readonly msCaptura = 30000,
+    // Con el permiso en `prompt`, la petición de sondeo es la que hace salir
+    // el aviso de Chrome, y se queda esperando a que la persona lo conteste.
+    // Cortarla a los 4 s tumbaría el aviso antes de que lo lea.
+    private readonly msAviso = 60000,
   ) {}
 
   /**
@@ -157,7 +216,10 @@ export class EstrategiaAgenteLocal implements EstrategiaHuella {
           signal: corte.signal,
         });
       } catch (e) {
-        ultimo = e;
+        // Un Chrome anterior a 138 no conoce `loopback` como IPAddressSpace y
+        // rechaza la Request sin salir a la red: ese error no cuenta, lo que
+        // importa es el del intento real.
+        if (!/IPAddressSpace|targetAddressSpace/.test(String((e as any)?.message ?? ''))) ultimo = e;
         // Si fue el reloj, reintentar con otra variante no ayuda: el agente
         // está colgado, no bloqueado.
         if (corte.signal.aborted) break;
@@ -216,24 +278,63 @@ export class EstrategiaAgenteLocal implements EstrategiaHuella {
     }
   }
 
+  /**
+   * Se pregunta al navegador ANTES de salir a la red. Tres salidas:
+   *
+   *   - `denied`: no se intenta nada y se dice la causa con certeza, que es
+   *     lo que antes faltaba: el "Failed to fetch" de un bloqueo es idéntico
+   *     al de un agente apagado.
+   *   - `prompt`: la petición de sondeo es la que hace aparecer el aviso de
+   *     Chrome, así que va con plazo largo. Al volver se vuelve a preguntar:
+   *     si la persona pulsó "Bloquear", ahora es `denied`.
+   *   - `granted` o `desconocido`: sondeo normal.
+   */
   async comprobar() {
+    this.permiso = await permisoRedLocal();
+    if (this.permiso === 'denied') return this.bloqueado();
+
+    const plazo = this.permiso === 'prompt' ? this.msAviso : this.msSondeo;
     try {
-      const r = await this.pedir('/ping', { method: 'GET' }, this.msSondeo);
+      const r = await this.pedir('/ping', { method: 'GET' }, plazo);
       this.detalleFallo = undefined;
       if (!r.ok) { this.detalleFallo = `El agente respondió ${r.status}.`; return NO('sin-agente'); }
       const cuerpo = await r.json().catch(() => null);
       if (!cuerpo?.ok) return NO('sin-lector');
       this.dispositivo = cuerpo.dispositivo;
       return SI;
-    } catch (e) {
+    } catch (e: any) {
+      if (this.permiso === 'prompt') this.permiso = await permisoRedLocal();
+      if (this.permiso === 'denied') return this.bloqueado();
+
+      if (this.permiso === 'granted' || this.permiso === 'prompt') {
+        // El navegador no estorba: si nadie contestó, es el agente. En
+        // `prompt` sin aviso visto, Chrome ni siquiera llegó a conectar.
+        this.detalleFallo = e?.name === 'AbortError'
+          ? 'El agente no contestó a tiempo.'
+          : 'No hay ningún agente escuchando en 127.0.0.1:52181.';
+        return NO('sin-agente');
+      }
+
+      // Sin API de permisos (Firefox, Safari, Chrome viejo): "Failed to
+      // fetch" no dice nada por sí solo, hay que preguntar mejor.
       const directo = this.motivoDeFallo(e);
       if (directo === 'sin-permiso') return NO(directo);
-      // "Failed to fetch" no dice nada por sí solo: hay que preguntar mejor.
       return NO(await this.porQueFallo());
     }
   }
 
+  private bloqueado() {
+    this.detalleFallo = 'Chrome tiene bloqueado el acceso a la red local para este sitio.';
+    return NO('sin-permiso');
+  }
+
   async capturar(): Promise<CapturaHuella> {
+    // Mismo cerrojo que en el sondeo: el permiso pudo cambiar entre uno y otro.
+    this.permiso = await permisoRedLocal();
+    if (this.permiso === 'denied') {
+      throw new HuellaError(EstrategiaAgenteLocal.TEXTO_BLOQUEADO, this.origen, false, 'sin-permiso');
+    }
+
     let r: Response;
     try {
       r = await this.pedir('/capturar', { method: 'POST' }, this.msCaptura);
@@ -241,21 +342,29 @@ export class EstrategiaAgenteLocal implements EstrategiaHuella {
       if (e?.name === 'AbortError') {
         throw new HuellaError('El lector no respondió a tiempo. Revisa que esté conectado.', this.origen);
       }
-      const motivo = this.motivoDeFallo(e);
+      if (this.permiso === 'prompt') this.permiso = await permisoRedLocal();
+      if (this.permiso === 'denied') {
+        throw new HuellaError(EstrategiaAgenteLocal.TEXTO_BLOQUEADO, this.origen, false, 'sin-permiso');
+      }
+      const motivo = this.permiso === 'desconocido' ? this.motivoDeFallo(e) : 'sin-agente';
       throw new HuellaError(
         motivo === 'sin-permiso'
           ? 'El navegador bloqueó la conexión con el agente. Autoriza el acceso a la red local y reintenta.'
-          : 'No se pudo hablar con el agente del lector. Comprueba que esté en ejecución.',
+          : 'El agente del lector no responde. Ábrelo o reinícialo en este equipo y revisa el cable USB.',
         this.origen,
+        false,
+        motivo,
       );
     }
 
     const cuerpo = await r.json().catch(() => null);
     if (!r.ok || !cuerpo?.imagenBase64) {
-      const err = cuerpo?.error === 'sin-lector'
-        ? 'El agente no encuentra ningún lector conectado.'
-        : (cuerpo?.error || 'El agente no devolvió ninguna imagen.');
-      throw new HuellaError(String(err), this.origen);
+      if (cuerpo?.error === 'sin-lector') {
+        throw new HuellaError('El agente no encuentra ningún lector conectado.', this.origen, false, 'sin-lector');
+      }
+      // Dedo ausente, captura expirada, lector ocupado…: el texto del agente
+      // tal cual. Es el caso de "lector conectado pero sin captura".
+      throw new HuellaError(String(cuerpo?.error || 'El agente no devolvió ninguna imagen.'), this.origen);
     }
 
     return {

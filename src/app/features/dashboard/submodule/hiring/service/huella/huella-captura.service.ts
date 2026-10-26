@@ -2,10 +2,11 @@ import { Injectable, signal } from '@angular/core';
 import { environment } from '../../../../../../../environments/environment';
 import { detectarPlataforma, Plataforma } from '../../../../../../core/security/plataforma.util';
 import {
-  CapturaHuella, EstadoEstrategia, EstrategiaHuella, HuellaError, OrigenHuella,
+  CapturaHuella, EstadoEstrategia, EstrategiaHuella, HuellaError, MotivoNoDisponible, OrigenHuella,
 } from './huella.model';
 import {
   EstrategiaAgenteLocal, EstrategiaArchivo, EstrategiaElectron, EstrategiaNativaAndroid,
+  PermisoRedLocal, permisoRedLocal,
 } from './estrategias';
 
 /**
@@ -86,6 +87,15 @@ export class HuellaCapturaService {
     return this.disponibles();
   }
 
+  /**
+   * Olvida el sondeo sin rehacerlo todavía. Para cuando una captura falla
+   * hablando con el agente: la foto de "disponible" ya no vale, y el próximo
+   * `hayLectorTrasReintento()` debe sondear de nuevo, una sola vez.
+   */
+  olvidarSondeo(): void {
+    this.sondeo = null;
+  }
+
   private async sondear(): Promise<EstadoEstrategia[]> {
     // Con una captura en vuelo, la última foto conocida es mejor dato que un
     // sondeo que va a expirar seguro.
@@ -144,6 +154,31 @@ export class HuellaCapturaService {
     return this.agenteLocal.detalleFallo;
   }
 
+  /**
+   * Por qué el agente local no está disponible, en clave, según el último
+   * sondeo. `undefined` si está disponible o aún no se sondeó. La pantalla
+   * decide con esto qué diálogo abrir: ajustes de Chrome, programa del
+   * lector o cable USB.
+   */
+  motivoAgente(): MotivoNoDisponible | undefined {
+    return this.estado().find((e) => e.origen === 'agente-local')?.motivo;
+  }
+
+  /** Estado del permiso de Chrome para hablar con 127.0.0.1 (ver estrategias.ts). */
+  permisoRedLocal(): Promise<PermisoRedLocal> {
+    return permisoRedLocal();
+  }
+
+  /**
+   * ¿La huella entra por el agente local? Solo en un navegador de escritorio:
+   * en Electron manda el puente nativo y en el celular no hay agente, y los
+   * diálogos que mandan a los ajustes de Chrome o a abrir el programa del
+   * lector no tienen sentido ahí.
+   */
+  esNavegador(): boolean {
+    return this.plataforma === 'web';
+  }
+
   /** ¿Es un celular? Ahí la cámara se ofrece primero, no como consuelo. */
   esMovil(): boolean {
     return this.plataforma === 'android' || this.plataforma === 'ios';
@@ -173,7 +208,7 @@ export class HuellaCapturaService {
       }
 
       const preferida = await this.preferida();
-      if (!preferida) throw new HuellaError(this.explicarAusencia(), 'electron');
+      if (!preferida) throw new HuellaError(this.explicarAusencia(), 'electron', false, this.motivoAgente());
       return await preferida.capturar();
     } finally {
       this.capturando = false;
@@ -194,10 +229,7 @@ export class HuellaCapturaService {
       return 'El agente del lector está funcionando, pero no ve ningún lector conectado. '
         + 'Revisa el cable USB y vuelve a intentar.';
     }
-    if (agente?.motivo === 'sin-permiso') {
-      return 'El navegador bloqueó la conexión con el agente del lector. '
-        + 'Autoriza el acceso a la red local y vuelve a intentar.';
-    }
+    if (agente?.motivo === 'sin-permiso') return EstrategiaAgenteLocal.TEXTO_BLOQUEADO;
     switch (this.plataforma) {
       case 'electron':
         return 'No se encontró el lector. Revisa que esté conectado y que el equipo '
@@ -206,6 +238,11 @@ export class HuellaCapturaService {
       case 'ios':
         return 'En el celular no hay lector: adjunta la imagen de la huella.';
       default:
+        // El permiso está bien y nadie contesta: no es "instálalo", es "ábrelo".
+        if (agente?.motivo === 'sin-agente' && this.agenteLocal.permiso === 'granted') {
+          return 'El agente del lector no responde en este equipo. Ábrelo o reinícialo, '
+            + 'revisa el cable USB y vuelve a intentar.';
+        }
         return 'Desde el navegador hace falta el agente del lector instalado en este equipo. '
           + 'Si no lo tienes, puedes adjuntar la imagen de la huella.';
     }

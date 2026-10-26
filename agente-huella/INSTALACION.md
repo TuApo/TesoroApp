@@ -207,7 +207,9 @@ Para quitarlo de un equipo: `desinstalar-agente.cmd`.
 | `FileNotFoundException: 'DPUruNet…'` | Faltan las librerías del SDK | Parte A |
 | `{"ok":false,"error":"sin-lector"}` | El lector no está conectado | Revisar el cable USB |
 | «Sin lector detectado — Failed to fetch» | La página no alcanza al agente | ¿Está abierta la ventana del agente? ¿Responde `/ping` en el navegador? |
-| «El navegador bloqueó la conexión» | Falta autorizar el acceso a red local | Aceptar el aviso de Chrome |
+| «Chrome necesita tu permiso para usar el lector» | El permiso de red local está en «preguntar» | Pulsar **Reintentar** y aceptar el aviso de Chrome |
+| «Chrome bloqueó el acceso al lector» | El permiso de red local quedó en «bloquear» | Ícono de ajustes junto a la URL → **Configuración del sitio** → **Acceso a la red local** (Chrome 145+: **Aplicaciones en el dispositivo**) → **Permitir** → recargar. En equipos administrados: política `LocalNetworkAccessAllowedForUrls` con `https://tesoro.tuapo.co` |
+| «El agente del lector no responde» | Chrome deja pasar, pero nadie contesta en 127.0.0.1:52181 | Abrir o reiniciar el agente, revisar el USB, **Reintentar** |
 | El agente no arranca | Política de ejecución de PowerShell | Lanzarlo con `-ExecutionPolicy Bypass` (el instalador ya lo hace) |
 | `(el navegador cerro una conexion sobrante; normal)` | Nada. Es una conexión de más | Ignorar |
 
