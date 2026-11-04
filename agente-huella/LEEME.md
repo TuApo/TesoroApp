@@ -22,7 +22,9 @@ en `127.0.0.1:52181` y la página web le pide la huella por HTTP.
 1. Copia esta carpeta al equipo, por ejemplo en `C:\TuApo\agente-huella`.
 2. Doble clic en **`instalar-agente.cmd`**.
 3. Abre `https://tesoro.tuapo.co` → Contratación → **Cédula & Huella**.
-4. La primera vez Chrome pregunta si autorizas el acceso a la red local: **sí**.
+4. La primera vez Chrome pregunta si autorizas el acceso a la red local (o a las
+   «aplicaciones en el dispositivo», en Chrome 145+): **Permitir**. Si se bloqueó
+   por error, la pantalla de Cédula & Huella enseña dónde habilitarlo.
 
 No pide contraseña de administrador, no instala drivers y no toca el registro.
 Sólo deja un lanzador en la carpeta *Inicio* del usuario.

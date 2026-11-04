@@ -26,7 +26,7 @@ export type MotivoNoDisponible =
   | 'plataforma'      // este envoltorio no la soporta (p. ej. Electron en un navegador)
   | 'sin-agente'      // no hay nada escuchando en el equipo
   | 'sin-plugin'      // el APK no trae el plugin nativo
-  | 'sin-permiso'     // el usuario negó el permiso (red local, USB, cámara)
+  | 'sin-permiso'     // el navegador tiene bloqueado el acceso (red local de Chrome, USB, cámara)
   | 'sin-camara'      // el dispositivo no expone ninguna cámara usable
   | 'sin-lector';     // el puente responde pero no ve el dispositivo
 
@@ -68,6 +68,13 @@ export class HuellaError extends Error {
     readonly origen: OrigenHuella,
     /** true cuando la persona canceló: no es un fallo y no debe alertar. */
     readonly cancelado = false,
+    /**
+     * Por qué falló, en clave, cuando se sabe. La pantalla decide con esto
+     * qué enseñar: `sin-permiso` manda a los ajustes de Chrome, `sin-agente`
+     * a abrir el programa del lector, `sin-lector` al cable USB. Sin motivo,
+     * el texto es todo lo que hay (dedo ausente, captura expirada…).
+     */
+    readonly motivo?: MotivoNoDisponible,
   ) {
     super(message);
     this.name = 'HuellaError';
