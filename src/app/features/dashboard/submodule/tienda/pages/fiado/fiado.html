@@ -1,0 +1,130 @@
+<div class="fi-pagina">
+  <header class="fi-cabecera">
+    <div>
+      <h1 class="fi-titulo"><mat-icon>menu_book</mat-icon> Fiado</h1>
+      <p class="fi-subtitulo">El cuaderno del comercio: a quién se le fía, cuánto debe y cuándo abonó. Cada movimiento queda escrito.</p>
+    </div>
+    <div class="fi-herramientas">
+      @if (!sinSelector() && !tiendaId() && ctx.tiendas().length > 1) {
+        <select class="fi-campo" [value]="ctx.tiendaId() ?? ''" (change)="cambiarTienda($event)" aria-label="Sede">
+          @for (t of ctx.tiendas(); track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+        </select>
+      }
+      <button type="button" class="fi-boton" (click)="abriendo.set(!abriendo())"><mat-icon>person_add</mat-icon> Nueva cuenta</button>
+    </div>
+  </header>
+
+  @if (aviso()) { <div class="fi-aviso ok" (click)="aviso.set(null)"><mat-icon>check_circle</mat-icon>{{ aviso() }}</div> }
+  @if (error()) { <div class="fi-aviso error" (click)="error.set(null)"><mat-icon>error_outline</mat-icon>{{ error() }}</div> }
+
+  @if (abriendo()) {
+    <section class="fi-tarjeta fi-form">
+      <h3>Abrir cuenta</h3>
+      <div class="fi-fila">
+        <label>Cédula <input class="fi-campo" [(ngModel)]="nueva.cedula" inputmode="numeric" required /></label>
+        <label>Nombre <input class="fi-campo" [(ngModel)]="nueva.nombre" /></label>
+        <label>Celular <input class="fi-campo" [(ngModel)]="nueva.telefono" inputmode="tel" /></label>
+      </div>
+      <div class="fi-fila">
+        <label>Cupo (vacío = sin tope) <input class="fi-campo" type="number" min="0" step="5000" [(ngModel)]="nueva.cupo" /></label>
+        <label>Plazo (días) <input class="fi-campo" type="number" min="1" [(ngModel)]="nueva.dias_plazo" /></label>
+        <label>Nota <input class="fi-campo" [(ngModel)]="nueva.nota" /></label>
+      </div>
+      <div class="fi-acciones">
+        <button type="button" class="fi-boton secundario" (click)="abriendo.set(false)">Cancelar</button>
+        <button type="button" class="fi-boton" (click)="abrirCuenta()">Abrir</button>
+      </div>
+    </section>
+  }
+
+  <div class="fi-resumen">
+    @for (f of [['TODAS','Activas'],['CON_SALDO','Con saldo'],['MORA','En mora'],['BLOQUEADA','Bloqueadas'],['CERRADA','Cerradas']]; track f[0]) {
+      <button type="button" class="fi-chip" [class.on]="filtro() === f[0]" (click)="filtro.set($any(f[0]))">{{ f[1] }}@if (f[0] === 'MORA' && enMora()) { <b>{{ enMora() }}</b> }</button>
+    }
+    <span class="fi-total">Total por cobrar: <b>{{ pesos(totalSaldo()) }}</b></span>
+  </div>
+
+  <div class="fi-cuerpo" [class.con-detalle]="detalle()">
+    <app-tabla-estandar id="eco-fiado-cuentas" titulo="Cuentas de fiado" modulo="Tienda" entidad="cuenta"
+                        [datos]="visibles()" [columnas]="columnas" [filaId]="filaId" [cargando]="cargando()"
+                        [seleccionable]="false" vacio="No hay cuentas con ese filtro. Abra una con «Nueva cuenta».">
+      <ng-template tablaAcciones let-r>
+        <button type="button" class="fi-boton mini" (click)="ver(r.cuenta.id)"><mat-icon>open_in_new</mat-icon> Abrir</button>
+      </ng-template>
+    </app-tabla-estandar>
+
+    @if (detalle(); as d) {
+      <aside class="fi-detalle">
+        <header>
+          <div>
+            <h3>{{ d.cuenta.cliente_nombre || d.cuenta.cliente_cedula }}</h3>
+            <p class="muted">{{ d.cuenta.cliente_cedula }}{{ d.cuenta.cliente_telefono ? ' · ' + d.cuenta.cliente_telefono : '' }} · {{ d.tienda_nombre }}</p>
+          </div>
+          <button type="button" class="fi-icono" (click)="detalle.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+        </header>
+        <div class="fi-saldo" [class.mora]="d.en_mora">
+          <div><small>Debe</small><b>{{ pesos(d.cuenta.saldo) }}</b></div>
+          <div><small>Cupo</small><b>{{ d.cuenta.cupo == null ? 'Sin tope' : pesos(d.cuenta.cupo) }}</b></div>
+          <div><small>Le queda</small><b>{{ d.disponible == null ? '—' : pesos(d.disponible) }}</b></div>
+          <div><small>Estado</small><b>{{ d.en_mora ? 'En mora · ' + d.dias_mora + ' d' : d.cuenta.estado.toLowerCase() }}</b></div>
+        </div>
+
+        @if (d.cuenta.estado === 'ACTIVA') {
+          <div class="fi-mov">
+            <h4><mat-icon>add_shopping_cart</mat-icon> Fiar</h4>
+            <div class="fi-fila">
+              <label>Monto <input class="fi-campo" type="number" min="1" step="500" [(ngModel)]="cargo.monto" /></label>
+              <label>Qué llevó <input class="fi-campo" [(ngModel)]="cargo.nota" placeholder="pan, leche…" /></label>
+            </div>
+            <button type="button" class="fi-boton" [disabled]="!cargo.monto" (click)="fiar()">Anotar fiado</button>
+          </div>
+        }
+        @if (d.cuenta.estado !== 'CERRADA' && +d.cuenta.saldo > 0) {
+          <div class="fi-mov">
+            <h4><mat-icon>payments</mat-icon> Abonar</h4>
+            <div class="fi-fila">
+              <label>Monto <input class="fi-campo" type="number" min="1" step="500" [max]="d.cuenta.saldo" [(ngModel)]="abono.monto" /></label>
+              <label>Medio <select class="fi-campo" [(ngModel)]="abono.medio">@for (m of MEDIOS; track m) { <option [value]="m">{{ m }}</option> }</select></label>
+              <label>Referencia <input class="fi-campo" [(ngModel)]="abono.referencia" /></label>
+            </div>
+            <div class="fi-acciones">
+              <button type="button" class="fi-boton secundario" (click)="abono.monto = +d.cuenta.saldo">Todo ({{ pesos(d.cuenta.saldo) }})</button>
+              <button type="button" class="fi-boton" [disabled]="!abono.monto" (click)="abonar()">Registrar abono</button>
+            </div>
+          </div>
+        }
+
+        <div class="fi-gestion">
+          @if (+d.cuenta.saldo > 0) { <button type="button" class="fi-chip" (click)="recordar()"><mat-icon>notifications_active</mat-icon> Recordar pago</button> }
+          @if (d.cuenta.estado === 'ACTIVA' && puedeAdministrar()) { <button type="button" class="fi-chip" (click)="estado('BLOQUEADA')"><mat-icon>lock</mat-icon> Bloquear</button> }
+          @if (d.cuenta.estado === 'BLOQUEADA' && puedeAdministrar()) { <button type="button" class="fi-chip" (click)="estado('ACTIVA')"><mat-icon>lock_open</mat-icon> Desbloquear</button> }
+          @if (d.cuenta.estado !== 'CERRADA' && puedeAdministrar()) { <button type="button" class="fi-chip" (click)="estado('CERRADA')" [disabled]="+d.cuenta.saldo > 0"><mat-icon>archive</mat-icon> Cerrar</button> }
+          @if (d.cuenta.estado === 'CERRADA' && puedeAdministrar()) { <button type="button" class="fi-chip" (click)="estado('ACTIVA')"><mat-icon>unarchive</mat-icon> Reabrir</button> }
+          @if (puedeAdministrar()) { <button type="button" class="fi-chip" (click)="ajustar()"><mat-icon>tune</mat-icon> Ajustar saldo</button> }
+        </div>
+
+        <h4>Movimientos</h4>
+        @if (!d.movimientos.length) { <p class="muted">Todavía no hay movimientos.</p> }
+        <ul class="fi-lista">
+          @for (m of d.movimientos; track m.id) {
+            <li [class]="'fi-item ' + m.tipo">
+              <span class="tipo">{{ tipoTexto(m.tipo) }}</span>
+              <span class="datos"><b>{{ m.tipo === 'ABONO' ? '−' : m.tipo === 'CARGO' ? '+' : '=' }}{{ pesos(m.monto) }}</b>
+                <small>{{ m.creado_en | date:'d MMM, h:mm a' }}{{ m.medio ? ' · ' + m.medio : '' }}{{ m.referencia ? ' · ' + m.referencia : '' }}{{ m.registrado_por_nombre ? ' · ' + m.registrado_por_nombre : '' }}</small>
+                @if (m.nota) { <small>{{ m.nota }}</small> }</span>
+              <span class="saldo">{{ pesos(m.saldo_despues) }}</span>
+            </li>
+          }
+        </ul>
+        @if (d.recordatorios.length) {
+          <h4>Recordatorios</h4>
+          <ul class="fi-lista">
+            @for (r of d.recordatorios; track r.id) {
+              <li class="fi-item"><span class="tipo">{{ r.canal }}</span><span class="datos"><b>{{ r.estado }}</b><small>{{ r.programado_para | date:'d MMM, h:mm a' }}{{ r.motivo_omision ? ' · ' + r.motivo_omision : '' }}{{ r.ultimo_error ? ' · ' + r.ultimo_error : '' }}</small></span></li>
+            }
+          </ul>
+        }
+      </aside>
+    }
+  </div>
+</div>

@@ -1,0 +1,155 @@
+<div class="kb-pagina">
+  <header class="kb-cabecera">
+    <div>
+      <h1 class="kb-titulo"><mat-icon>view_kanban</mat-icon> Tablero de pedidos</h1>
+      <p class="kb-subtitulo">Arrastre cada pedido por su camino: nuevo, en preparación, en despacho y entregado. Se actualiza solo.</p>
+    </div>
+    <div class="kb-herramientas">
+      @if (!sinSelector() && !tiendaId()) {
+        @if (ctx.tiendas().length > 1) {
+          <select class="kb-campo" [value]="ctx.tiendaId() ?? ''" (change)="cambiarTienda($event)" aria-label="Sede">
+            @for (t of ctx.tiendas(); track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+          </select>
+        } @else if (ctx.tiendas().length === 1) { <span class="kb-sede">{{ ctx.tiendas()[0].nombre }}</span> }
+      }
+      <span class="kb-conexion" [class]="'kb-conexion ' + conexion()" [title]="'Canal en vivo: ' + conexion()">
+        <span class="punto"></span>
+        {{ conexion() === 'conectado' ? 'En vivo' : conexion() === 'cerrado' ? 'Sin canal' : 'Reconectando…' }}
+      </span>
+      <button type="button" class="kb-boton secundario" (click)="cargar()" [disabled]="cargando()"><mat-icon>refresh</mat-icon></button>
+    </div>
+  </header>
+
+  @if (aviso()) { <div class="kb-aviso ok" (click)="aviso.set(null)"><mat-icon>check_circle</mat-icon><span>{{ aviso() }}</span></div> }
+  @if (error()) { <div class="kb-aviso error" (click)="error.set(null)"><mat-icon>error_outline</mat-icon><span>{{ error() }}</span></div> }
+
+  <div class="kb-filtros">
+    <input class="kb-campo ancho" type="search" placeholder="Buscar por número, cliente, cédula, teléfono o dirección" [ngModel]="filtroTexto()" (ngModelChange)="filtroTexto.set($event)" />
+    <select class="kb-campo" [ngModel]="filtroEntrega()" (ngModelChange)="filtroEntrega.set($event)" aria-label="Tipo de entrega">
+      <option value="">Todas las entregas</option>
+      <option value="DOMICILIO">Domicilio</option>
+      <option value="RECOGE_TIENDA">Recoge en tienda</option>
+      <option value="RECOGE_OFICINA">Recoge en oficina</option>
+    </select>
+    <button type="button" class="kb-chip" [class.on]="soloRetrasados()" (click)="soloRetrasados.set(!soloRetrasados())">
+      <span class="sem ROJO"></span> Retrasados @if (retrasados()) { <b>{{ retrasados() }}</b> }
+    </button>
+    <button type="button" class="kb-chip" [class.on]="verCerrados()" (click)="verCerrados.set(!verCerrados())"><mat-icon>history</mat-icon> Cerrados de hoy</button>
+    <span class="kb-resumen">{{ activos() }} activos</span>
+  </div>
+
+  @if (!tienda()) {
+    <div class="kb-vacio"><mat-icon>storefront</mat-icon><p>Elija una sede para ver su tablero.</p></div>
+  } @else {
+    <div class="kb-cuerpo" [class.con-detalle]="detalle()">
+      <div class="kb-tablero" cdkDropListGroup>
+        @for (col of visibles(); track col.clave) {
+          <section class="kb-col" [attr.data-col]="col.clave">
+            <header class="kb-col-cabeza">
+              <h2>{{ col.nombre }}</h2>
+              <span class="n">{{ col.pedidos.length }}</span>
+            </header>
+            <div class="kb-col-cuerpo" cdkDropList [id]="'col-' + col.clave" [cdkDropListData]="col.pedidos" [cdkDropListConnectedTo]="ids()"
+                 [cdkDropListSortingDisabled]="true" (cdkDropListDropped)="soltar($event, col)">
+              @for (t of col.pedidos; track t.id) {
+                <article class="kb-card" cdkDrag [cdkDragData]="t" [class.abierta]="detalle()?.tarjeta?.id === t.id"
+                         [attr.data-sem]="semaforo(t)" [cdkDragDisabled]="col.clave === 'ENTREGADO' || col.clave === 'CANCELADO'" (click)="abrir(t)">
+                  <div class="kb-card-fantasma" *cdkDragPlaceholder></div>
+                  <div class="kb-card-cabeza">
+                    <b class="numero">{{ t.numero }}</b>
+                    @if (semaforo(t); as s) {
+                      <span class="tiempo" [class]="'tiempo ' + s" [title]="t.promesa_en ? 'Prometido: ' + (t.promesa_en | date:'EEE d, h:mm a') : ''">
+                        <span class="sem" [class]="'sem ' + s"></span>{{ restante(t) }}
+                      </span>
+                    } @else { <span class="tiempo neutro">{{ espera(t) }}</span> }
+                  </div>
+                  <div class="kb-card-cliente">{{ t.cliente_nombre || t.cliente_cedula }}</div>
+                  <div class="kb-card-meta">
+                    <span class="insignia" [class.domi]="t.tipo_entrega === 'DOMICILIO'">
+                      <mat-icon>{{ t.tipo_entrega === 'DOMICILIO' ? 'two_wheeler' : 'storefront' }}</mat-icon>{{ entrega(t) }}
+                    </span>
+                    @if (t.zona_nombre) { <span class="insignia zona" [style.--zona]="t.zona_color || null">{{ t.zona_nombre }}</span> }
+                    @if (t.bajo_pedido) { <span class="insignia aviso">Bajo pedido</span> }
+                    @if (t.validacion_estado === 'PENDIENTE' || t.validacion_estado === 'SOSPECHOSA') { <span class="insignia peligro">Validar quien reclama</span> }
+                    @if (t.estado === 'EN_RUTA') { <span class="insignia info">En ruta{{ t.repartidor_nombre ? ' · ' + t.repartidor_nombre : '' }}</span> }
+                    @else if (t.estado === 'LISTO' && t.tipo_entrega === 'DOMICILIO') { <span class="insignia info">Esperando domiciliario</span> }
+                    @else if (t.estado === 'CREADO') { <span class="insignia neutra">Sin confirmar</span> }
+                  </div>
+                  @if (t.direccion_texto && t.tipo_entrega === 'DOMICILIO') { <div class="kb-card-dir"><mat-icon>place</mat-icon>{{ t.direccion_texto }}</div> }
+                  <div class="kb-card-pie">
+                    <span>{{ t.lineas }} {{ t.lineas === 1 ? 'línea' : 'líneas' }} · <b>{{ pesos(t.total) }}</b></span>
+                    <span class="hace">{{ espera(t) }}</span>
+                  </div>
+                  @if (siguiente(t); as s) {
+                    <div class="kb-card-acciones">
+                      <button type="button" class="kb-boton mini" (click)="$event.stopPropagation(); avanzar(t)"><mat-icon>{{ s.icono }}</mat-icon> {{ s.texto }}</button>
+                      <button type="button" class="kb-boton mini peligro" (click)="$event.stopPropagation(); cancelar(t)" title="Cancelar"><mat-icon>close</mat-icon></button>
+                    </div>
+                  }
+                </article>
+              } @empty {
+                <div class="kb-col-vacia">Nada por aquí</div>
+              }
+            </div>
+          </section>
+        }
+      </div>
+
+      @if (detalle(); as d) {
+        <aside class="kb-detalle">
+          <header>
+            <div>
+              <h3>{{ d.tarjeta.numero }} <span class="insignia neutra">{{ estadoTexto(d.tarjeta.estado) }}</span></h3>
+              <p class="muted">{{ d.tarjeta.cliente_nombre || '' }} · {{ d.tarjeta.cliente_cedula }}{{ d.tarjeta.cliente_telefono ? ' · ' + d.tarjeta.cliente_telefono : '' }}</p>
+            </div>
+            <button type="button" class="kb-icono" (click)="detalle.set(null)" aria-label="Cerrar"><mat-icon>close</mat-icon></button>
+          </header>
+
+          <dl class="kb-datos">
+            <dt>Entrega</dt><dd>{{ entrega(d.tarjeta) }}@if (d.tarjeta.direccion_texto) { · {{ d.tarjeta.direccion_texto }} }</dd>
+            <dt>Total</dt><dd><b>{{ pesos(d.tarjeta.total) }}</b>@if (pagosPendientes()) { <span class="insignia aviso">faltan {{ pesos(pagosPendientes()) }} por verificar</span> }</dd>
+            <dt>Pedido</dt><dd>{{ d.tarjeta.creado_en | date:'EEE d MMM, h:mm a' }}</dd>
+            @if (d.tarjeta.programado_en) { <dt>Cita</dt><dd>{{ d.tarjeta.programado_en | date:'EEE d MMM, h:mm a' }}</dd> }
+            @if (d.tarjeta.fecha_compromiso) { <dt>Compromiso</dt><dd>{{ d.tarjeta.fecha_compromiso | date:'EEE d MMM' }}</dd> }
+            @if (d.tarjeta.observacion) { <dt>Nota</dt><dd>{{ d.tarjeta.observacion }}</dd> }
+            @if (d.tarjeta.motivo_rechazo) { <dt>Motivo</dt><dd>{{ d.tarjeta.motivo_rechazo }}</dd> }
+          </dl>
+
+          @if (d.tarjeta.semaforo) {
+            <div class="kb-promesa">
+              <label>Hora prometida <span class="sem" [class]="'sem ' + semaforo(d.tarjeta)"></span></label>
+              <div class="fila">
+                <input class="kb-campo" type="datetime-local" [ngModel]="promesaEdicion()" (ngModelChange)="promesaEdicion.set($event)" />
+                <button type="button" class="kb-boton mini" (click)="guardarPromesa()">Guardar</button>
+              </div>
+              <small class="muted">Vacío = la calcula el sistema ({{ d.tarjeta.promesa_en ? (d.tarjeta.promesa_en | date:'EEE d, h:mm a') : 'sin promesa' }}).</small>
+            </div>
+          }
+
+          @if (lineas().length) {
+            <h4>Líneas</h4>
+            <ul class="kb-lineas">
+              @for (l of lineas(); track $index) {
+                <li><span>{{ l.cantidad }} × {{ l.descripcion }}@if (l.disponibilidad === 'BAJO_PEDIDO') { <em>bajo pedido</em> }</span><b>{{ pesos(l.total) }}</b></li>
+              }
+            </ul>
+          }
+          @if (seguimiento().length) {
+            <h4>Seguimiento</h4>
+            <ol class="kb-seguimiento">
+              @for (e of seguimiento(); track $index) {
+                <li><b>{{ estadoTexto(e.estado) }}</b> <span class="muted">{{ e.ocurrido_en | date:'d MMM, h:mm a' }}{{ e.usuario_nombre ? ' · ' + e.usuario_nombre : '' }}</span>@if (e.comentario) { <div>{{ e.comentario }}</div> }</li>
+              }
+            </ol>
+          }
+          @if (siguiente(d.tarjeta); as s) {
+            <div class="kb-detalle-acciones">
+              <button type="button" class="kb-boton" (click)="avanzar(d.tarjeta)"><mat-icon>{{ s.icono }}</mat-icon> {{ s.texto }}</button>
+              <button type="button" class="kb-boton secundario peligro" (click)="cancelar(d.tarjeta)"><mat-icon>close</mat-icon> Cancelar pedido</button>
+            </div>
+          }
+        </aside>
+      }
+    </div>
+  }
+</div>

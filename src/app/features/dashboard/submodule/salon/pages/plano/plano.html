@@ -1,0 +1,70 @@
+<div class="sl-pagina plano-raiz" #raiz [class.plano-raiz--completa]="pantallaCompleta()">
+  <app-salon-encabezado subtitulo="Plano en vivo: color por estado y tiempo en cada mesa" [mostrarVision]="true" />
+
+  @if (!ctx.tiendaId()) {
+    <div class="sl-panel sl-vacio"><mat-icon>storefront</mat-icon><strong>Elige una sede para ver su salón.</strong></div>
+  } @else {
+    <section class="plano-barra">
+      @if (resumen(); as r) {
+        <div class="plano-resumen" aria-live="polite">
+          <span class="sl-chip sl-chip--libre"><mat-icon>event_available</mat-icon>{{ r.libres }} libres</span>
+          <span class="sl-chip sl-chip--ocupada"><mat-icon>groups</mat-icon>{{ r.ocupadas }} ocupadas</span>
+          <span class="sl-chip sl-chip--limpiar"><mat-icon>cleaning_services</mat-icon>{{ r.por_limpiar }} por limpiar</span>
+          @if (r.reservadas) { <span class="sl-chip sl-chip--reservada"><mat-icon>bookmark</mat-icon>{{ r.reservadas }} reservadas</span> }
+          <span class="sl-chip" [class]="r.alertas_abiertas ? 'sl-chip sl-tono-danger' : 'sl-chip sl-tono-neutro'"><mat-icon>notifications_active</mat-icon>{{ r.alertas_abiertas }} alertas</span>
+          <span class="sl-chip sl-tono-info"><mat-icon>hourglass_top</mat-icon>{{ r.en_espera }} en espera</span>
+        </div>
+      }
+      <span class="sl-esp"></span>
+      <div class="plano-vistas" role="group" aria-label="Vista">
+        <button type="button" class="sl-btn sl-btn--chico" [attr.aria-pressed]="vista() === 'plano'" (click)="cambiarVista('plano')"><mat-icon>map</mat-icon>Plano</button>
+        <button type="button" class="sl-btn sl-btn--chico" [attr.aria-pressed]="vista() === 'lista'" (click)="cambiarVista('lista')"><mat-icon>view_module</mat-icon>Lista</button>
+        <button type="button" class="sl-btn sl-btn--chico" (click)="alternarPantallaCompleta()" [title]="pantallaCompleta() ? 'Salir de pantalla completa' : 'Pantalla completa'">
+          <mat-icon>{{ pantallaCompleta() ? 'fullscreen_exit' : 'fullscreen' }}</mat-icon>
+        </button>
+      </div>
+    </section>
+
+    @if (!plano()) {
+      @if (stream.estado() === 'conectando' || stream.estado() === 'reconectando') {
+        <div class="sl-panel sl-vacio"><mat-icon class="plano-girando">sync</mat-icon><strong>Conectando con el salón…</strong></div>
+      } @else {
+        <div class="sl-panel sl-vacio"><mat-icon>cloud_off</mat-icon><strong>Sin datos del salón.</strong><span class="sl-muted">Revisa que la sede tenga salones y que ms-store responda.</span>
+          <button type="button" class="sl-btn" (click)="stream.refrescar()"><mat-icon>refresh</mat-icon>Reintentar</button></div>
+      }
+    } @else if (!salones().length) {
+      <div class="sl-panel sl-vacio"><mat-icon>table_restaurant</mat-icon><strong>Esta sede no tiene salones.</strong><span class="sl-muted">Créalos en Configuración › Salones y mesas.</span></div>
+    } @else if (vista() === 'plano') {
+      @for (s of salones(); track s.id) {
+        <section class="sl-panel plano-salon">
+          <h2><mat-icon>meeting_room</mat-icon>{{ s.nombre }} <small class="sl-muted">{{ s.mesas.length }} mesas</small></h2>
+          <div class="plano-lienzo" [style.aspect-ratio]="proporcion(s)">
+            @for (m of s.mesas; track m.id) {
+              <div class="plano-mesa" [style.left]="estiloMesa(m)['left']" [style.top]="estiloMesa(m)['top']" [style.width]="estiloMesa(m)['width']" [style.height]="estiloMesa(m)['height']">
+                <app-mesa-tarjeta [mesa]="m" [ahora]="stream.ahora()" [recibidoEn]="stream.recibidoEn()" [compacta]="true"
+                  [puedeOperar]="permisos.puedeOperar()" [minutosAviso]="minutosAviso()"
+                  (atendida)="atendida($event)" (limpia)="limpia($event)" (cambiarEstado)="cambiarEstado($event)" />
+              </div>
+            }
+          </div>
+        </section>
+      }
+    } @else {
+      <section class="plano-grid">
+        @for (m of todasLasMesas(); track m.id) {
+          <app-mesa-tarjeta [mesa]="m" [ahora]="stream.ahora()" [recibidoEn]="stream.recibidoEn()"
+            [puedeOperar]="permisos.puedeOperar()" [minutosAviso]="minutosAviso()"
+            (atendida)="atendida($event)" (limpia)="limpia($event)" (cambiarEstado)="cambiarEstado($event)" />
+        }
+      </section>
+    }
+
+    <footer class="plano-leyenda" aria-label="Leyenda">
+      @for (l of leyenda; track l.estado) {
+        <span class="plano-ley"><i [class]="'plano-ley-punto plano-ley-punto--' + l.clase"></i>{{ etiqueta(l.estado) }}</span>
+      }
+      <span class="plano-ley"><i class="plano-ley-punto plano-ley-punto--alerta"></i>Alerta abierta</span>
+      @if (plano(); as p) { <span class="sl-esp"></span><span class="sl-muted plano-hora">Actualizado {{ hora(p.generado_en) }} · canal {{ stream.estado() }}</span> }
+    </footer>
+  }
+</div>

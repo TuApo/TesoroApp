@@ -1,0 +1,105 @@
+<div class="zn-pagina">
+  <header class="zn-cabecera">
+    <div>
+      <h1 class="zn-titulo"><mat-icon>map</mat-icon> Zonas y tarifas de domicilio</h1>
+      <p class="zn-subtitulo">Dibuje hasta dónde llega el domicilio y cuánto cuesta. Sin zonas, la sede cobra su tarifa fija de siempre.</p>
+    </div>
+    <div class="zn-herramientas">
+      @if (!sinSelector() && !tiendaId() && ctx.tiendas().length > 1) {
+        <select class="zn-campo" [value]="ctx.tiendaId() ?? ''" (change)="cambiarTienda($event)" aria-label="Sede">
+          @for (t of ctx.tiendas(); track t.id) { <option [value]="t.id">{{ t.nombre }}</option> }
+        </select>
+      }
+      @if (!edicion()) {
+        <button type="button" class="zn-boton" (click)="nueva('RADIO')"><mat-icon>radio_button_checked</mat-icon> Nueva por radio</button>
+        <button type="button" class="zn-boton" (click)="nueva('POLIGONO')"><mat-icon>polyline</mat-icon> Nueva por polígono</button>
+      }
+    </div>
+  </header>
+
+  @if (aviso()) { <div class="zn-aviso ok" (click)="aviso.set(null)"><mat-icon>check_circle</mat-icon>{{ aviso() }}</div> }
+  @if (error()) { <div class="zn-aviso error" (click)="error.set(null)"><mat-icon>error_outline</mat-icon>{{ error() }}</div> }
+
+  <div class="zn-cuerpo">
+    <section class="zn-mapa">
+      <div class="zn-modos">
+        @if (edicion(); as e) {
+          <span class="zn-pista"><mat-icon>touch_app</mat-icon>
+            {{ e.tipo === 'RADIO' ? 'Toque el mapa para mover el centro' : 'Toque el mapa punto por punto; cierre con 3 o más' }}</span>
+          @if (e.tipo === 'POLIGONO' && vertices().length) { <button type="button" class="zn-chip" (click)="deshacer()"><mat-icon>undo</mat-icon> Deshacer punto</button> }
+        } @else {
+          <button type="button" class="zn-chip" [class.on]="modo() === 'probar'" (click)="modo.set(modo() === 'probar' ? 'ver' : 'probar')"><mat-icon>ads_click</mat-icon> Probar un punto</button>
+          <label class="zn-subtotal">Subtotal de prueba <input class="zn-campo" type="number" min="0" step="1000" [ngModel]="subtotalPrueba()" (ngModelChange)="subtotalPrueba.set(+$event || 0)" /></label>
+        }
+      </div>
+      <eco-mapa [puntos]="puntos()" [trazo]="trazo()" [alto]="420" [seleccionable]="!!edicion() || modo() === 'probar'" (elegido)="tocar($event)" />
+      @if (prueba(); as p) {
+        <div class="zn-prueba" [class.fuera]="p.cotizacion?.fuera_de_cobertura">
+          @if (p.error) { <span>{{ p.error }}</span> }
+          @else if (!p.cotizacion) { <span>Cotizando…</span> }
+          @else if (p.cotizacion.fuera_de_cobertura) { <span><mat-icon>block</mat-icon> Fuera de cobertura{{ p.cotizacion.distancia_km != null ? ' · ' + p.cotizacion.distancia_km + ' km' : '' }}</span> }
+          @else {
+            <span><mat-icon>local_shipping</mat-icon>
+              <b>{{ p.cotizacion.gratis ? 'Envío gratis' : pesos(p.cotizacion.tarifa) }}</b>
+              · {{ p.cotizacion.zona_nombre || 'tarifa fija de la sede' }}
+              @if (p.cotizacion.tiempo_prometido_min) { · {{ p.cotizacion.tiempo_prometido_min }} min }
+              @if (!p.cotizacion.cumple_minimo) { · <em>pedido mínimo {{ pesos(p.cotizacion.pedido_minimo) }}</em> }
+            </span>
+          }
+        </div>
+      }
+    </section>
+
+    <aside class="zn-panel">
+      @if (edicion(); as e) {
+        <h3>{{ e.id ? 'Editar zona' : 'Nueva zona' }} <span class="zn-tipo">{{ e.tipo === 'RADIO' ? 'radio' : 'polígono' }}</span></h3>
+        <label>Nombre <input class="zn-campo" [ngModel]="e.nombre" (ngModelChange)="campo('nombre', $event)" placeholder="Barrio, Centro, Veredas…" maxlength="80" /></label>
+        @if (e.tipo === 'RADIO') {
+          <label>Radio (km) <input class="zn-campo" type="number" min="0.1" step="0.1" [ngModel]="e.radio_km" (ngModelChange)="campo('radio_km', +$event)" /></label>
+          <small class="zn-ayuda">Centro: {{ e.centro_lat != null ? (e.centro_lat | number:'1.5-5') + ', ' + (e.centro_lng | number:'1.5-5') : 'toque el mapa (la sede no tiene ubicación)' }}</small>
+        } @else {
+          <small class="zn-ayuda">{{ vertices().length }} puntos marcados
+            @for (v of vertices(); track $index) { <button type="button" class="zn-vert" (click)="quitarVertice($index)" title="Quitar">{{ $index + 1 }} ×</button> }
+          </small>
+        }
+        <div class="zn-fila">
+          <label>Tarifa <input class="zn-campo" type="number" min="0" step="500" [ngModel]="e.tarifa" (ngModelChange)="campo('tarifa', +$event)" /></label>
+          <label>Tiempo prometido (min) <input class="zn-campo" type="number" min="5" step="5" [ngModel]="e.tiempo_prometido_min" (ngModelChange)="campo('tiempo_prometido_min', +$event)" /></label>
+        </div>
+        <div class="zn-fila">
+          <label>Pedido mínimo <input class="zn-campo" type="number" min="0" step="1000" [ngModel]="e.pedido_minimo" (ngModelChange)="campo('pedido_minimo', $event === '' || $event === null ? null : +$event)" placeholder="Sin mínimo" /></label>
+          <label>Envío gratis desde <input class="zn-campo" type="number" min="0" step="1000" [ngModel]="e.gratis_desde" (ngModelChange)="campo('gratis_desde', $event === '' || $event === null ? null : +$event)" placeholder="Nunca" /></label>
+        </div>
+        <div class="zn-fila">
+          <label>Prioridad <input class="zn-campo" type="number" min="0" step="1" [ngModel]="e.orden" (ngModelChange)="campo('orden', +$event)" title="Si un punto cae en dos zonas gana la de menor número" /></label>
+          <label>Color <input class="zn-campo color" type="color" [ngModel]="e.color || '#2b59f0'" (ngModelChange)="campo('color', $event)" /></label>
+        </div>
+        <label class="zn-check"><input type="checkbox" [ngModel]="e.activa" (ngModelChange)="campo('activa', $event)" /> Activa</label>
+        <div class="zn-acciones">
+          <button type="button" class="zn-boton secundario" (click)="cancelar()">Cancelar</button>
+          <button type="button" class="zn-boton" (click)="guardar()">Guardar</button>
+        </div>
+        @if (!e.id && ctx.rolEnTienda() === 'ADMIN_NEGOCIO') {
+          <button type="button" class="zn-enlace" (click)="guardar(true)">Guardar para todas las sedes del negocio</button>
+        }
+      } @else {
+        <h3>Zonas de la sede <span class="n">{{ zonas().length }}</span></h3>
+        @if (cargando()) { <p class="zn-ayuda">Cargando…</p> }
+        @else if (!zonas().length) { <p class="zn-ayuda">Esta sede no tiene zonas: cobra su tarifa fija de domicilio y respeta su radio, como hasta hoy.</p> }
+        <ul class="zn-lista">
+          @for (z of zonas(); track z.id) {
+            <li [class.inactiva]="!z.activa" [style.--zona]="z.color || null">
+              <span class="muestra"></span>
+              <div class="datos">
+                <b>{{ z.nombre }}</b> <small>{{ resumen(z) }}{{ z.tienda_id ? '' : ' · todo el negocio' }}{{ z.activa ? '' : ' · inactiva' }}</small>
+                <small>{{ pesos(z.tarifa) }}@if (z.gratis_desde) { · gratis desde {{ pesos(z.gratis_desde) }} }@if (z.pedido_minimo) { · mín. {{ pesos(z.pedido_minimo) }} } · {{ z.tiempo_prometido_min }} min · prioridad {{ z.orden }}</small>
+              </div>
+              <button type="button" class="zn-icono" (click)="editar(z)" title="Editar"><mat-icon>edit</mat-icon></button>
+              @if (z.activa) { <button type="button" class="zn-icono" (click)="desactivar(z)" title="Desactivar"><mat-icon>visibility_off</mat-icon></button> }
+            </li>
+          }
+        </ul>
+      }
+    </aside>
+  </div>
+</div>

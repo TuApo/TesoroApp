@@ -64,4 +64,21 @@ export const routes: Routes = [
     path: 'administracion',
     loadComponent: () => import('./pages/administracion/administracion').then(m => m.Administracion),
   },
+// ── S6 eco-pedidos-kanban (ms-store V44), añadido 2026-11-06 al FINAL del array ──
+  // Tablero kanban de pedidos en vivo (SSE). Sin nodo propio en db_admin todavía: hereda el
+  // permiso de /dashboard/tienda; el backend exige alcance (ver) y rol TENDERO (mover).
+  {
+    path: 'kanban',
+    loadComponent: () => import('./pages/kanban/kanban').then(m => m.KanbanPedidos),
+  },
+  // Zonas y tarifas de domicilio por sede (radio o polígono). Guardar exige ADMIN_TIENDA.
+  {
+    path: 'zonas',
+    loadComponent: () => import('./pages/zonas/zonas').then(m => m.ZonasDomicilio),
+  },
+  // Fiado: cuentas por persona, cargos, abonos y recordatorio de pago. Fiar/abonar exige TENDERO.
+  {
+    path: 'fiado',
+    loadComponent: () => import('./pages/fiado/fiado').then(m => m.Fiado),
+  },
 ];

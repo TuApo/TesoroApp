@@ -1,0 +1,123 @@
+/*
+ * Estilos comunes del submódulo Salón inteligente. Solo tokens de src/theme (claro y
+ * oscuro salen solos) más los cuatro semáforos de mesa, que son del dominio y se definen
+ * aquí con su variante oscura. El tema lo decide `html[data-theme]` (ThemeService), igual
+ * que en src/theme/tokens.css; por eso no se usa `prefers-color-scheme`: pisaría la
+ * elección explícita del usuario.
+ */
+
+:host {
+  display: block;
+  color: var(--text);
+
+  /* Semáforos de mesa (§1 del contrato): verde / rojo / amarillo / azul. */
+  --mesa-libre: #16A34A;      --mesa-libre-bg: #DCFCE7;     --mesa-libre-fg: #166534;
+  --mesa-ocupada: #DC2626;    --mesa-ocupada-bg: #FEE2E2;   --mesa-ocupada-fg: #B91C1C;
+  --mesa-limpiar: #F59E0B;    --mesa-limpiar-bg: #FEF3C7;   --mesa-limpiar-fg: #92400E;
+  --mesa-reservada: #2563EB;  --mesa-reservada-bg: #DBEAFE; --mesa-reservada-fg: #1D4ED8;
+}
+:host-context(html[data-theme='dark']) {
+  --mesa-libre: #4ADE80;      --mesa-libre-bg: rgba(34, 197, 94, 0.18);     --mesa-libre-fg: #86EFAC;
+  --mesa-ocupada: #F87171;    --mesa-ocupada-bg: rgba(239, 68, 68, 0.20);   --mesa-ocupada-fg: #FCA5A5;
+  --mesa-limpiar: #FBBF24;    --mesa-limpiar-bg: rgba(245, 158, 11, 0.20);  --mesa-limpiar-fg: #FCD34D;
+  --mesa-reservada: #60A5FA;  --mesa-reservada-bg: rgba(59, 130, 246, 0.20); --mesa-reservada-fg: #93C5FD;
+}
+
+.sl-pagina {
+  max-width: 1600px;
+  margin: 0 auto;
+  padding: 12px clamp(12px, 2vw, 24px) 40px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-width: 0;
+}
+
+.sl-panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r-lg);
+  padding: 16px;
+  box-shadow: var(--shadow-sm);
+  min-width: 0;
+}
+.sl-panel h2, .sl-panel h3 {
+  margin: 0 0 12px; font-size: 1.05rem; font-weight: 800; color: var(--navy-ink);
+  display: flex; align-items: center; gap: 8px;
+}
+.sl-panel h2 mat-icon, .sl-panel h3 mat-icon { color: var(--muted); }
+
+/* ── Botones ────────────────────────────────────────────────────── */
+.sl-btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+  min-height: 44px; padding: 0 16px;
+  border-radius: var(--r-md); border: 2px solid var(--border-strong);
+  background: var(--surface); color: var(--text);
+  font: 700 .95rem/1.1 var(--font-sans); cursor: pointer;
+  transition: background .15s, border-color .15s, transform .08s;
+  -webkit-tap-highlight-color: transparent; touch-action: manipulation; text-decoration: none;
+}
+.sl-btn mat-icon { font-size: 22px; width: 22px; height: 22px; }
+.sl-btn:hover:not(:disabled) { background: var(--surface-3); }
+.sl-btn:active:not(:disabled) { transform: scale(.98); }
+.sl-btn:disabled { opacity: .45; cursor: not-allowed; }
+.sl-btn:focus-visible { outline: none; box-shadow: var(--ring); }
+.sl-btn--primario { background: var(--primary); border-color: var(--primary); color: #fff; }
+.sl-btn--ok { background: var(--ok-bg); border-color: var(--ok-border); color: var(--ok-fg); }
+.sl-btn--warn { background: var(--warn-bg); border-color: var(--warn-border); color: var(--warn-fg); }
+.sl-btn--peligro { background: var(--danger-bg); border-color: var(--danger-border); color: var(--danger-fg); }
+.sl-btn--grande { min-height: 56px; font-size: 1.05rem; padding: 0 20px; }
+.sl-btn--chico { min-height: 36px; padding: 0 10px; font-size: .85rem; }
+.sl-btn--chico mat-icon { font-size: 18px; width: 18px; height: 18px; }
+.sl-btn--bloque { width: 100%; }
+
+/* ── Chips ──────────────────────────────────────────────────────── */
+.sl-chip {
+  display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 999px;
+  font-size: .82rem; font-weight: 700; line-height: 1.2; border: 1px solid transparent; white-space: nowrap;
+}
+.sl-chip mat-icon { font-size: 17px; width: 17px; height: 17px; }
+.sl-tono-ok { background: var(--ok-bg); color: var(--ok-fg); border-color: var(--ok-border); }
+.sl-tono-warn { background: var(--warn-bg); color: var(--warn-fg); border-color: var(--warn-border); }
+.sl-tono-danger { background: var(--danger-bg); color: var(--danger-fg); border-color: var(--danger-border); }
+.sl-tono-info { background: var(--info-bg); color: var(--info-fg); border-color: var(--info-border); }
+.sl-tono-neutro { background: var(--surface-3); color: var(--text-2); border-color: var(--border); }
+.sl-chip--libre { background: var(--mesa-libre-bg); color: var(--mesa-libre-fg); border-color: var(--mesa-libre); }
+.sl-chip--ocupada { background: var(--mesa-ocupada-bg); color: var(--mesa-ocupada-fg); border-color: var(--mesa-ocupada); }
+.sl-chip--limpiar { background: var(--mesa-limpiar-bg); color: var(--mesa-limpiar-fg); border-color: var(--mesa-limpiar); }
+.sl-chip--reservada { background: var(--mesa-reservada-bg); color: var(--mesa-reservada-fg); border-color: var(--mesa-reservada); }
+
+/* ── Formularios ────────────────────────────────────────────────── */
+.sl-campo { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.sl-campo > span { font-size: .82rem; font-weight: 700; color: var(--text-2); }
+.sl-input, .sl-select {
+  min-height: 44px; padding: 0 12px; border-radius: var(--r-md);
+  border: 2px solid var(--border-strong); background: var(--surface-2); color: var(--text);
+  font: 600 .98rem var(--font-sans); width: 100%; box-sizing: border-box;
+}
+.sl-input:focus, .sl-select:focus { outline: none; border-color: var(--primary); box-shadow: var(--ring); }
+textarea.sl-input { min-height: 80px; padding: 10px 12px; resize: vertical; }
+.sl-check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; min-height: 44px; }
+.sl-check input { width: 20px; height: 20px; accent-color: var(--primary); }
+.sl-form-grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(min(220px, 100%), 1fr)); }
+
+/* ── Avisos y vacíos ────────────────────────────────────────────── */
+.sl-aviso {
+  display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: var(--r-md);
+  border: 1px solid var(--border); font-weight: 600; line-height: 1.35; flex-wrap: wrap;
+}
+.sl-aviso mat-icon { flex: none; }
+.sl-vacio { padding: 36px 16px; text-align: center; color: var(--muted); display: flex; flex-direction: column; align-items: center; gap: 10px; }
+.sl-vacio mat-icon { font-size: 44px; width: 44px; height: 44px; opacity: .6; }
+
+/* ── KPIs ───────────────────────────────────────────────────────── */
+.sl-kpis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(min(150px, 100%), 1fr)); }
+.sl-kpi { background: var(--surface-2); border: 1px solid var(--border); border-radius: var(--r-md); padding: 10px 12px; min-width: 0; }
+.sl-kpi small { display: block; color: var(--muted); font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; }
+.sl-kpi strong { display: block; font-size: 1.5rem; line-height: 1.2; color: var(--navy-ink); }
+
+.sl-fila { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.sl-esp { flex: 1; }
+.sl-muted { color: var(--muted); }
+.sl-sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.sl-grid-2 { display: grid; gap: 14px; grid-template-columns: repeat(auto-fit, minmax(min(360px, 100%), 1fr)); }

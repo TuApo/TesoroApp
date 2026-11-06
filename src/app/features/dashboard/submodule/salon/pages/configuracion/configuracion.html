@@ -1,0 +1,199 @@
+<div class="sl-pagina">
+  <app-salon-encabezado subtitulo="Reglas, cámaras, salones y mesas" />
+
+  @if (!ctx.tiendaId()) {
+    <div class="sl-panel sl-vacio"><mat-icon>storefront</mat-icon><strong>Elige una sede.</strong></div>
+  } @else if (!permisos.puedeAdministrar()) {
+    <div class="sl-panel sl-vacio"><mat-icon>lock</mat-icon><strong>Solo el administrador de la sede configura el salón.</strong></div>
+  } @else {
+    @if (error(); as e) { <div class="sl-aviso sl-tono-danger" role="alert"><mat-icon>cloud_off</mat-icon>{{ e }}<button type="button" class="sl-btn sl-btn--chico" (click)="cargarTodo()">Reintentar</button></div> }
+
+    <mat-tab-group animationDuration="150ms">
+      <!-- ── Reglas ─────────────────────────────────────────────────────── -->
+      <mat-tab label="Reglas">
+        <section class="sl-panel" style="margin-top: 12px">
+          <h2><mat-icon>rule</mat-icon>Reglas de atención y visión</h2>
+          <form class="cf-form" (ngSubmit)="guardarReglas()">
+            <label class="sl-campo"><span>Minutos sin atención → alerta</span><input class="sl-input" type="number" min="1" name="minutos_sin_atencion" [ngModel]="reglas().minutos_sin_atencion" (ngModelChange)="campo('minutos_sin_atencion', +$event)" /><small>Mesa ocupada sin personal cerca</small></label>
+            <label class="sl-campo"><span>Minutos para escalar</span><input class="sl-input" type="number" min="1" name="minutos_escalado" [ngModel]="reglas().minutos_escalado" (ngModelChange)="campo('minutos_escalado', +$event)" /><small>Alerta ESCALADO al encargado</small></label>
+            <label class="sl-campo"><span>Minutos para alerta de limpieza</span><input class="sl-input" type="number" min="1" name="minutos_limpieza" [ngModel]="reglas().minutos_limpieza" (ngModelChange)="campo('minutos_limpieza', +$event)" /><small>Mesa POR LIMPIAR sin atender</small></label>
+            <label class="sl-campo"><span>Histéresis ocupada (s)</span><input class="sl-input" type="number" min="1" name="histeresis_ocupada_seg" [ngModel]="reglas().histeresis_ocupada_seg" (ngModelChange)="campo('histeresis_ocupada_seg', +$event)" /><small>Segundos con personas antes de marcar OCUPADA</small></label>
+            <label class="sl-campo"><span>Histéresis libre (s)</span><input class="sl-input" type="number" min="1" name="histeresis_libre_seg" [ngModel]="reglas().histeresis_libre_seg" (ngModelChange)="campo('histeresis_libre_seg', +$event)" /><small>Segundos sin nadie antes de LIBRE / POR LIMPIAR</small></label>
+            <label class="sl-campo"><span>Confianza mínima</span><input class="sl-input" type="number" min="0.05" max="0.95" step="0.05" name="min_confianza" [ngModel]="reglas().min_confianza" (ngModelChange)="campo('min_confianza', +$event)" /><small>Detecciones por debajo se ignoran (0..1)</small></label>
+            <label class="sl-campo"><span>Mesas por mesero</span><input class="sl-input" type="number" min="1" name="mesas_por_mesero" [ngModel]="reglas().mesas_por_mesero ?? 4" (ngModelChange)="campo('mesas_por_mesero', +$event)" /><small>Para la recomendación de meseros</small></label>
+            <label class="sl-check"><input type="checkbox" name="guardar_recorte_alertas" [ngModel]="reglas().guardar_recorte_alertas" (ngModelChange)="campo('guardar_recorte_alertas', $event)" />Guardar recorte (difuminado) de cada alerta 24 h</label>
+          </form>
+          <h3 style="margin-top: 16px"><mat-icon>timelapse</mat-icon>Duración por defecto según personas (min)</h3>
+          <p class="cf-ayuda" style="margin: -6px 0 10px">Se usa para predecir la liberación mientras no haya histórico de la sede.</p>
+          <div class="cf-duraciones">
+            @for (t of tamanos; track t) {
+              <label class="sl-campo"><span>{{ t }}{{ t === '6' ? '+' : '' }} pers.</span><input class="sl-input" type="number" min="5" [name]="'dur' + t" [ngModel]="reglas().duracion_defecto_min[t]" (ngModelChange)="duracion(t, $event)" /></label>
+            }
+          </div>
+          <div class="cf-pie">
+            <button type="button" class="sl-btn sl-btn--primario" (click)="guardarReglas()" [disabled]="guardandoReglas()"><mat-icon>save</mat-icon>Guardar reglas</button>
+          </div>
+        </section>
+      </mat-tab>
+
+      <!-- ── Cámaras ───────────────────────────────────────────────────── -->
+      <mat-tab label="Cámaras">
+        <div class="sl-grid-2" style="margin-top: 12px">
+          <section class="sl-panel">
+            <h2><mat-icon>videocam</mat-icon>Cámaras
+              @if (salud(); as s) {
+                <span class="sl-chip" [class]="s.vision_ok ? 'sl-chip sl-tono-ok' : 'sl-chip sl-tono-danger'" [title]="'Worker ' + (s.worker ?? '—') + ' · latido ' + hace(s.ultimo_latido_en)">
+                  <mat-icon>{{ s.vision_ok ? 'visibility' : 'visibility_off' }}</mat-icon>{{ s.vision_ok ? 'visión OK' : 'sin visión' }}
+                </span>
+                @if (s.alertas_camara) { <span class="sl-chip sl-tono-danger">{{ s.alertas_camara }} alertas de cámara</span> }
+              }
+              <span class="sl-esp"></span>
+              <button type="button" class="sl-btn sl-btn--chico" (click)="cargarCamaras()" title="Actualizar salud"><mat-icon>refresh</mat-icon></button>
+            </h2>
+            @if (!camaras().length) { <div class="sl-vacio"><mat-icon>videocam_off</mat-icon><strong>Sin cámaras.</strong><span class="sl-muted">Da de alta la primera a la derecha.</span></div> }
+            <div class="cf-lista">
+              @for (c of camaras(); track c.id) {
+                <div class="cf-item" [class.cf-item--activo]="camaraEditando()?.id === c.id">
+                  <div class="cf-item-datos">
+                    <strong>{{ c.nombre }} <span class="sl-chip" [class]="'sl-chip ' + tonoSalud(c)">{{ c.activa ? (c.estado_salud ?? 'sin latido') : 'inactiva' }}</span></strong>
+                    <span class="sl-muted">{{ c.usuario ? c.usuario + '@' : '' }}{{ c.host }}{{ c.ruta ?? '' }} · {{ c.fps }} fps pedidos
+                      @if (c.fps_medido !== null) { · {{ c.fps_medido }} fps reales } @if (c.latencia_ms !== null) { · {{ c.latencia_ms }} ms }</span>
+                    <span class="sl-muted">{{ c.mesas_calibradas }} mesas calibradas · worker {{ c.worker ?? '—' }} · latido {{ hace(c.ultimo_latido_en) }}</span>
+                  </div>
+                  <div class="cf-item-acciones">
+                    <button type="button" class="sl-btn sl-btn--chico" (click)="editarCamara(c)" title="Editar"><mat-icon>edit</mat-icon></button>
+                    <button type="button" class="sl-btn sl-btn--chico sl-btn--peligro" (click)="borrarCamara(c)" title="Eliminar"><mat-icon>delete</mat-icon></button>
+                  </div>
+                </div>
+              }
+            </div>
+          </section>
+
+          <section class="sl-panel">
+            <h2><mat-icon>{{ camaraEditando() ? 'edit' : 'add_a_photo' }}</mat-icon>{{ camaraEditando() ? 'Editar ' + camaraEditando()!.nombre : 'Nueva cámara' }}</h2>
+            <form class="cf-form" (ngSubmit)="guardarCamara()" autocomplete="off">
+              <label class="sl-campo" style="grid-column: 1 / -1"><span>Nombre</span><input class="sl-input" name="nombre" required maxlength="80" [ngModel]="camaraForm().nombre" (ngModelChange)="camaraCampo('nombre', $event)" placeholder="Salón principal" /></label>
+              <label class="sl-campo" style="grid-column: 1 / -1"><span>URL RTSP (con usuario y clave)</span>
+                <input class="sl-input" name="url_rtsp" [required]="!camaraEditando()" [ngModel]="camaraForm().url_rtsp" (ngModelChange)="camaraCampo('url_rtsp', $event)" placeholder="rtsp://usuario:clave@192.168.1.20:554/Streaming/Channels/102" />
+                <small>{{ camaraEditando() ? 'Déjala vacía para no cambiarla. ' : '' }}La clave se guarda cifrada y nunca vuelve al panel.</small>
+              </label>
+              <label class="sl-campo"><span>FPS que analiza la visión</span><input class="sl-input" name="fps" type="number" min="0.2" max="10" step="0.1" [ngModel]="camaraForm().fps" (ngModelChange)="camaraCampo('fps', +$event)" /><small>1–2 bastan; más gasta CPU/GPU</small></label>
+              <label class="sl-check"><input type="checkbox" name="activa" [ngModel]="camaraForm().activa" (ngModelChange)="camaraCampo('activa', $event)" />Activa</label>
+              <div class="cf-pie" style="grid-column: 1 / -1">
+                <button type="button" class="sl-btn" (click)="probarCamara()" [disabled]="probando() || !camaraForm().url_rtsp"><mat-icon>{{ probando() ? 'hourglass_top' : 'network_check' }}</mat-icon>Probar conexión</button>
+                <button type="submit" class="sl-btn sl-btn--primario" [disabled]="guardandoCamara() || !camaraForm().nombre"><mat-icon>save</mat-icon>{{ camaraEditando() ? 'Guardar cambios' : 'Crear cámara' }}</button>
+                @if (camaraEditando()) { <button type="button" class="sl-btn" (click)="editarCamara(null)">Cancelar</button> }
+              </div>
+            </form>
+            @if (prueba(); as p) {
+              <div class="sl-aviso cf-prueba" [class]="p.ok ? 'sl-aviso sl-tono-ok cf-prueba' : 'sl-aviso sl-tono-danger cf-prueba'" role="status">
+                <mat-icon>{{ p.ok ? 'check_circle' : 'error' }}</mat-icon>
+                @if (p.ok) { Conecta: {{ p.ancho }}×{{ p.alto }} px, {{ p.latencia_ms }} ms hasta el primer cuadro. }
+                @else { No conecta{{ p.error ? ': ' + p.error : '' }}. }
+              </div>
+            }
+          </section>
+        </div>
+      </mat-tab>
+
+      <!-- ── Salones y mesas ───────────────────────────────────────────── -->
+      <mat-tab label="Salones y mesas">
+        <div class="sl-grid-2" style="margin-top: 12px">
+          <section class="sl-panel">
+            <h2><mat-icon>meeting_room</mat-icon>Salones</h2>
+            <div class="cf-lista">
+              @for (s of salones(); track s.id) {
+                <div class="cf-item" [class.cf-item--activo]="salonId() === s.id">
+                  <button type="button" class="cf-item-datos" style="background: none; border: 0; text-align: left; cursor: pointer; color: inherit; font: inherit" (click)="elegirSalon(s.id)">
+                    <strong>{{ s.nombre }}</strong>
+                    <span class="sl-muted">{{ s.mesas }} mesas · plano {{ s.ancho_plano }}×{{ s.alto_plano }}{{ s.activo ? '' : ' · inactivo' }}</span>
+                  </button>
+                  <div class="cf-item-acciones">
+                    <button type="button" class="sl-btn sl-btn--chico" (click)="editarSalon(s)" title="Editar"><mat-icon>edit</mat-icon></button>
+                    <button type="button" class="sl-btn sl-btn--chico sl-btn--peligro" (click)="borrarSalon(s)" [disabled]="s.mesas > 0" title="Eliminar (solo sin mesas activas)"><mat-icon>delete</mat-icon></button>
+                  </div>
+                </div>
+              }
+            </div>
+            <form class="cf-form" style="margin-top: 14px" (ngSubmit)="guardarSalon()" autocomplete="off">
+              <label class="sl-campo"><span>{{ salonEditando() ? 'Editar salón' : 'Nuevo salón' }}</span><input class="sl-input" name="nombre_salon" required maxlength="80" [ngModel]="salonForm().nombre" (ngModelChange)="salonCampo('nombre', $event)" placeholder="Terraza" /></label>
+              <label class="sl-campo"><span>Ancho del plano</span><input class="sl-input" name="ancho_plano" type="number" min="0.1" step="0.1" [ngModel]="salonForm().ancho_plano" (ngModelChange)="salonCampo('ancho_plano', +$event)" /><small>Proporción, no metros (1 × 0.6 = apaisado)</small></label>
+              <label class="sl-campo"><span>Alto del plano</span><input class="sl-input" name="alto_plano" type="number" min="0.1" step="0.1" [ngModel]="salonForm().alto_plano" (ngModelChange)="salonCampo('alto_plano', +$event)" /></label>
+              <div class="cf-pie">
+                <button type="submit" class="sl-btn sl-btn--primario" [disabled]="guardandoEstructura() || !salonForm().nombre"><mat-icon>save</mat-icon>{{ salonEditando() ? 'Guardar' : 'Crear salón' }}</button>
+                @if (salonEditando()) { <button type="button" class="sl-btn" (click)="editarSalon(null)">Cancelar</button> }
+              </div>
+            </form>
+          </section>
+
+          <section class="sl-panel">
+            <h2><mat-icon>table_restaurant</mat-icon>Mesas de {{ salonActual()?.nombre ?? '…' }}</h2>
+            @if (!salonActual()) {
+              <div class="sl-vacio"><mat-icon>meeting_room</mat-icon><strong>Crea o elige un salón.</strong></div>
+            } @else {
+              <div class="cf-plano" #lienzo [style.aspect-ratio]="proporcion(salonActual())"
+                (pointermove)="moverArrastre($event)" (pointerup)="soltarArrastre($event)" (pointercancel)="soltarArrastre($event)">
+                @for (m of mesasActivas(); track m.id) {
+                  <div class="cf-mesa" [class.cf-mesa--redonda]="m.forma === 'REDONDA'" [class.cf-mesa--activa]="mesaEditando()?.id === m.id"
+                    [style.left]="estiloMesa(m)['left']" [style.top]="estiloMesa(m)['top']" [style.width]="estiloMesa(m)['width']" [style.height]="estiloMesa(m)['height']"
+                    (pointerdown)="empezarArrastre($event, m, lienzo)" [title]="m.nombre + ' · ' + m.capacidad + ' pers.' + (m.tiene_poligono ? ' · calibrada' : ' · sin polígono')">
+                    {{ m.nombre }}
+                  </div>
+                }
+                @if (!mesaEditando() && mesaForm().nombre) {
+                  <div class="cf-mesa" style="opacity: .5; border-style: dashed" [class.cf-mesa--redonda]="mesaForm().forma === 'REDONDA'"
+                    [style.left]="estiloMesa(mesaForm())['left']" [style.top]="estiloMesa(mesaForm())['top']" [style.width]="estiloMesa(mesaForm())['width']" [style.height]="estiloMesa(mesaForm())['height']">{{ mesaForm().nombre }}</div>
+                }
+              </div>
+              <p class="cf-ayuda">Arrastra una mesa para moverla: la posición se guarda al soltar. Clic en una mesa la carga en el formulario.</p>
+
+              <form class="cf-form" style="margin-top: 12px" (ngSubmit)="guardarMesa()" autocomplete="off">
+                <label class="sl-campo"><span>{{ mesaEditando() ? 'Editar mesa ' + mesaEditando()!.nombre : 'Nueva mesa' }}</span><input class="sl-input" name="nombre_mesa" required maxlength="20" [ngModel]="mesaForm().nombre" (ngModelChange)="mesaCampo('nombre', $event)" placeholder="M1" /></label>
+                <label class="sl-campo"><span>Capacidad</span><input class="sl-input" name="capacidad" type="number" min="1" max="30" [ngModel]="mesaForm().capacidad" (ngModelChange)="mesaCampo('capacidad', +$event)" /></label>
+                <label class="sl-campo"><span>Forma</span>
+                  <select class="sl-select" name="forma" [ngModel]="mesaForm().forma" (ngModelChange)="mesaCampo('forma', $event)">
+                    @for (f of formas; track f) { <option [value]="f">{{ f === 'RECTA' ? 'Recta' : 'Redonda' }}</option> }
+                  </select>
+                </label>
+                <label class="sl-campo"><span>X (0..1)</span><input class="sl-input" name="pos_x" type="number" min="0" max="1" step="0.01" [ngModel]="mesaForm().pos_x" (ngModelChange)="mesaCampo('pos_x', +$event)" /></label>
+                <label class="sl-campo"><span>Y (0..1)</span><input class="sl-input" name="pos_y" type="number" min="0" max="1" step="0.01" [ngModel]="mesaForm().pos_y" (ngModelChange)="mesaCampo('pos_y', +$event)" /></label>
+                <label class="sl-campo"><span>Ancho (0..1)</span><input class="sl-input" name="ancho" type="number" min="0.02" max="1" step="0.01" [ngModel]="mesaForm().ancho" (ngModelChange)="mesaCampo('ancho', +$event)" /></label>
+                <label class="sl-campo"><span>Alto (0..1)</span><input class="sl-input" name="alto" type="number" min="0.02" max="1" step="0.01" [ngModel]="mesaForm().alto" (ngModelChange)="mesaCampo('alto', +$event)" /></label>
+                <div class="cf-pie" style="grid-column: 1 / -1">
+                  <button type="submit" class="sl-btn sl-btn--primario" [disabled]="guardandoEstructura() || !mesaForm().nombre"><mat-icon>save</mat-icon>{{ mesaEditando() ? 'Guardar' : 'Crear mesa' }}</button>
+                  @if (mesaEditando(); as m) {
+                    <button type="button" class="sl-btn" (click)="editarMesa(null)">Nueva</button>
+                    <button type="button" class="sl-btn sl-btn--peligro" (click)="borrarMesa(m)"><mat-icon>visibility_off</mat-icon>Desactivar</button>
+                  }
+                </div>
+              </form>
+            }
+          </section>
+        </div>
+      </mat-tab>
+
+      <!-- ── Modo manual ───────────────────────────────────────────────── -->
+      <mat-tab label="Modo manual">
+        <section class="sl-panel cf-manual" style="margin-top: 12px">
+          <h2><mat-icon>pan_tool</mat-icon>Modo manual</h2>
+          <p>Con el modo manual activo el backend <strong>ignora los cambios de estado que manda la visión</strong> y las mesas solo cambian desde el plano o el anfitrión. Sirve cuando una cámara está mal ubicada, en un evento con la distribución cambiada o mientras se calibra. Las observaciones para analítica se siguen guardando.</p>
+          <div class="cf-manual-estado">
+            <span class="sl-chip" [class]="reglas().modo_manual ? 'sl-chip sl-tono-warn' : 'sl-chip sl-tono-ok'"><mat-icon>{{ reglas().modo_manual ? 'pan_tool' : 'visibility' }}</mat-icon>{{ reglas().modo_manual ? 'Manual: la visión no cambia estados' : 'Automático: manda la visión' }}</span>
+          </div>
+          <div>
+            <button type="button" class="sl-btn sl-btn--grande" [class]="reglas().modo_manual ? 'sl-btn sl-btn--grande sl-btn--ok' : 'sl-btn sl-btn--grande sl-btn--warn'" (click)="alternarModoManual()" [disabled]="guardandoReglas()">
+              <mat-icon>{{ reglas().modo_manual ? 'visibility' : 'pan_tool' }}</mat-icon>{{ reglas().modo_manual ? 'Volver al modo automático' : 'Activar modo manual' }}
+            </button>
+          </div>
+          @if (salud(); as s) {
+            <div class="cf-salud">
+              <span class="sl-chip" [class]="s.vision_ok ? 'sl-chip sl-tono-ok' : 'sl-chip sl-tono-danger'"><mat-icon>{{ s.vision_ok ? 'visibility' : 'visibility_off' }}</mat-icon>{{ s.vision_ok ? 'Visión OK' : 'Sin visión' }}</span>
+              <span class="sl-chip sl-tono-neutro">worker {{ s.worker ?? '—' }} · latido {{ hace(s.ultimo_latido_en) }}</span>
+              @for (c of s.camaras; track c.id) { <span class="sl-chip" [class]="'sl-chip ' + tonoSalud(c)">{{ c.nombre }}: {{ c.estado_salud ?? '—' }}</span> }
+            </div>
+          }
+        </section>
+      </mat-tab>
+    </mat-tab-group>
+  }
+</div>

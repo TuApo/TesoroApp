@@ -853,3 +853,16 @@ export class TiendaService {
     return p;
   }
 }
+
+// ── S6 eco-pedidos-kanban (ms-store V44), añadido 2026-11-06 al FINAL del fichero ──
+// Los clientes del tablero, las zonas y el fiado viven en sus páginas como servicios
+// portables (solo dependen de ECO_API_BASE / ECO_TOKEN / ECO_CONTEXTO_TIENDA, ver
+// pages/kanban/eco-portable.ts) para poder montarlos en la app del comercio sin este
+// fichero. Se reexportan aquí para que el resto de TesoroApp los encuentre donde siempre.
+export { TableroApi } from '../pages/kanban/tablero-api.service';
+export type { ColumnaKanban, ColumnaTablero, Semaforo, Tablero, TarjetaPedido } from '../pages/kanban/tablero-api.service';
+export { ZonasApi } from '../pages/zonas/zonas-api.service';
+export type { Cotizacion, ZonaDomicilio } from '../pages/zonas/zonas-api.service';
+export { FiadoApi } from '../pages/fiado/fiado-api.service';
+export type { CuentaFiado, DetalleFiado, MovimientoFiado, RecordatorioFiado, ResumenFiado } from '../pages/fiado/fiado-api.service';
+export { ECO_API_BASE, ECO_CONTEXTO_TIENDA, ECO_TOKEN } from '../pages/kanban/eco-portable';
